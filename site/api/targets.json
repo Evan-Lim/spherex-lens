@@ -13,6 +13,12 @@
       "dec": 4.693333
     },
     {
+      "name": "Betelgeuse",
+      "common": "Betelgeuse",
+      "ra": 88.792938,
+      "dec": 7.407064
+    },
+    {
       "name": "Crab_M1",
       "common": "Crab Nebula (M1)",
       "ra": 83.633083,
@@ -43,6 +49,12 @@
       "dec": -62.679483
     },
     {
+      "name": "Quasar_3C273",
+      "common": "Quasar 3C 273",
+      "ra": 187.277912,
+      "dec": 2.052021
+    },
+    {
       "name": "RW_Aurigae",
       "common": "RW Aurigae",
       "ra": 76.95625,
@@ -55,10 +67,28 @@
       "dec": 66.754722
     },
     {
+      "name": "Ring_M57",
+      "common": "Ring Nebula (M57)",
+      "ra": 283.395833,
+      "dec": 33.029167
+    },
+    {
       "name": "SgrA_star",
       "common": "Sagittarius A*",
       "ra": 266.416817,
       "dec": -29.007825
+    },
+    {
+      "name": "Sirius",
+      "common": "Sirius",
+      "ra": 101.287155,
+      "dec": -16.716116
+    },
+    {
+      "name": "Sombrero_M104",
+      "common": "Sombrero Galaxy (M104)",
+      "ra": 189.997633,
+      "dec": -11.623051
     },
     {
       "name": "TRAPPIST_1",

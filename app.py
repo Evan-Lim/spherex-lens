@@ -329,6 +329,22 @@ def target_statistics(meta, detections, sigma1, sigma2, npix=180,
     snrs = [d["snr"] for d in detections] or [0.0]
     n_known = sum(1 for d in detections if d.get("verdict") == "KNOWN")
     fov_armin = npix * pixscale_arcsec / 60.0
+
+    # A frame that is almost entirely flagged (a saturated naked-eye star, for
+    # instance) leaves no valid pixels to weight, so the inverse-variance noise
+    # collapses to a meaningless number. Report that honestly as "no estimate"
+    # instead of printing 1e+06 as if it were a measurement.
+    def usable(sig):
+        try:
+            sig = float(sig)
+        except (TypeError, ValueError):
+            return None
+        return sig if np.isfinite(sig) and 1e-4 < sig < 1e3 else None
+
+    s1, s2 = usable(sigma1), usable(sigma2)
+    usable_noise = [x for x in (s1, s2) if x is not None]
+    depth = round(5.0 * float(np.mean(usable_noise)), 4) if usable_noise else None
+
     return {
         "n_exposures": n_exposures if n_exposures is not None else len(meta["paths"]),
         "n_epochs": len(set(meta.get("epochs", []))) or 2,
@@ -339,9 +355,12 @@ def target_statistics(meta, detections, sigma1, sigma2, npix=180,
         "npix": npix,
         "fov_arcmin": round(fov_armin, 2),
         "sky_area_deg2": round((fov_armin / 60.0) ** 2, 5),
-        "sigma1": sigma1,
-        "sigma2": sigma2,
-        "depth_5sigma": round(5.0 * float(np.nanmean([sigma1, sigma2])), 4),
+        "sigma1": s1,
+        "sigma2": s2,
+        "noise_note": (None if usable_noise else
+                       "noise estimate degenerate: the frame is almost entirely "
+                       "flagged (saturated star), so no valid pixels are left to weight"),
+        "depth_5sigma": depth,
         "n_detections": len(detections),
         "n_known": n_known,
         "n_candidate": len(detections) - n_known,

@@ -42,8 +42,8 @@ download per (epoch, detector). Each takes ~1 min at IRSA's ~100 KB/s, so a full
 five-target ingest is a ~1 hour job that resumes from cache if it is interrupted
 (`Ctrl-C` is safe; re-running skips finished files).
 
-The eight bonus fields described further down add another ~46 cutouts (~250 MB),
-which is why a complete `data_cache/` is ~700 MB of FITS. Those directories are
+The thirteen bonus fields described further down add another ~60 cutouts (~320 MB),
+which is why a complete `data_cache/` is ~880 MB of FITS. Those directories are
 gitignored -- the repository ships the catalogue JSONs and the pre-rendered
 `site/`, not the pixels.
 
@@ -156,11 +156,23 @@ shapes (live FastAPI or pre-rendered static files):
 
 * **Top bar** -- brand, data release (`NEXUS // SPHEREX-QR2`), status pill
   (`NORMAL OPS · FIELD LOADED` / amber while running / red on error),
-  **Auto Demo** (cycles the five targets every 12 s) and **Reset**.
+  **Guide**, **Auto Demo** (cycles the fields every 12 s) and **Reset**.
+* **Guide** -- a three-tab explainer written for a non-specialist: *How it works*
+  (the camera, subtraction, the five steps, what the map colours mean), *How to
+  use it* (a click-by-click walkthrough of the page) and *The words* (a ten-term
+  glossary). It is plain HTML inside `index.html`, so it works with no backend and
+  ships in the static build; `Esc`, the backdrop or *Got it* closes it.
 * **/01 Target Control** -- target dropdown, RA/Dec, Run Pipeline, Recovery Grid,
   Copy Share Link, the triage verdict and eleven live statistics (exposures,
   epochs, baseline, noise, 5-sigma depth, field/pixel, catalogue counts,
   dipoles/monopoles, ...).
+
+  **Live from IRSA and Open any field need a backend.** Both of them ask a Python
+  process to go and fetch data at query time, so on the pre-rendered static build
+  they are *disabled and labelled as such* (`Live from IRSA -- needs a backend`,
+  with an explanatory line underneath) rather than failing silently. The other 19
+  fields, the maps, the tables, the charts and the recovery grids are all plain
+  JSON in `site/api/` and work with no server at all.
 * **/02 Command Dashboard** -- four metric cards (detections, unaccounted,
   max SNR, baseline days), the interactive map, the detections table and the
   **image sources & provenance** table.
@@ -185,6 +197,10 @@ shapes (live FastAPI or pre-rendered static files):
   wavelength (from the real `WCS-WAVE` table), observation id, UTC date, pixel
   size, file size and a **clickable link to the parent Level-2 file at IRSA**, so
   any pixel on screen can be traced back to its archive record.
+
+The type is **IBM Plex Sans** for interface text and **IBM Plex Mono** for the
+uppercase micro-labels, coordinates and tables -- loaded from Google Fonts with
+system-stack fallbacks, so an offline copy still looks deliberate.
 
 ---
 
@@ -218,11 +234,11 @@ above.
 
 ## Extra fields: famous objects
 
-Beyond the five, the repo also pre-renders eight well-known fields. They are
-ingested with the same code path (2 bands x 2 epochs each, so 4 cutouts apiece)
-and are there to show that the pipeline is not tuned to one kind of target --
-nebulae, a nearby spiral, the Galactic Centre and two famous planet hosts all go
-through it unchanged:
+Beyond the five, the repo also pre-renders thirteen well-known fields. They are
+ingested with the same code path (2-3 bands x 2 epochs, so 2-6 cutouts apiece) and
+are there to show that the pipeline is not tuned to one kind of target -- nebulae,
+spirals, the Galactic Centre, a quasar, the brightest star in the sky and two
+famous planet hosts all go through it unchanged:
 
 | Field key | Object | Type | RA (deg) | Dec (deg) |
 |---|---|---|---|---|
@@ -234,12 +250,18 @@ through it unchanged:
 | `SgrA_star` | Sagittarius A* | Galactic Centre | 266.416817 | -29.007825 |
 | `Proxima_Cen` | Proxima Centauri | M5.5V flare star | 217.428951 | -62.679483 |
 | `TRAPPIST_1` | TRAPPIST-1 | M8V planet host | 346.622400 | -5.041300 |
+| `Betelgeuse` | Betelgeuse | red supergiant | 88.792938 | +7.407064 |
+| `Sirius` | Sirius | brightest star | 101.287155 | -16.716116 |
+| `Sombrero_M104` | Sombrero Galaxy (M104) | spiral galaxy | 189.997633 | -11.623051 |
+| `Ring_M57` | Ring Nebula (M57) | planetary nebula | 283.395833 | +33.029167 |
+| `Quasar_3C273` | Quasar 3C 273 | quasar (z=0.158) | 187.277912 | +2.052021 |
 
 Add them with:
 
 ```bash
 python step1_ingest.py --targets Andromeda_M31 Orion_M42 Pleiades_M45 Crab_M1 \
                               Whirlpool_M51 SgrA_star Proxima_Cen TRAPPIST_1 \
+                              Betelgeuse Sirius Sombrero_M104 Ring_M57 Quasar_3C273 \
                        --epochs firstlast --bands SPHEREX-D1 SPHEREX-D4
 ```
 
@@ -257,13 +279,25 @@ carry the science. What they actually produce (from `site/api/*.json`):
 | Sagittarius A* | 2 | 2 | 7 | 7 | 0 | 12.3 |
 | Proxima Centauri | 4 | 2 | 6 | 4 | 2 | 18.7 |
 | TRAPPIST-1 | 2 | 2 | 0 | 0 | 0 | -- |
+| Betelgeuse | 2 | 2 | 2 | 2 | 0 | 5.1 |
+| Sirius | 6 | 2 | 10 | 10 | 0 | 8.8 |
+| Sombrero (M104) | 6 | 2 | 3 | 3 | 0 | 37.6 |
+| Ring Nebula (M57) | 4 | 2 | 2 | 1 | 1 | 23.8 |
+| Quasar 3C 273 | 6 | 2 | 4 | 3 | 1 | 24.3 |
 
 Read that table honestly and it says something real: in crowded or nebular
 fields the differences almost all land on **catalogued** stars (M1 10/10, Sgr A*
 7/7, M45 6/6), because the residual structure is the PSF of known sources, not new
-objects -- the triage is doing its job. Two fields return nothing at all: M42 is a
-smooth wall of gas with no compact difference, and TRAPPIST-1 only has 2 usable
-cutouts (one band, two epochs) because IRSA kept timing out on that position.
+objects -- the triage is doing its job. Three fields return nothing usable: M42 is a
+smooth wall of gas with no compact difference; TRAPPIST-1 only has 2 usable
+cutouts (one band, two epochs) because IRSA kept timing out on that position; and
+Betelgeuse saturates the detector so completely that after flagging there are
+almost no valid pixels left -- the pipeline now reports *"noise estimate
+degenerate"* rather than printing an absurd 1e+06 as if it were a measurement
+(see `usable()` in `app.py`). A fourth object, the **Large Magellanic Cloud**, was
+tried and dropped: every QR2 row inside a 9' box at Dec -69.8 falls in a single
+visit, so there is no second epoch to subtract (it is one commented-out line in
+`TARGETS`).
 The single-star brief targets, with 12-18 cutouts over 2-3 epochs, are where the
 `CANDIDATE` verdicts are meaningful.
 
@@ -800,7 +834,7 @@ response as a file, then flips the dashboard into static mode
 (`<body data-mode="static">`), so no Python is needed at runtime:
 
 ```bash
-python export_static.py                       # -> site/  (5 brief + 8 famous fields)
+python export_static.py                       # -> site/  (18 fields, ~27 MB JSON)
 python export_static.py --no-recovery         # faster: skip the recovery grids
 python export_static.py --targets WISE_0855 R_Draconis
 ```

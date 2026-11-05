@@ -34,9 +34,56 @@ if (STATIC_MODE && !LIVE_API) {
   fetch('/live-api/targets').then((r) => {
     if (!r.ok) return;
     LIVE_API = '/live-api';
-    const hint = document.getElementById('field-hint');
-    if (hint) hint.textContent = 'live proxy detected \u2014 any field is reachable';
+    syncBackendUi();
   }).catch(() => {});
+}
+
+// Live mode and "open any field" both need a real Python backend. A static
+// deployment usually has none, so say so up front instead of failing silently.
+function backendAvailable() {
+  return !STATIC_MODE || !!LIVE_API;
+}
+
+function syncBackendUi() {
+  const ok = backendAvailable();
+  const toggle = document.getElementById('tog-live');
+  const wrap = document.getElementById('toggle-live-wrap');
+  const label = document.getElementById('tog-live-label');
+  const hint = document.getElementById('live-hint');
+  const fieldBtn = document.getElementById('btn-field');
+  const fieldHint = document.getElementById('field-hint');
+
+  if (toggle) {
+    toggle.disabled = !ok;
+    if (!ok) toggle.checked = false;
+  }
+  if (wrap) wrap.classList.toggle('is-disabled', !ok);
+  if (label) {
+    label.textContent = ok
+      ? 'Live from IRSA (no cache, no download)'
+      : 'Live from IRSA \u2014 needs a backend';
+  }
+  if (hint) {
+    hint.textContent = ok
+      ? (STATIC_MODE ? 'backend reachable: nothing is cached for the live requests'
+                     : 'streams from IRSA on demand, nothing is written to disk')
+      : 'unavailable: this deployment is pre-rendered and has no Python server behind it. '
+        + 'Every field in the dropdown is static JSON. Run app.py locally (or proxy '
+        + 'one) to switch these on.';
+    hint.classList.toggle('hint-warn', !ok);
+  }
+  if (fieldBtn) {
+    fieldBtn.disabled = !ok;
+    fieldBtn.classList.toggle('is-disabled', !ok);
+  }
+  ['field-ra', 'field-dec', 'field-name'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !ok;
+  });
+  if (fieldHint && !ok) {
+    fieldHint.textContent = 'needs a backend \u2014 not available on this static deployment';
+    fieldHint.classList.add('hint-warn');
+  }
 }
 
 // URL of the real pipeline. In a static build this is the proxy prefix.
@@ -565,6 +612,15 @@ async function loadTargets() {
       .join('');
     if (targets.some((t) => t.name === previous)) sel.value = previous;
   } catch (e) { /* keep the hard-coded list */ }
+}
+
+function showGuideTab(name) {
+  document.querySelectorAll('.guide-tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === name);
+  });
+  document.querySelectorAll('.guide-body').forEach((b) => {
+    b.classList.toggle('active', b.dataset.panel === name);
+  });
 }
 
 function setStatus(text, kind) {
@@ -1264,9 +1320,39 @@ function attachUiEvents() {
     drawObjectTable();
   });
 
+  // ------------------------------------------------------------- the guide
+  const guide = $('guide');
+  const openGuide = (tab) => {
+    if (!guide) return;
+    guide.classList.remove('hidden');
+    if (tab) showGuideTab(tab);
+    const first = guide.querySelector('.guide-tab');
+    if (first) first.focus();
+  };
+  const closeGuide = () => { if (guide) guide.classList.add('hidden'); };
+  const btnGuide = $('btn-guide');
+  if (btnGuide) btnGuide.addEventListener('click', () => openGuide('how'));
+  const gc1 = $('guide-close');
+  if (gc1) gc1.addEventListener('click', closeGuide);
+  const gc2 = $('guide-close-2');
+  if (gc2) gc2.addEventListener('click', closeGuide);
+  if (guide) {
+    guide.addEventListener('click', (e) => { if (e.target === guide) closeGuide(); });
+    document.querySelectorAll('.guide-tab').forEach((tab) => {
+      tab.addEventListener('click', () => showGuideTab(tab.dataset.tab));
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeGuide();
+  });
+
   const liveToggle = $('tog-live');
   if (liveToggle) {
     liveToggle.addEventListener('change', (e) => {
+      if (!backendAvailable()) {
+        e.target.checked = false;
+        return;
+      }
       state.live = e.target.checked;
       setText('footer-status', state.live
         ? 'live mode: cutouts are fetched from IRSA and kept in RAM (nothing written to disk)'
@@ -1350,7 +1436,9 @@ function attachUiEvents() {
 async function init() {
   attachUiEvents();
   attachMapEvents();
+  syncBackendUi();
   await loadTargets();
+  syncBackendUi();
   const wanted = new URLSearchParams(window.location.search).get('target');
   if (wanted) {
     const sel = $('target-select');

@@ -70,6 +70,21 @@ TARGETS = {
                     "common": "Proxima Centauri"},
     "TRAPPIST_1": {"ra": 346.622400, "dec": -5.041300, "type": "Mover_M8V",
                    "common": "TRAPPIST-1"},
+    "Betelgeuse": {"ra": 88.792938, "dec": 7.407064, "type": "Variable_Supergiant",
+                   "common": "Betelgeuse"},
+    "Sirius": {"ra": 101.287155, "dec": -16.716116, "type": "Star_A1V",
+               "common": "Sirius"},
+    "Sombrero_M104": {"ra": 189.997633, "dec": -11.623051, "type": "Galaxy_Spiral",
+                      "common": "Sombrero Galaxy (M104)"},
+    "Ring_M57": {"ra": 283.395833, "dec": 33.029167, "type": "Nebula_Planetary",
+                 "common": "Ring Nebula (M57)"},
+    "Quasar_3C273": {"ra": 187.277912, "dec": 2.052021, "type": "Quasar",
+                     "common": "Quasar 3C 273"},
+    # The LMC is deliberately *not* here: the QR2 rows inside a 9' box at
+    # Dec -69.8 all fall in a single visit, so there is nothing to subtract.
+    # step1 keeps it one line away if a later release adds a second epoch.
+    # "LMC": {"ra": 80.894166, "dec": -69.756111, "type": "Galaxy_Dwarf",
+    #         "common": "Large Magellanic Cloud"},
 }
 
 CACHE = os.environ.get("SPHEREX_CACHE", "data_cache")

@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPHERExLens -- Discovery Triage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,6 +23,7 @@
         <span class="dot" id="status-dot"></span>
         <span id="status-text">STANDBY &middot; NO FIELD LOADED</span>
       </span>
+      <button id="btn-guide" class="btn btn-ghost">Guide</button>
       <button id="btn-demo" class="btn btn-ghost">Auto Demo</button>
       <button id="btn-reset" class="btn btn-ghost">Reset</button>
     </div>
@@ -62,10 +66,11 @@
         </button>
         <button id="btn-recovery" class="btn btn-secondary">Recovery Grid</button>
         <button id="btn-export" class="btn btn-secondary">Copy Share Link</button>
-        <label class="toggle toggle-live">
+        <label class="toggle toggle-live" id="toggle-live-wrap">
           <input type="checkbox" id="tog-live">
-          <span>Live from IRSA (no cache, no download)</span>
+          <span id="tog-live-label">Live from IRSA (no cache, no download)</span>
         </label>
+        <div class="hint-inline" id="live-hint"></div>
         <div class="field-add">
           <div class="section-label" style="margin:8px 0 5px">Open any field</div>
           <div class="field-add-row">
@@ -294,6 +299,174 @@
     <span>SPHEREx Level-2 quick release &middot; IRSA/IPAC (Caltech) &middot; Gaia DR3 &amp; AAVSO VSX via VizieR / IRSA TAP</span>
     <span class="mono" id="footer-status">idle</span>
   </footer>
+
+  <!-- ============================ guide overlay ============================ -->
+  <div id="guide" class="guide hidden" role="dialog" aria-modal="true"
+       aria-labelledby="guide-title">
+    <div class="guide-sheet">
+      <div class="guide-head">
+        <div>
+          <div class="guide-kicker">SPHERExLens &middot; explainer</div>
+          <h2 id="guide-title">What is this page, and how do I use it?</h2>
+        </div>
+        <button id="guide-close" class="btn btn-ghost guide-close"
+                aria-label="Close the guide">&times;</button>
+      </div>
+
+      <div class="guide-tabs" id="guide-tabs">
+        <button class="guide-tab active" data-tab="how">1 &middot; How it works</button>
+        <button class="guide-tab" data-tab="use">2 &middot; How to use it</button>
+        <button class="guide-tab" data-tab="words">3 &middot; The words</button>
+      </div>
+
+      <!-- ---------------------------------------------------- how it works -->
+      <section class="guide-body active" data-panel="how">
+        <p class="guide-lead">
+          This page looks for <b>things in space that change</b>. Not things that
+          are pretty -- things that <i>move</i> or <i>flicker</i> between two
+          photographs of the same patch of sky.
+        </p>
+
+        <h3>The camera</h3>
+        <p>
+          NASA's SPHEREx telescope photographs the <b>entire sky</b>, then does it
+          again a few months later, in 102 different shades of infrared. Infrared
+          is light our eyes cannot see, but warm and dusty objects glow in it -- so
+          it is very good at finding cold stars and newborn stars hidden behind dust.
+        </p>
+
+        <h3>The idea: subtraction</h3>
+        <p>
+          Take picture&nbsp;A, take picture&nbsp;B of the same spot, and subtract one
+          from the other. Everything that did not change cancels out and leaves
+          grey. Everything that did change is left standing. This is the oldest
+          trick in astronomy -- find the thing that blinked.
+        </p>
+
+        <h3>The five steps this page runs</h3>
+        <ol class="guide-steps">
+          <li><b>Fetch.</b> Download the telescope images for one patch of sky.</li>
+          <li><b>Average.</b> Stack the clean ones together to beat down the noise
+            (several noisy pictures make one crisp one).</li>
+          <li><b>Subtract.</b> Compare two visits statistically. A real change stands
+            out; random noise averages away.</li>
+          <li><b>Check the catalogues.</b> Ask: is this spot already a known star,
+            known variable, known asteroid? If yes it is <b>KNOWN</b>. If nothing
+            known is there, it is a <b>CANDIDATE</b> -- worth a human look, not yet
+            a discovery.</li>
+          <li><b>Test yourself.</b> Plant fake stars of known brightness into the real
+            image and see whether the pipeline finds them. That tells you how faint
+            a change this page could actually detect.</li>
+        </ol>
+
+        <div class="guide-note">
+          <b>Why the honesty matters.</b> A bright spot in a difference image is not
+          a discovery. It becomes one only after you have checked the catalogues and
+          shown that your detector would have noticed a real object if one were
+          there. That is exactly what the <span class="mono">KNOWN</span> /
+          <span class="mono">CANDIDATE</span> tags and the recovery grid are for.
+        </div>
+
+        <h3>What the colours on the map mean</h3>
+        <p>
+          <span class="swatch-dot green"></span> <b>KNOWN</b> -- the catalogues already
+          have something at that position.
+          <span class="swatch-dot amber"></span> <b>CANDIDATE</b> -- nothing known
+          there; this is the interesting case.
+          <span class="swatch-dot red"></span> the target you selected.
+        </p>
+      </section>
+
+      <!-- ----------------------------------------------------- how to use it -->
+      <section class="guide-body" data-panel="use">
+        <p class="guide-lead">
+          Nothing here can break. There is no login, no order of operations to get
+          wrong, and every panel updates itself.
+        </p>
+
+        <ol class="guide-steps guide-steps-tall">
+          <li>
+            <b>Pick a place in the sky.</b> Use the dropdown at the top of the left
+            column. Barnard's Star is a good one to start with -- it moves faster than
+            any other star in the sky, so the change is real and easy to see.
+          </li>
+          <li>
+            <b>Look at the picture.</b> The left panel shows that patch of sky. Grey
+            is normal sky; a glowing dot is a change between two visits. Use the
+            mouse wheel to zoom, drag to pan, and hover any coloured dot to see what
+            it is.
+          </li>
+          <li>
+            <b>Click a dot.</b> The right-hand panel explains it: how sure we are, how
+            far it moved, and whether something was already known there.
+          </li>
+          <li>
+            <b>Read the table.</b> Every object in the field is listed with a
+            <b>KNOWN</b> or <b>CANDIDATE</b> tag. Type in the search box to find one,
+            or use the filter buttons to see only the unknowns.
+          </li>
+          <li>
+            <b>Switch the view.</b> <span class="mono">SNR / EPOCH-1 / EPOCH-2 /
+            DIFFERENCE</span> shows the raw sky, each visit, and the subtraction
+            itself. The <b>all-sky</b> button puts every field on one map.
+          </li>
+          <li>
+            <b>Press <i>Recovery Grid</i>.</b> How faint a change could this page have
+            found? It plants fake signals and reports which ones it recovered -- the
+            honest measure of the instrument.
+          </li>
+          <li>
+            <b>Turn on <i>Auto Demo</i>.</b> It walks through the fields by itself,
+            which is the fastest way to see what the page does.
+          </li>
+        </ol>
+
+        <h3>Things worth knowing</h3>
+        <ul class="guide-list">
+          <li><b>Live from IRSA</b> and <b>Open any field</b> need a small Python
+            server. This deployment is a static copy of the page, so those two are
+            switched off here -- the labels say so. Everything else runs entirely in
+            your browser from pre-computed files.</li>
+          <li>The fields come in two groups: the five <b>brief targets</b> (single
+            nearby objects -- the ones with the real science), and a set of
+            <b>famous objects</b> -- galaxies, nebulae, a quasar -- included to show
+            that the same steps work on anything.</li>
+          <li>Each field is one small patch of sky: about 9 arcminutes across, roughly
+            a third of the width of the full Moon.</li>
+          <li>Nothing you click is sent anywhere. There is no tracking and no account.</li>
+        </ul>
+      </section>
+
+      <!-- -------------------------------------------------------- the words -->
+      <section class="guide-body" data-panel="words">
+        <dl class="guide-gloss">
+          <div><dt>Field</dt><dd>One patch of sky, about 9 arcminutes across.</dd></div>
+          <div><dt>Epoch</dt><dd>One visit by the telescope. Two epochs = two visits to
+            compare.</dd></div>
+          <div><dt>Exposure</dt><dd>A single photograph. Several are stacked to make
+            one clean image.</dd></div>
+          <div><dt>Band</dt><dd>One colour of infrared light. SPHEREx has 102; this page
+            uses a handful.</dd></div>
+          <div><dt>&sigma; (sigma)</dt><dd>How sure we are. 5&sigma; means "noise would
+            do this about once in 3.5 million tries".</dd></div>
+          <div><dt>KNOWN</dt><dd>The catalogues already list something at that spot.</dd></div>
+          <div><dt>CANDIDATE</dt><dd>Nothing known there. Worth a look -- not yet a
+            discovery.</dd></div>
+          <div><dt>Completeness</dt><dd>What fraction of planted fake objects the
+            pipeline found. Higher is better.</dd></div>
+          <div><dt>Recovery grid</dt><dd>The test that measures completeness across
+            brightness and motion.</dd></div>
+          <div><dt>RA / Dec</dt><dd>The sky's version of longitude and latitude, in
+            degrees.</dd></div>
+        </dl>
+      </section>
+
+      <div class="guide-foot">
+        <span class="mono">data: NASA/IPAC IRSA &middot; SPHEREx Level-2 &middot; Gaia DR3 &middot; VSX</span>
+        <button id="guide-close-2" class="btn btn-primary">Got it</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

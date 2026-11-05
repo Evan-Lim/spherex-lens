@@ -81,11 +81,12 @@ apart from "brightness change".
 
 ### 2.5 The bonus fields (famous objects)
 
-The five above are the brief. The repository also ships eight familiar fields
-ingested by exactly the same code, to prove the pipeline is not tuned to one
-kind of object: **M31 Andromeda**, **M42 the Orion Nebula**, **M45 the
-Pleiades**, **M1 the Crab Nebula**, **M51 the Whirlpool**, **Sgr A\*** at the
-Galactic Centre, **Proxima Centauri** and **TRAPPIST-1**.
+The five above are the brief. The repository also ships thirteen familiar fields
+ingested by exactly the same code, to prove the pipeline is not tuned to one kind
+of object: **M31 Andromeda**, **M42 the Orion Nebula**, **M45 the Pleiades**,
+**M1 the Crab Nebula**, **M51 the Whirlpool**, **M104 the Sombrero**, **M57 the
+Ring Nebula**, **Sgr A\*** at the Galactic Centre, the quasar **3C 273**,
+**Betelgeuse**, **Sirius**, **Proxima Centauri** and **TRAPPIST-1**.
 
 They are deliberately harder in a different way. A red dwarf is a single point
 of light; M42 is a wall of glowing gas, M31 is a galaxy of billions of stars
@@ -100,11 +101,22 @@ not the sky. The numbers, straight from the shipped data: the Crab Nebula gives
 all `KNOWN`. That is the triage doing exactly its job -- a difference image is
 not a discovery until you have checked whether something was already there.
 
-Two fields produce nothing at all, and that is also honest: M42 is smooth glowing
-gas with no compact source that changes between the two epochs, and TRAPPIST-1
-only has 2 usable cutouts (one band, two epochs) because the archive kept timing
-out on that position while this was built. With 12-18 cutouts the single-star
-brief targets are where `CANDIDATE` verdicts actually mean something.
+What works *better* than expected: the Ring Nebula gives one genuine unknown
+(1 `KNOWN`, 1 `CANDIDATE` at 23.8 sigma), and so does the quasar 3C 273 (3 known,
+1 unknown, 24.3 sigma), the Sombrero (37.6 sigma) and M31 (one unknown). Nebulae
+and galaxies are not point sources, so their "changes" are mostly artefacts of the
+PSF -- which is precisely why the catalogue check exists.
+
+Three fields produce nothing usable, and that is also honest. M42 is smooth
+glowing gas with no compact source that changes between the two epochs.
+TRAPPIST-1 only has 2 usable cutouts (one band, two epochs) because the archive
+kept timing out on that position while this was built. Betelgeuse is so bright
+that the detector saturates and almost every pixel gets flagged, leaving nothing
+valid to weight -- so the page reports *"noise estimate degenerate"* instead of
+a nonsense number. And the Large Magellanic Cloud was tried and dropped: at
+Dec -69.8 every QR2 image in a 9' box belongs to the same visit, so there is no
+second epoch to subtract. With 12-18 cutouts the single-star brief targets are
+where `CANDIDATE` verdicts actually mean something.
 
 
 ---
@@ -319,7 +331,12 @@ The screen has two columns and nothing requires a page reload.
   (`spherex_qr2` is the second SPHEREx quick release).
 * **Status pill** -- green `NORMAL OPS - FIELD LOADED` when data is loaded, amber
   while the pipeline runs, red if a request failed.
-* **Auto Demo** -- cycles the five targets every 12 seconds, like a slideshow.
+* **Guide** -- opens a three-tab explainer written for someone who has never
+  looked at an astronomical image: *How it works* (the camera, subtraction, the
+  five steps, what the colours mean), *How to use it* (a click-by-click tour of
+  this exact page) and *The words* (a ten-term glossary). `Esc` or the backdrop
+  closes it. It needs no backend, so it works on the static deployment too.
+* **Auto Demo** -- cycles the fields every 12 seconds, like a slideshow.
   Press again to stop.
 * **Reset** -- restores the default zoom and clears the selection.
 
@@ -395,6 +412,14 @@ are stable at our sensitivity.) And conversely: of the 7 CANDIDATEs, none of the
 is in Gaia, VSX or AllWISE.
 
 ### 5.5 Live mode -- read the sky straight from NASA, store nothing
+
+> **One requirement.** Live mode (and *Open any field*) can only work if a Python
+> server is answering. On the pre-rendered static build there is none, so the
+> checkbox is *disabled* and relabelled **"Live from IRSA -- needs a backend"**,
+> with a line underneath saying so, and the RA/Dec box is greyed out. That is
+> deliberate: a toggle that silently does nothing would be worse. Everything else
+> on the page runs from pre-computed JSON and needs no server at all.
+
 
 There are two ways this app gets its pictures, and the checkbox **"Live from
 IRSA (no cache, no download)"** switches between them:
