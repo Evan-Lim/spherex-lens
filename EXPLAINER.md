@@ -274,13 +274,71 @@ The screen has two columns and nothing requires a page reload.
   unaccounted for, the strongest significance, and the time baseline between the
   two epochs in days.
 * **Live map**: see 5.4.
+* **Epoch pairs**: a line per comparison actually made (E1->E2, E2->E3, E1->E3
+  when there are three epochs), with the number of exposures in each side, the
+  noise of each stack and how many detections that pair produced.
 * **Detections table**: one row per detection (the ten strongest). Clicking a row
   selects it, outlines its marker on the map and fills the verdict panel.
+* **Field catalogue**: *every* object the catalogues know about in the target's
+  15-arcmin surroundings -- 306 objects for WISE 0855, 340 for Barnard's Star --
+  one row each, with the verdict described in section 5.5.
 * **Image sources & provenance**: one row per downloaded FITS file -- epoch,
   detector, central wavelength, observation id, UTC date, pixel size, file size,
   and a link that opens the *parent* Level-2 file on the IRSA server.
 
-### 5.4 The map, and how to play with it
+### 5.4 The Field catalogue panel -- every object, classified
+
+This panel answers a different question from the detections table. The
+detections table asks *"what changed?"*. The catalogue panel asks *"what is in
+this piece of sky, and does SPHEREx see it change?"*
+
+Each row is one physical object:
+
+| Column | Meaning |
+|---|---|
+| **Verdict** | `KNOWN` = it appears in at least one catalogue. `CANDIDATE` = it appears in *no* catalogue, but SPHEREx detected a change there (the follow-up list). |
+| **RA / Dec** | Sky position, in degrees. |
+| **Mag** | Catalogued brightness (Gaia G, or WISE W1 when Gaia has none). |
+| **Catalogues** | which catalogues know this object -- a Gaia star that is also a VSX variable shows both chips, because the two entries are merged into one row. |
+| **Detected** | `yes` if SPHEREx found a significant change at this position, `no change` if the object is stable within our sensitivity. |
+| **SNR** | significance of that change. |
+| **Pair** | which epoch pair saw it (E1->E2, E1->E3, ...). |
+
+The filter buttons (**All / Known / Candidate / Detected**) re-count themselves
+every time a target loads. Click a row to ring that object on the map; objects
+that fall outside the 9-arcmin map are shown dimmed with the note *outside the
+9' map*, because the catalogues were queried over a wider 15-arcmin cone than
+the map displays.
+
+Why this matters: it turns the tool from "here are some blobs" into a
+**completeness statement**. You can ask: of the 340 catalogued objects in
+Barnard's Star's field, how many did SPHEREx see change? (A handful -- most stars
+are stable at our sensitivity.) And conversely: of the 7 CANDIDATEs, none of them
+is in Gaia, VSX or AllWISE.
+
+### 5.5 Live mode -- read the sky straight from NASA, store nothing
+
+There are two ways this app gets its pictures, and the checkbox **"Live from
+IRSA (no cache, no download)"** switches between them:
+
+* **Cache mode (default).** The cutouts were downloaded once into
+  `data_cache/` and are re-read from your disk. Fast (about one second),
+  works offline, but takes ~200 MB of storage.
+* **Live mode.** The app asks IRSA for each cutout, reads the FITS file
+  *straight out of the network response in memory*, and runs the pipeline on
+  it. Nothing is ever written to disk. The first request for a target takes
+  roughly half a minute to a minute and a half (it fetches several 5 MB files
+  in parallel); after that the answer is held in RAM for half an hour, so
+  pressing the button again takes about a second.
+
+Why not always live? Because IRSA is a shared public archive: it takes about a
+minute to cut one file out of a 70 MB image, and it throttles clients that ask
+for too much too fast. For a demo you want the cache; for "is this still the
+latest data?" you want live. Both produce exactly the same numbers, and live
+rows in the provenance table are labelled `live:<observation id>` with the same
+clickable IRSA link.
+
+### 5.6 The map, and how to play with it
 
 The map is a small interactive canvas, not a static picture.
 
@@ -388,6 +446,13 @@ Gaia DR3 300 / VSX 47 entries cross-matched`.
 * **The map is not a photograph.** The colours are a stretch applied to
   surface-brightness values; only the *relative* pattern is meaningful, and the
   readout gives the actual number under the cursor.
+* **"All the images" means all images of this patch of sky.** For one target the
+  pipeline now ingests every detector (D1-D6) and every epoch the archive holds:
+  up to 18 cutouts, ~95 MB. The full mission is millions of 72 MB exposures, so
+  covering the whole sky is a data-centre job, not a laptop one. The code scales
+  the same way (one SIA2 cone per field, or bulk access through the public
+  `nasa-irsa-spherex` S3 bucket), and its memory use does not grow: it only ever
+  holds one 180x180 stack at a time.
 * **The demo cache is synthetic.** Files named `demo_*.fits` in
   `data_cache_demo/` are generated by `make_demo_data.py` for offline work and
   must never be presented as NASA data.
@@ -450,6 +515,9 @@ pipeline can see.
 In principle this is the right *technique* (subtract two epochs, look for a moving
 dot). In practice a 9' field, two bands and two epochs is a toy version: real
 searches use many fields, many epochs and much deeper images.
+
+**Can it work without downloading anything?**
+Yes -- tick *Live from IRSA*. The cutouts are fetched and parsed in memory and nothing is saved. The cost is time: the first look at a target is dominated by IRSA's cutout service (tens of seconds), after which the result is cached in RAM for 30 minutes.
 
 **How long does a page take to load?**
 The FastAPI version runs the whole pipeline per request: a few seconds for four

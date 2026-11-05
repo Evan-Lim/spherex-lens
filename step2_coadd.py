@@ -58,11 +58,18 @@ def make_target_wcs(ra_deg, dec_deg, npix=180, pixscale_arcsec=3.0):
     return w
 
 
-def load_exposure(path):
+def load_exposure(source):
     """
     Read IMAGE, FLAGS, VARIANCE and WCS from a SPHEREx cutout.
+
+    `source` may be a path on disk *or* raw FITS bytes held in memory, which is
+    what live mode uses: the cutout is fetched from IRSA, parsed straight from
+    the response and never written to disk.
     """
-    with fits.open(path) as hdul:
+    import io
+
+    handle = io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source
+    with fits.open(handle) as hdul:
         if "IMAGE" in hdul:
             img_hdu = hdul["IMAGE"]
         else:

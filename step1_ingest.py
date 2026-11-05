@@ -66,8 +66,10 @@ IRSA_TAP_SYNC = "https://irsa.ipac.caltech.edu/TAP/sync"
 VIZIER_MIRRORS = ("vizier.cfa.harvard.edu",
                  )
 
-# One short-wavelength and one mid-wavelength array per epoch.
-DEFAULT_BANDS = ("SPHEREx-D1", "SPHEREx-D4")
+# Every SPHEREx detector array, so a field can be co-added in all six bands.
+# Override with --bands for a quick two-band run.
+DEFAULT_BANDS = ("SPHEREx-D1", "SPHEREx-D2", "SPHEREx-D3",
+                 "SPHEREx-D4", "SPHEREx-D5", "SPHEREx-D6")
 
 VOTABLE_NS = "{http://www.ivoa.net/xml/VOTable/v1.3}"
 
@@ -193,15 +195,21 @@ def interior_distance_deg(ra, dec, polygon):
     return dmin if inside else -dmin
 
 
-def select_exposures(rows, ra, dec, bands=DEFAULT_BANDS, per_slot=3):
+def select_exposures(rows, ra, dec, bands=DEFAULT_BANDS,
+                     epoch_mode="all", per_slot=2):
     """
-    Order candidate images for each (epoch, band) slot.
+    Build one candidate list per (epoch, band) slot.
 
-    The first image of an epoch is not always usable: the target can sit close
-    to the detector edge, so IRSA returns a clipped strip that does not contain
-    it, and a whole detector can be flagged out.  Candidates are therefore
-    ranked by how deep inside their footprint the target lies (from the SIA2
-    s_region polygon) and the caller validates them one by one.
+    epoch_mode="all"       -> every observing epoch present in the archive
+    epoch_mode="firstlast" -> only the first and the last epoch (the quick mode)
+
+    Candidates inside a slot are ranked by how deep inside their footprint the
+    target lies (from the SIA2 s_region polygon), because IRSA returns a clipped
+    strip without the target in it whenever the requested box runs off the edge
+    of the detector array.  The caller validates each candidate and moves on to
+    the next one if it is unusable.
+
+    Returns (slots, n_epochs) where each slot is (epoch_number, [rows]).
     """
     usable = [r for r in rows
               if r.get("dataproduct_type") == "image"
@@ -210,12 +218,13 @@ def select_exposures(rows, ra, dec, bands=DEFAULT_BANDS, per_slot=3):
     if not groups:
         return [], 0
 
-    picked = [groups[0]] if len(groups) == 1 else [groups[0], groups[-1]]
+    if epoch_mode == "firstlast" and len(groups) > 1:
+        groups = [groups[0], groups[-1]]
+
     slots = []
-    for group in picked:
+    for epoch_index, group in enumerate(groups, start=1):
         for band in bands:
-            in_band = [r for r in group if r.get("energy_bandpassname") == band]
-            pool = in_band if in_band else group
+            pool = [r for r in group if r.get("energy_bandpassname") == band]
             deeper = [r for r in pool
                       if (interior_distance_deg(ra, dec,
                                                 _parse_s_region(r.get("s_region")))
@@ -223,7 +232,8 @@ def select_exposures(rows, ra, dec, bands=DEFAULT_BANDS, per_slot=3):
             pool = deeper or pool
             pool = sorted(pool, key=lambda r: -(interior_distance_deg(
                 ra, dec, _parse_s_region(r.get("s_region"))) or -1))
-            slots.append(pool[:per_slot])
+            if pool:
+                slots.append((epoch_index, pool[:per_slot]))
     return slots, len(groups)
 
 
@@ -350,24 +360,25 @@ def describe_sources(paths, epochs, rows, collection, size_deg):
 
 def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
                              size_deg=0.2, bands=DEFAULT_BANDS,
-                             overwrite=False):
+                             epoch_mode="all", overwrite=False):
     """
     Query SIA2 for SPHEREx Level-2 images and download validated cutouts.
 
     For every (epoch, band) slot the candidate images are tried in order of
-    footprint-centre distance until one yields a cutout that contains the
-    target and is not mostly flagged.
+    footprint-centre distance until one yields a cutout that contains the target
+    and is not mostly flagged.
 
-    Returns (local paths, number of SIA2 rows, number of epochs found).
+    Returns (paths, epochs, n_sia2_rows, n_epochs); epochs[i] is the 1-based
+    epoch of paths[i], so a ZOGY split stays exact even with partial epochs.
     """
     rows = query_sia2(ra, dec, radius_deg=radius_deg, collection=collection)
-    slots, n_epochs = select_exposures(rows, ra, dec, bands=bands)
+    slots, n_epochs = select_exposures(rows, ra, dec, bands=bands,
+                                       epoch_mode=epoch_mode)
     print(f"  {n_epochs} epoch(s), {len(slots)} (epoch, band) slot(s).")
 
     paths = []
     epochs = []
-    for slot_index, candidates in enumerate(slots):
-        epoch = slot_index // max(1, len(bands))
+    for epoch, candidates in slots:
         ordered = sorted(
             candidates,
             key=lambda r: _separation_deg(ra, dec,
@@ -381,12 +392,12 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
             ok, reason = validate_cutout(fname, ra, dec)
             band = row.get("energy_bandpassname", "?")
             if ok:
-                print(f"    accepted epoch {epoch + 1} {band} "
+                print(f"    accepted epoch {epoch} {band} "
                       f"({os.path.basename(fname)})")
                 paths.append(fname)
-                epochs.append(epoch + 1)
+                epochs.append(epoch)
                 break
-            print(f"    rejected epoch {epoch + 1} {band}: {reason}")
+            print(f"    rejected epoch {epoch} {band}: {reason}")
         time.sleep(1)
     return paths, epochs, len(rows), n_epochs
 
@@ -394,7 +405,7 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
 # ---------------------------------------------------------------------------
 # Download catalogs via VizieR
 # ---------------------------------------------------------------------------
-def query_irsa_tap_gaia(ra, dec, radius_deg, limit=300):
+def query_irsa_tap_gaia(ra, dec, radius_deg, limit=5000):
     """
     Gaia DR3 cone search through IRSA's TAP service.
 
@@ -473,7 +484,7 @@ def download_catalogs(ra, dec, radius_arcmin=15):
             continue
         for mirror in VIZIER_MIRRORS:
             try:
-                viz = Vizier(row_limit=300, columns=cols)
+                viz = Vizier(row_limit=2000, columns=cols)
                 viz.VIZIER_SERVER = mirror
                 viz.TIMEOUT = 30
                 res = viz.query_region(coord, radius=radius_arcmin * u.arcmin,
@@ -533,6 +544,9 @@ def main():
     parser.add_argument("--size", type=float, default=0.2,
                         help="cutout width/height in degrees")
     parser.add_argument("--bands", nargs="*", default=list(DEFAULT_BANDS))
+    parser.add_argument("--epochs", choices=["all", "firstlast"],
+                        default="all",
+                        help="use every epoch, or only first and last")
     parser.add_argument("--targets", nargs="*", default=None)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--skip-catalogs", action="store_true")
@@ -548,6 +562,7 @@ def main():
             collection=args.collection,
             size_deg=args.size,
             bands=tuple(args.bands),
+            epoch_mode=args.epochs,
             overwrite=args.overwrite,
         )
         cats = ({"gaia": [], "wise": [], "vsx": []} if args.skip_catalogs

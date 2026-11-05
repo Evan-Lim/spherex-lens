@@ -18,6 +18,103 @@ and a deployable dashboard.
 
 ---
 
+## How much data does it use?
+
+`step1_ingest.py` now ingests **every detector and every epoch** available for a
+target, not just a 2-band subset:
+
+```bash
+python step1_ingest.py                       # QR2, all six bands, all epochs
+python step1_ingest.py --epochs firstlast    # quick mode: first + last epoch only
+python step1_ingest.py --bands SPHEREx-D1 SPHEREx-D4
+```
+
+| Target | SIA2 rows | Epochs in the archive | Full ingest (6 bands x epochs) |
+|---|---|---|---|
+| Barnard's Star | 273 | 2 | 12 cutouts / ~64 MB |
+| Epsilon Indi B | 362 | 3 | 18 cutouts / ~95 MB |
+| RW Aurigae | 250 | 2 | 12 cutouts / ~64 MB |
+| R Draconis | 591 | 3 | 18 cutouts / ~95 MB |
+| WISE 0855 | 278 | 3 | 18 cutouts / ~95 MB |
+
+That is the *whole dataset for a 9-arcminute field*: ~78 cutouts, ~410 MB, one
+download per (epoch, detector). Each takes ~1 min at IRSA's ~100 KB/s, so a full
+five-target ingest is a ~1 hour job that resumes from cache if it is interrupted
+(`Ctrl-C` is safe; re-running skips finished files).
+
+**Every epoch is used.** `app.py` co-adds each epoch separately and runs ZOGY on
+each *consecutive* pair (E1->E2, E2->E3, ...) plus the deep pair E1->En, then
+merges duplicate detections (same position within 2 pixels, keeping the highest
+SNR). The map shows the deepest baseline; the *Epoch pairs* panel lists what each
+pair produced.
+
+**The whole catalogue is used too.** The object browser lists **every** catalogue
+entry in the target's 15' cone (Gaia DR3, VSX, AllWISE where available), not a
+sample: 306 objects for WISE 0855, 340 for Barnard's Star. Each row is one
+physical object with a verdict:
+
+* **KNOWN** -- it is in at least one catalogue. The `Detected` column says whether
+  SPHEREx also saw it change, and `SNR` gives that significance.
+* **CANDIDATE** -- it is in *no* catalogue but SPHEREx detected a change there:
+  the follow-up list.
+* Entries appearing in several catalogues (a Gaia star that is also a VSX
+  variable) are merged into one row listing all of them; entries outside the 9'
+  map are flagged and drawn dimmed.
+
+What "all of SPHEREx" would mean beyond one field: the mission is ~72 MB per
+exposure and millions of exposures. The same code scales by looping targets
+(SIA2 cone per field), or by querying in bulk through the public S3 bucket
+(`nasa-irsa-spherex`) / TAP instead of one cutout at a time — the pipeline never
+holds more than one epoch stack (180x180) in memory.
+
+### Live mode -- no downloads at all
+
+The dashboard can also skip `data_cache/` entirely: it asks IRSA for the cutout,
+parses the FITS **from the HTTP response in memory**, and never writes a byte to
+disk. In the UI it is the checkbox **"Live from IRSA (no cache, no download)"**;
+over HTTP it is a query parameter:
+
+```bash
+curl 'http://localhost:8000/api/dashboard?target=WISE_0855&source=live'
+curl 'http://localhost:8000/api/dashboard?target=WISE_0855&source=live&live_slots=2'   # quick demo
+```
+
+```
+GET /api/dashboard
+  source=cache|cache      read data_cache/ (default, ~10 ms)
+  source=live             SIA2 cone -> IRSA cutout service -> RAM -> pipeline
+  live_slots=N            0 = every slot; 2 = first two (fast demo)
+  live_size=0.2           cutout width in degrees
+  live_epochs=firstlast   or "all"
+```
+
+How it is implemented (`live_ingest.py`): the SIA2 rows are selected exactly as
+in the ingest step (footprint polygon, epoch split), the cutouts are fetched
+**concurrently** (4 worker threads), validated in memory (target inside the
+array, FLAGS mask acceptable), and handed to `coadd_detector()` as raw bytes —
+`load_exposure()` and `extract_spectrum_from_cutout()` both accept a path *or*
+bytes.
+
+| | cached files | live streaming |
+|---|---|---|
+| first response | ~1 s | **30-90 s** (parallel IRSA fetches) |
+| repeat response | ~1 s | **~1.3 s** (TTL cache in RAM, default 30 min) |
+| disk used | ~200 MB | **0 bytes** |
+| freshness | as of the last ingest | always current |
+| works offline | yes | no |
+
+Tuning knobs: `SPHEREX_LIVE_TTL` (seconds, default 1800) and
+`SPHEREX_LIVE_BANDS` (default `SPHEREx-D1,SPHEREx-D4`). Live results are
+identical in shape to cached ones, and their provenance rows are labelled
+`live:<obs_id>` with the same IRSA link, so you can still trace every pixel.
+
+Honest limits: IRSA's cutout service takes ~1 min per cutout and it throttles
+bursty clients, so a live five-target demo is not something to do in front of a
+judge unless the RAM cache is already warm. That is exactly why the cached path
+is the default and the static build exists.
+
+---
+
 ## The dashboard
 
 `static/` is a two-column RefractID-style console that works in both deployment
@@ -640,6 +737,7 @@ spherex-lens/
 ├── make_demo_data.py        # optional: synthetic offline demo cache
 ├── make_figures.py          # optional: renders figures/ from the cache
 ├── EXPLAINER.md             # plain-language guide to the whole project
+├── live_ingest.py          # optional: stream cutouts from IRSA into RAM (no disk)
 ├── export_static.py         # optional: pre-renders site/ for Netlify/Vercel
 ├── site/                    # static build output (index.html + api/*.json)
 ├── Dockerfile               # full app container (Render/Railway/Fly/Cloud Run)

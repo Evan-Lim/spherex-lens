@@ -680,3 +680,63 @@ tbody tr.selected td { background: var(--blue-soft); }
   .brand-sub { display: none; }
 }
 
+
+/* ------------------------ catalogue object browser ----------------------- */
+
+.object-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.control-input {
+  flex: 1 1 200px;
+  min-width: 140px;
+  height: 30px;
+  padding: 0 9px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+}
+.control-input:focus { outline: 2px solid #bfe0f2; outline-offset: -1px; }
+
+.objects-table td:nth-child(2),
+.objects-table td:nth-child(3),
+.objects-table td:nth-child(4),
+.objects-table td:nth-child(7) {
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.cat-chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .06em;
+  padding: 1px 5px;
+  margin-right: 3px;
+  border-radius: 2px;
+  border: 1px solid var(--line-strong);
+  color: var(--text-soft);
+  background: #f8fafc;
+}
+.cat-chip.gaia { border-color: #bfd4f7; color: #1d4ed8; background: #eef4ff; }
+.cat-chip.vsx { border-color: #f0d9ae; color: #b45309; background: var(--amber-soft); }
+.cat-chip.wise { border-color: #bfe8d2; color: #0b7a44; background: var(--green-soft); }
+
+.objects-table tr.off-map td { color: var(--muted); opacity: .72; }
+.objects-table tr.off-map td:nth-child(1) .badge { opacity: .85; }
+
+.toggle-live {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 2px;
+  color: var(--text-soft);
+}
+.toggle-live input:checked + span { color: var(--blue); font-weight: 600; }

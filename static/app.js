@@ -16,7 +16,10 @@ function apiUrl(kind, target) {
     const suffix = target ? `-${encodeURIComponent(target)}` : '';
     return `${dir}/${kind}${suffix}.json`;
   }
-  const query = target ? `?target=${encodeURIComponent(target)}` : '';
+  const params = [];
+  if (target) params.push(`target=${encodeURIComponent(target)}`);
+  if (state.live && kind === 'dashboard') params.push('source=live');
+  const query = params.length ? `?${params.join('&')}` : '';
   return `${API_BASE}/api/${kind}${query}`;
 }
 
@@ -96,6 +99,7 @@ const state = {
   selected: -1,
   demo: null,
   crosshair: null,
+  live: false,
 };
 
 // ------------------------------------------------------- layer rasterisation
@@ -242,6 +246,17 @@ function draw() {
   if (state.overlays.grid) drawGrid(ctx, tx, ty, side, npix);
   if (state.overlays.catalog) drawCatalogs(ctx);
   if (state.overlays.detections) drawDetections(ctx);
+  if (state.highlight) {
+    const { cx, cy } = toCanvas(state.highlight.x, state.highlight.y);
+    ctx.save();
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
   if (state.crosshair) drawCrosshair(ctx);
 }
 
@@ -560,6 +575,108 @@ function renderTable(dets) {
 }
 
 
+// ------------------------------------------------------- catalogue browser
+
+state.objects = [];
+state.objectFilter = 'all';
+state.objectQuery = '';
+state.highlight = null;      // {x, y} of the selected catalogue object
+
+function renderPairs(data) {
+  const pairs = data.epoch_pairs || [];
+  const out = $('pairs-out');
+  if (!pairs.length) {
+    out.textContent = 'no epoch pairs available';
+    return;
+  }
+  out.style.whiteSpace = 'pre-line';
+  out.textContent = pairs.map((p) =>
+    `${p.pair.padEnd(7)} ${String(p.n_exposures_a).padStart(2)}+${String(p.n_exposures_b).padStart(2)} exp` +
+    `   sigma ${p.sigma_a.toFixed(4)} / ${p.sigma_b.toFixed(4)}` +
+    `   -> ${p.n_detections} detection${p.n_detections === 1 ? '' : 's'}`
+  ).join('\n');
+}
+
+function renderObjects(data) {
+  state.objects = data.field_objects || [];
+  const counts = data.catalog_counts || {};
+  const known = state.objects.filter((o) => o.verdict === 'KNOWN').length;
+  const cand = state.objects.filter((o) => o.verdict === 'CANDIDATE').length;
+  const det = state.objects.filter((o) => o.detected).length;
+
+  const offMap = state.objects.filter((o) => o.in_field === false).length;
+  setText('objects-hint',
+    `${state.objects.length} objects (${state.objects.length - offMap} on the map` +
+    (offMap ? `, ${offMap} outside)` : ')') +
+    (counts.gaia ? ` - Gaia ${counts.gaia}` : '') +
+    (counts.vsx ? ` - VSX ${counts.vsx}` : '') +
+    (counts.wise ? ` - AllWISE ${counts.wise}` : ''));
+
+  const label = { all: 'all', known: 'known', candidate: 'candidate', detected: 'detected' };
+  document.querySelectorAll('#object-filter .seg').forEach((b) => {
+    b.dataset.count = { all: state.objects.length, known, candidate: cand, detected: det }[b.dataset.filter];
+    b.textContent = `${b.textContent.split(' (')[0]} (${b.dataset.count})`;
+  });
+  drawObjectTable();
+}
+
+function drawObjectTable() {
+  const tbody = $('objects-body');
+  const q = state.objectQuery.trim().toLowerCase();
+  let rows = state.objects.slice();
+  if (state.objectFilter === 'known') rows = rows.filter((o) => o.verdict === 'KNOWN');
+  if (state.objectFilter === 'candidate') rows = rows.filter((o) => o.verdict === 'CANDIDATE');
+  if (state.objectFilter === 'detected') rows = rows.filter((o) => o.detected);
+  if (q) {
+    rows = rows.filter((o) =>
+      (o.name || '').toLowerCase().includes(q) ||
+      (o.type || '').toLowerCase().includes(q) ||
+      o.catalogs.join(',').toLowerCase().includes(q) ||
+      `${o.ra.toFixed(4)}`.includes(q) ||
+      `${o.dec.toFixed(4)}`.includes(q));
+  }
+
+  setText('objects-count', `${rows.length} shown`);
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No objects match this filter</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.slice(0, 400).map((o, i) => {
+    const cls = o.verdict === 'KNOWN' ? 'badge-known' : 'badge-candidate';
+    const cats = (o.catalogs || []).map((c) =>
+      `<span class="cat-chip ${fmt.escape(c)}">${fmt.escape(c)}</span>`).join('') || '\u2014';
+    const mag = (o.mag === null || o.mag === undefined) ? '\u2014' : o.mag.toFixed(2);
+    const seen = o.detected ? 'yes' : 'no change';
+    const snr = o.snr ? o.snr.toFixed(1) : '\u2014';
+    const off = o.in_field === false ? ' off-map' : '';
+    return `<tr data-i="${state.objects.indexOf(o)}" class="${off}">
+      <td><span class="badge ${cls}">${fmt.escape(o.verdict)}</span></td>
+      <td>${fmt.num(o.ra, 4)}</td>
+      <td>${fmt.num(o.dec, 4)}</td>
+      <td>${mag}</td>
+      <td>${cats}</td>
+      <td>${seen}</td>
+      <td>${snr}</td>
+      <td>${fmt.escape(o.pair || '\u2014')}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach((tr) => {
+    tr.addEventListener('click', () => {
+      const obj = state.objects[parseInt(tr.dataset.i, 10)];
+      state.highlight = (obj && obj.in_field !== false) ? { x: obj.x, y: obj.y } : null;
+      draw();
+      if (!obj) return;
+      setText('footer-status', obj.in_field === false
+        ? `${obj.verdict} at ${obj.ra.toFixed(3)}, ${obj.dec.toFixed(3)} -- outside the 9' map`
+        : `selected ${obj.verdict} at ${obj.ra.toFixed(4)}, ${obj.dec.toFixed(4)}`);
+    });
+  });
+}
+
+
 function renderProvenance(data) {
   const rows = data.provenance || [];
   const tbody = $('sources-body');
@@ -639,6 +756,8 @@ async function runPipeline() {
     renderCards(data);
     renderStats(data);
     renderTable(data.detections);
+    renderPairs(data);
+    renderObjects(data);
     renderProvenance(data);
     renderVerdict(data.detections[0] || null);
     if (state.selected >= 0) {
@@ -715,6 +834,14 @@ function toggleDemo() {
 
 function resetAll() {
   if (state.demo) toggleDemo();
+  state.highlight = null;
+  state.objectFilter = 'all';
+  state.objectQuery = '';
+  const search = $('object-search');
+  if (search) search.value = '';
+  document.querySelectorAll('#object-filter .seg').forEach((b) =>
+    b.classList.toggle('active', b.dataset.filter === 'all'));
+  drawObjectTable();
   state.selected = -1;
   state.crosshair = null;
   if (state.data) {
@@ -766,6 +893,30 @@ function attachUiEvents() {
       draw();
     });
   });
+
+  document.querySelectorAll('#object-filter .seg').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#object-filter .seg').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.objectFilter = btn.dataset.filter;
+      drawObjectTable();
+    });
+  });
+  $('object-search').addEventListener('input', (e) => {
+    state.objectQuery = e.target.value;
+    drawObjectTable();
+  });
+
+  const liveToggle = $('tog-live');
+  if (liveToggle) {
+    liveToggle.addEventListener('change', (e) => {
+      state.live = e.target.checked;
+      setText('footer-status', state.live
+        ? 'live mode: cutouts are fetched from IRSA and kept in RAM (nothing written to disk)'
+        : 'cache mode: reading data_cache/');
+      runPipeline();
+    });
+  }
 
   $('tog-grid').addEventListener('change', (e) => { state.overlays.grid = e.target.checked; draw(); });
   $('tog-cat').addEventListener('change', (e) => { state.overlays.catalog = e.target.checked; draw(); });

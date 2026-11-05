@@ -7,6 +7,8 @@ indices: methane absorption, water absorption, and the near-infrared
 continuum slope.
 """
 
+import io
+
 import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -63,7 +65,9 @@ def wavelength_at(cutout_path, ra, dec):
     the spectral calibration (the provenance table, the metadata endpoint) do
     not have to run aperture photometry.
     """
-    with fits.open(cutout_path) as hdul:
+    handle = (io.BytesIO(cutout_path)
+              if isinstance(cutout_path, (bytes, bytearray)) else cutout_path)
+    with fits.open(handle) as hdul:
         hdu = hdul["IMAGE"] if "IMAGE" in hdul else hdul[0]
         wcs = WCS(hdu.header)
         try:
@@ -87,7 +91,9 @@ def extract_spectrum_from_cutout(cutout_path, ra, dec, aperture_radius_pix=3):
     the aperture (from CWAVE when present, else from the real WCS-WAVE lookup
     table) and the pixel coordinates of the aperture centre.
     """
-    with fits.open(cutout_path) as hdul:
+    handle = (io.BytesIO(cutout_path)
+              if isinstance(cutout_path, (bytes, bytearray)) else cutout_path)
+    with fits.open(handle) as hdul:
         if "IMAGE" in hdul:
             img = hdul["IMAGE"].data.astype(float)
             wcs = WCS(hdul["IMAGE"].header)

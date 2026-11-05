@@ -62,6 +62,10 @@
         </button>
         <button id="btn-recovery" class="btn btn-secondary">Recovery Grid</button>
         <button id="btn-export" class="btn btn-secondary">Copy Share Link</button>
+        <label class="toggle toggle-live">
+          <input type="checkbox" id="tog-live">
+          <span>Live from IRSA (no cache, no download)</span>
+        </label>
       </div>
 
       <div class="section">
@@ -172,6 +176,11 @@
       </div>
 
       <div class="section">
+        <div class="section-label">Epoch pairs <span class="hint-inline">every epoch vs every next epoch</span></div>
+        <div id="pairs-out" class="mono-box">run the pipeline to compare epochs</div>
+      </div>
+
+      <div class="section">
         <div class="section-label">Detections <span class="hint-inline">click a row to inspect</span></div>
         <div class="table-wrap">
           <table class="detections-table">
@@ -182,6 +191,38 @@
             </thead>
             <tbody id="detections-body">
               <tr><td colspan="7" class="empty">No detections yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">
+          Field catalogue <span class="hint-inline" id="objects-hint">every catalogue entry in the field</span>
+        </div>
+
+        <div class="object-toolbar">
+          <div class="segmented" id="object-filter">
+            <button class="seg active" data-filter="all">All</button>
+            <button class="seg" data-filter="known">Known</button>
+            <button class="seg" data-filter="candidate">Candidate</button>
+            <button class="seg" data-filter="detected">Detected</button>
+          </div>
+          <input id="object-search" class="control-input" type="search"
+                 placeholder="filter by name, RA or catalogue &hellip;">
+          <span class="hint-inline" id="objects-count">--</span>
+        </div>
+
+        <div class="table-wrap">
+          <table class="objects-table">
+            <thead>
+              <tr>
+                <th>Verdict</th><th>RA</th><th>Dec</th><th>Mag</th>
+                <th>Catalogues</th><th>Detected</th><th>SNR</th><th>Pair</th>
+              </tr>
+            </thead>
+            <tbody id="objects-body">
+              <tr><td colspan="8" class="empty">Run the pipeline to load the catalogue</td></tr>
             </tbody>
           </table>
         </div>

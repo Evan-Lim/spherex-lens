@@ -20,6 +20,7 @@ from step3_zogy import zogy, find_detections
 from step4_triage import triage
 from step5_spectrum import extract_spectrum_from_cutout, three_index_classifier
 from step6_injection import run_injection_recovery
+from live_ingest import live_cutouts, describe_live_cutouts
 
 app = FastAPI(title="SPHEREx Discovery Portal API")
 app.add_middleware(
@@ -30,6 +31,13 @@ app.add_middleware(
 )
 
 CACHE = os.environ.get("SPHEREX_CACHE", "data_cache")
+
+# Live mode keeps fetched cutouts in RAM only (no disk), with a small TTL cache
+# so a second request for the same target is instant.
+LIVE_TTL_SECONDS = int(os.environ.get("SPHEREX_LIVE_TTL", "1800"))
+LIVE_BANDS = tuple(os.environ.get(
+    "SPHEREX_LIVE_BANDS", "SPHEREx-D1,SPHEREx-D4").split(","))
+LIVE_CACHE = {}          # key -> (timestamp, cutouts, provenance)
 
 
 def load_target(target):
@@ -43,6 +51,35 @@ def load_target(target):
 # ---------------------------------------------------------------------------
 # Provenance, statistics and map overlays
 # ---------------------------------------------------------------------------
+def live_exposures(target, meta, size_deg=0.2, epoch_mode="firstlast",
+                  max_slots=0, bands=LIVE_BANDS):
+    """
+    Fetch a target's cutouts from IRSA into memory (TTL-cached, no disk).
+
+    Returns (cutouts, provenance).  Raises RuntimeError if fewer than two
+    exposures come back, because ZOGY needs a pair.
+    """
+    import time as _time
+
+    key = (target, size_deg, epoch_mode, tuple(bands), max_slots)
+    hit = LIVE_CACHE.get(key)
+    if hit and (_time.time() - hit[0]) < LIVE_TTL_SECONDS:
+        return hit[1], hit[2], True
+
+    cutouts = live_cutouts(meta["meta"]["ra"], meta["meta"]["dec"],
+                           size_deg=size_deg, bands=bands,
+                           epoch_mode=epoch_mode,
+                           max_slots=max_slots or None,
+                           log=lambda msg: print(msg, flush=True))
+    if len(cutouts) < 2:
+        raise RuntimeError(
+            f"live mode fetched only {len(cutouts)} usable cutout(s); "
+            "IRSA may be throttling -- try again, or use source=cache")
+    provenance = describe_live_cutouts(cutouts)
+    LIVE_CACHE[key] = (_time.time(), cutouts, provenance)
+    return cutouts, provenance, False
+
+
 def exposure_provenance(meta, target_wcs, npix=180):
     """
     One row per downloaded exposure: where the file came from, which detector
@@ -129,6 +166,135 @@ def catalog_overlay(meta, target_wcs, npix=180):
     return out[:600]
 
 
+def build_field_objects(meta, detections, target_wcs, npix=180,
+                        match_arcsec=30.0, dedup_arcsec=2.0):
+    """
+    Merge the whole catalogue and our detections into one object list.
+
+    Each row is one physical object in the 9' field and carries a verdict:
+
+    * ``KNOWN``     -- the object is in at least one catalogue (Gaia DR3, VSX,
+                       AllWISE).  ``detected`` tells you whether SPHEREx also
+                       saw it change; ``snr`` is that significance.
+    * ``CANDIDATE`` -- the object is *not* in any catalogue but SPHEREx did
+                       detect a change there: the follow-up list.
+
+    Catalogue entries appearing in several catalogues (a Gaia star that is also
+    a VSX variable) are merged into one row whose ``catalogs`` list names all of
+    them.
+    """
+    ra0, dec0 = meta["meta"]["ra"], meta["meta"]["dec"]
+    objects = []
+
+    def to_pixels(ra, dec, require_inside=False):
+        try:
+            x, y = target_wcs.world_to_pixel_values(ra, dec)
+        except Exception:
+            return None
+        x, y = float(x), float(y)
+        if require_inside and not (0 <= x < npix and 0 <= y < npix):
+            return None
+        return x, y
+
+    # --- catalogue entries ------------------------------------------------
+    for cat_name, sources in (meta.get("catalogs") or {}).items():
+        for src in sources or []:
+            s_ra, s_dec = src.get("ra"), src.get("dec")
+            if s_ra is None or s_dec is None:
+                continue
+            pix = to_pixels(s_ra, s_dec)
+            if pix is None:
+                continue
+            x, y = pix
+            in_field = (0 <= x < npix and 0 <= y < npix)
+
+            # merge with an existing row for the same star
+            twin = None
+            for obj in objects:
+                if (abs(obj["ra"] - s_ra) < dedup_arcsec / 3600.0
+                        and abs(obj["dec"] - s_dec) < dedup_arcsec / 3600.0):
+                    twin = obj
+                    break
+            if twin is not None:
+                if cat_name not in twin["catalogs"]:
+                    twin["catalogs"].append(cat_name)
+                if twin.get("mag") is None:
+                    twin["mag"] = src.get("gmag", src.get("w1", src.get("mag")))
+                if src.get("name"):
+                    twin["name"] = twin.get("name") or src.get("name")
+                continue
+
+            objects.append({
+                "ra": s_ra,
+                "dec": s_dec,
+                "x": round(x, 1),
+                "y": round(y, 1),
+                "mag": src.get("gmag", src.get("w1", src.get("mag"))),
+                "in_field": in_field,
+                "catalogs": [cat_name],
+                "name": src.get("name"),
+                "type": src.get("type"),
+                "verdict": "KNOWN",
+                "detected": False,
+                "snr": None,
+                "sep_arcsec": None,
+                "kind": None,
+                "pair": None,
+            })
+
+    # --- detections: attach to a catalogue row, or add as CANDIDATE -------
+    def sep_arcsec(a_ra, a_dec, b_ra, b_dec):
+        cosd = np.cos(np.radians(a_dec))
+        return float(np.hypot((a_ra - b_ra) * cosd, a_dec - b_dec) * 3600.0)
+
+    for det in detections:
+        pos = det.get("position") or [0, 0]
+        d_ra, d_dec = det.get("ra"), det.get("dec")
+        if d_ra is None or d_dec is None:
+            continue
+        best = None
+        best_sep = match_arcsec
+        for obj in objects:
+            s = sep_arcsec(d_ra, d_dec, obj["ra"], obj["dec"])
+            if s < best_sep:
+                best, best_sep = obj, s
+
+        if best is not None:
+            if (best.get("snr") or 0) < det["snr"]:
+                best["snr"] = round(float(det["snr"]), 2)
+                best["sep_arcsec"] = round(best_sep, 2)
+                best["kind"] = det.get("kind")
+                best["pair"] = det.get("pair")
+            best["detected"] = True
+            continue
+
+        pix = to_pixels(d_ra, d_dec, require_inside=True)
+        if pix is None:
+            continue
+        objects.append({
+            "ra": d_ra,
+            "dec": d_dec,
+            "x": round(pix[0], 1),
+            "y": round(pix[1], 1),
+            "mag": None,
+            "in_field": True,
+            "catalogs": [],
+            "name": None,
+            "type": None,
+            "verdict": "CANDIDATE",
+            "detected": True,
+            "snr": round(float(det["snr"]), 2),
+            "sep_arcsec": 0.0,
+            "kind": det.get("kind"),
+            "pair": det.get("pair"),
+        })
+
+    objects.sort(key=lambda o: (not o["detected"],
+                                -(o.get("snr") or 0),
+                                o.get("mag") if o.get("mag") is not None else 99))
+    return objects
+
+
 def target_statistics(meta, detections, sigma1, sigma2, npix=180,
                       pixscale_arcsec=3.0, dt_years=0.5):
     """The numbers shown in the dashboard's stat cards."""
@@ -182,7 +348,11 @@ def list_targets():
 
 
 @app.get("/api/dashboard")
-def get_dashboard(target: str = Query("WISE_0855")):
+def get_dashboard(target: str = Query("WISE_0855"),
+                  source: str = Query("cache"),
+                  live_slots: int = Query(0),
+                  live_size: float = Query(0.2),
+                  live_epochs: str = Query("firstlast")):
     """
     Run the full pipeline on the specified target and return everything
     the frontend needs to render the dashboard.
@@ -197,39 +367,68 @@ def get_dashboard(target: str = Query("WISE_0855")):
 
     ra = meta["meta"]["ra"]
     dec = meta["meta"]["dec"]
-    paths = meta["paths"]
 
-    if len(paths) < 2:
+    live_mode = str(source).lower() == "live"
+    live_provenance = None
+    live_cached = False
+    if live_mode:
+        try:
+            cutouts, live_provenance, live_cached = live_exposures(
+                target, meta, size_deg=live_size,
+                epoch_mode=live_epochs, max_slots=live_slots)
+        except Exception as e:
+            return JSONResponse(
+                status_code=502,
+                content={"error": f"Live fetch from IRSA failed: {e}",
+                         "hint": "retry, or call without ?source=live to use data_cache/"}
+            )
+        paths = []
+        sources = [c["data"] for c in cutouts]
+        epochs = [c["epoch"] for c in cutouts]
+    else:
+        paths = meta["paths"]
+        sources = list(paths)
+        epochs = meta.get("epochs")
+
+    if len(sources) < 2:
         return JSONResponse(
             status_code=500,
-            content={"error": f"Only {len(paths)} cutouts cached for '{target}'. "
+            content={"error": f"Only {len(sources)} usable cutout(s) for '{target}'. "
                               f"Need at least 2 for subtraction."}
         )
 
     npix = 180
     wcs = make_target_wcs(ra, dec, npix=npix, pixscale_arcsec=3.0)
 
-    epochs = meta.get("epochs")
-    if epochs and len(epochs) == len(paths) and len(set(epochs)) > 1:
-        first = min(epochs)
-        epoch1_files = [p for p, e in zip(paths, epochs) if e == first]
-        epoch2_files = [p for p, e in zip(paths, epochs) if e != first]
-    else:
-        half = len(paths) // 2
-        epoch1_files = paths[:half] if half > 0 else paths[:1]
-        epoch2_files = paths[half:] if half > 0 else paths[1:]
+    # -- epochs -----------------------------------------------------------
+    # Every epoch in the cache is co-added separately, and ZOGY is run on each
+    # consecutive pair.  The deepest baseline (first vs last) becomes the map
+    # shown by default; the extra pairs contribute detections only.
+    if not (epochs and len(epochs) == len(sources) and len(set(epochs)) > 1):
+        half = len(sources) // 2
+        epochs = [1] * max(1, half) + [2] * max(1, len(sources) - half)
+        epochs = epochs[:len(sources)]
+
+    order = sorted(set(epochs))
+    files_by_epoch = {e: [s for s, pe in zip(sources, epochs) if pe == e]
+                      for e in order}
 
     try:
-        img1, noise1 = coadd_detector(epoch1_files, wcs, npix=npix)
-        img2, noise2 = coadd_detector(epoch2_files, wcs, npix=npix)
+        stacks, noises = {}, {}
+        for e in order:
+            stack, noise = coadd_detector(files_by_epoch[e], wcs, npix=npix)
+            stacks[e] = stack
+            noises[e] = float(np.nanmedian(noise))
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={"error": f"Co-addition failed: {str(e)}"}
         )
 
-    sigma1 = float(np.nanmedian(noise1))
-    sigma2 = float(np.nanmedian(noise2))
+    epoch1_files = files_by_epoch[order[0]]
+    epoch2_files = files_by_epoch[order[-1]]
+    img1, img2 = stacks[order[0]], stacks[order[-1]]
+    sigma1, sigma2 = noises[order[0]], noises[order[-1]]
 
     try:
         D, S = zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4)
@@ -239,19 +438,61 @@ def get_dashboard(target: str = Query("WISE_0855")):
             content={"error": f"ZOGY failed: {str(e)}"}
         )
 
-    detections = find_detections(S, pix_scale_arcsec=3.0, dt_years=0.5)
+    # consecutive pairs (E1->E2, E2->E3, ...) plus the deep pair E1->En
+    pair_list = [(a, b) for a, b in zip(order, order[1:])]
+    if len(order) > 2 and (order[0], order[-1]) not in pair_list:
+        pair_list.append((order[0], order[-1]))
+    if not pair_list:
+        pair_list = [(order[0], order[0])]
+
+    raw_detections = []
+    pair_summary = []
+    for ea, eb in pair_list:
+        if ea == eb:
+            continue
+        try:
+            if (ea, eb) == (order[0], order[-1]):
+                d_img, s_img = D, S
+            else:
+                d_img, s_img = zogy(stacks[ea], stacks[eb], noises[ea],
+                                    noises[eb], 1.4, 1.4)
+            found = find_detections(s_img, pix_scale_arcsec=3.0, dt_years=0.5)
+        except Exception:
+            found = []
+        pair_summary.append({
+            "pair": f"E{ea}\u2192E{eb}",
+            "n_exposures_a": len(files_by_epoch[ea]),
+            "n_exposures_b": len(files_by_epoch[eb]),
+            "n_detections": len(found),
+            "sigma_a": noises[ea],
+            "sigma_b": noises[eb],
+        })
+        for d in found:
+            d["pair"] = f"E{ea}\u2192E{eb}"
+            raw_detections.append(d)
+
+    # merge the same object found in several pairs, keeping the strongest
+    detections = []
+    for d in sorted(raw_detections, key=lambda d: -d["snr"]):
+        pos = d.get("pos_plus") or d.get("pos") or (0, 0)
+        if any(abs(pos[0] - (m.get("pos_plus") or m.get("pos") or (0, 0))[0]) <= 2
+               and abs(pos[1] - (m.get("pos_plus") or m.get("pos") or (0, 0))[1]) <= 2
+               for m in detections):
+            continue
+        detections.append(d)
 
     triaged = []
     for d in detections[:10]:
         t = triage(d, ra, dec, npix, 3.0, meta["catalogs"])
         t["kind"] = d["kind"]
         t["snr"] = d["snr"]
+        t["pair"] = d.get("pair")
         t["position"] = d.get("pos_plus") or d.get("pos")
         if "proper_motion_arcsec_yr" in d:
             t["proper_motion_arcsec_yr"] = d["proper_motion_arcsec_yr"]
         triaged.append(t)
 
-    spectrum = extract_spectrum_from_cutout(paths[0], ra, dec)
+    spectrum = extract_spectrum_from_cutout(sources[0], ra, dec)
     if meta.get("spectrum_fits") and os.path.exists(meta["spectrum_fits"]):
         # A cached 102-band SPECTRUM table wins over the synthetic ramp below.
         from astropy.io import fits
@@ -266,7 +507,7 @@ def get_dashboard(target: str = Query("WISE_0855")):
         # photometry of every cached exposure, using each file's own WCS-WAVE
         # wavelength calibration.
         points = []
-        for path in paths:
+        for path in sources:
             spec = extract_spectrum_from_cutout(path, ra, dec)
             if spec.get("wavelength_um") is not None:
                 points.append((spec["wavelength_um"], spec["flux"]))
@@ -310,9 +551,16 @@ def get_dashboard(target: str = Query("WISE_0855")):
             "dec": dec,
             "fov_arcmin": round(npix * 3.0 / 60.0, 2),
         },
-        "provenance": exposure_provenance(meta, wcs, npix=npix),
+        "provenance": (live_provenance if live_mode
+                       else exposure_provenance(meta, wcs, npix=npix)),
+        "source": "live" if live_mode else "cache",
+        "live_cached": live_cached,
         "stats": target_statistics(meta, triaged, sigma1, sigma2, npix=npix),
         "catalog_overlay": catalog_overlay(meta, wcs, npix=npix),
+        "field_objects": build_field_objects(meta, triaged, wcs, npix=npix),
+        "epoch_pairs": pair_summary,
+        "catalog_counts": {k: len(v or []) for k, v in
+                           (meta.get("catalogs") or {}).items()},
     }
 
 
