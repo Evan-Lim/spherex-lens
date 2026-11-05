@@ -52,6 +52,24 @@ TARGETS = {
                    "common": "RW Aurigae"},
     "R_Draconis": {"ra": 248.167500, "dec": 66.754722, "type": "Variable_Mira",
                    "common": "R Draconis"},
+
+    # --- extra fields: famous / interesting objects (not in the brief) ---
+    "Andromeda_M31": {"ra": 10.684700, "dec": 41.269167, "type": "Galaxy_Spiral",
+                      "common": "Andromeda Galaxy (M31)"},
+    "Orion_M42": {"ra": 83.822083, "dec": -5.391111, "type": "Nebula_HII",
+                  "common": "Orion Nebula (M42)"},
+    "Pleiades_M45": {"ra": 56.750000, "dec": 24.116667, "type": "Cluster_Open",
+                     "common": "Pleiades (M45)"},
+    "Crab_M1": {"ra": 83.633083, "dec": 22.014500, "type": "Supernova_Remnant",
+                "common": "Crab Nebula (M1)"},
+    "Whirlpool_M51": {"ra": 202.469575, "dec": 47.195258, "type": "Galaxy_Spiral",
+                      "common": "Whirlpool Galaxy (M51)"},
+    "SgrA_star": {"ra": 266.416817, "dec": -29.007825, "type": "Galactic_Centre",
+                  "common": "Sagittarius A*"},
+    "Proxima_Cen": {"ra": 217.428951, "dec": -62.679483, "type": "Mover_M5V",
+                    "common": "Proxima Centauri"},
+    "TRAPPIST_1": {"ra": 346.622400, "dec": -5.041300, "type": "Mover_M8V",
+                   "common": "TRAPPIST-1"},
 }
 
 CACHE = os.environ.get("SPHEREX_CACHE", "data_cache")

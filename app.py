@@ -38,9 +38,13 @@ LIVE_TTL_SECONDS = int(os.environ.get("SPHEREX_LIVE_TTL", "1800"))
 LIVE_BANDS = tuple(os.environ.get(
     "SPHEREX_LIVE_BANDS", "SPHEREx-D1,SPHEREx-D4").split(","))
 LIVE_CACHE = {}          # key -> (timestamp, cutouts, provenance)
+FIELD_REGISTRY = {}      # name -> meta dict for fields added at runtime
+FIELD_DASH_CACHE = {}    # name -> dashboard payload for those fields
 
 
 def load_target(target):
+    if target in FIELD_REGISTRY:
+        return FIELD_REGISTRY[target]
     meta_path = os.path.join(CACHE, f"{target}_meta.json")
     if not os.path.exists(meta_path):
         return None
@@ -318,7 +322,7 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
 
 
 def target_statistics(meta, detections, sigma1, sigma2, npix=180,
-                      pixscale_arcsec=3.0, dt_years=0.5):
+                      pixscale_arcsec=3.0, dt_years=0.5, n_exposures=None):
     """The numbers shown in the dashboard's stat cards."""
     depths = [s.get("mjd") for s in meta.get("sources", []) if s.get("mjd")]
     baseline_days = round(max(depths) - min(depths), 1) if len(depths) > 1 else None
@@ -326,7 +330,7 @@ def target_statistics(meta, detections, sigma1, sigma2, npix=180,
     n_known = sum(1 for d in detections if d.get("verdict") == "KNOWN")
     fov_armin = npix * pixscale_arcsec / 60.0
     return {
-        "n_exposures": len(meta["paths"]),
+        "n_exposures": n_exposures if n_exposures is not None else len(meta["paths"]),
         "n_epochs": len(set(meta.get("epochs", []))) or 2,
         "baseline_days": baseline_days,
         "baseline_months": round(baseline_days / 30.44, 1) if baseline_days else None,
@@ -366,6 +370,18 @@ def list_targets():
                     "ra": meta["meta"]["ra"],
                     "dec": meta["meta"]["dec"],
                 })
+    # fields opened at runtime (no files) are addressable too
+    for name, meta in FIELD_REGISTRY.items():
+        if any(t["name"] == name for t in targets):
+            continue
+        targets.append({
+            "name": name,
+            "common": meta["meta"].get("common", name),
+            "ra": meta["meta"]["ra"],
+            "dec": meta["meta"]["dec"],
+            "custom": True,
+        })
+
     return {"targets": targets}
 
 
@@ -390,7 +406,10 @@ def get_dashboard(target: str = Query("WISE_0855"),
     ra = meta["meta"]["ra"]
     dec = meta["meta"]["dec"]
 
-    live_mode = str(source).lower() == "live"
+    custom = bool(meta.get("custom"))
+    live_mode = (str(source).lower() == "live") or custom
+    if custom and target in FIELD_DASH_CACHE and str(source).lower() != "refresh":
+        return FIELD_DASH_CACHE[target]
     live_provenance = None
     live_cached = False
     if live_mode:
@@ -577,7 +596,8 @@ def get_dashboard(target: str = Query("WISE_0855"),
                        else exposure_provenance(meta, wcs, npix=npix)),
         "source": "live" if live_mode else "cache",
         "live_cached": live_cached,
-        "stats": target_statistics(meta, triaged, sigma1, sigma2, npix=npix),
+        "stats": target_statistics(meta, triaged, sigma1, sigma2, npix=npix,
+                                   n_exposures=len(sources)),
         "catalog_overlay": catalog_overlay(meta, wcs, npix=npix),
         "field_objects": build_field_objects(meta, triaged, wcs, npix=npix),
         "histogram": significance_histogram(S),
@@ -645,6 +665,52 @@ def _thumbnail(arr, size=48):
     return np.round(blocks, 2).tolist()
 
 
+@app.get("/api/field")
+def add_field(ra: float = Query(...), dec: float = Query(...),
+              name: str = Query(""), size: float = Query(0.2),
+              slots: int = Query(0), epochs: str = Query("firstlast")):
+    """
+    Load a field that is not in data_cache/ -- any position on the sky.
+
+    The cutouts are fetched from IRSA into RAM (nothing is written to disk),
+    the full pipeline runs, and the field is registered for this process so the
+    dashboard, the mosaic and the sky view can address it by name.
+    """
+    import re as _re
+
+    safe = _re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_") or (
+        f"Field_{ra:.2f}_{dec:.2f}".replace("-", "m").replace(".", "p"))
+    meta = {
+        "target": safe,
+        "meta": {"ra": float(ra), "dec": float(dec), "common": name or safe,
+                 "type": "Custom field"},
+        "paths": [], "epochs": [], "catalogs": {},
+        "collection": "spherex_qr2", "cutout_size_deg": size,
+        "custom": True,
+    }
+    FIELD_REGISTRY[safe] = meta
+    FIELD_DASH_CACHE.pop(safe, None)
+
+    payload = get_dashboard(target=safe, source="live", live_slots=slots,
+                            live_size=size, live_epochs=epochs)
+    if not isinstance(payload, dict):
+        return payload
+
+    FIELD_DASH_CACHE[safe] = payload
+    MOSAIC_CACHE["payload"] = None          # force the all-sky tiles to refresh
+    return {
+        "target": safe,
+        "common": payload.get("common"),
+        "ra": payload.get("ra"),
+        "dec": payload.get("dec"),
+        "n_detections": payload.get("stats", {}).get("n_detections"),
+        "max_snr": payload.get("stats", {}).get("max_snr"),
+        "n_exposures": payload.get("stats", {}).get("n_exposures"),
+        "n_epochs": payload.get("stats", {}).get("n_epochs"),
+        "note": "registered for this process; nothing written to disk",
+    }
+
+
 @app.get("/api/mosaic")
 def get_mosaic(thumb: int = Query(48), refresh: int = Query(0)):
     """
@@ -662,6 +728,8 @@ def get_mosaic(thumb: int = Query(48), refresh: int = Query(0)):
 
     tiles = []
     for entry in list_targets()["targets"]:
+        if entry["name"] in FIELD_REGISTRY:
+            continue
         name = entry["name"]
         dashboard = get_dashboard(target=name)
         if not isinstance(dashboard, dict):
@@ -687,6 +755,27 @@ def get_mosaic(thumb: int = Query(48), refresh: int = Query(0)):
             "n_gaia": stats.get("n_gaia"),
             "n_vsx": stats.get("n_vsx"),
             "source": dashboard.get("source", "cache"),
+        })
+
+    for name, payload_dash in FIELD_DASH_CACHE.items():
+        stats = payload_dash.get("stats", {})
+        tiles.append({
+            "target": name,
+            "common": payload_dash.get("common", name),
+            "ra": payload_dash["ra"], "dec": payload_dash["dec"],
+            "fov_arcmin": payload_dash["map"]["fov_arcmin"],
+            "thumb": _thumbnail(payload_dash["zogy_snr"], size=thumb),
+            "thumb_npix": thumb,
+            "n_detections": stats.get("n_detections", 0),
+            "n_known": stats.get("n_known", 0),
+            "n_candidate": stats.get("n_candidate", 0),
+            "max_snr": stats.get("max_snr"),
+            "baseline_days": stats.get("baseline_days"),
+            "sigma1": stats.get("sigma1"), "sigma2": stats.get("sigma2"),
+            "n_exposures": stats.get("n_exposures"),
+            "n_epochs": stats.get("n_epochs"),
+            "n_gaia": 0, "n_vsx": 0,
+            "source": "live", "custom": True,
         })
 
     payload = {"tiles": tiles, "n_fields": len(tiles),

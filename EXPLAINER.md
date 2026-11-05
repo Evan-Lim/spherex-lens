@@ -79,6 +79,34 @@ Two of these are **movers**, two are **flickerers**, and one is an extreme cool
 object -- which is exactly why the pipeline has to be able to tell "movement"
 apart from "brightness change".
 
+### 2.5 The bonus fields (famous objects)
+
+The five above are the brief. The repository also ships eight familiar fields
+ingested by exactly the same code, to prove the pipeline is not tuned to one
+kind of object: **M31 Andromeda**, **M42 the Orion Nebula**, **M45 the
+Pleiades**, **M1 the Crab Nebula**, **M51 the Whirlpool**, **Sgr A\*** at the
+Galactic Centre, **Proxima Centauri** and **TRAPPIST-1**.
+
+They are deliberately harder in a different way. A red dwarf is a single point
+of light; M42 is a wall of glowing gas, M31 is a galaxy of billions of stars
+smeared across the field, and Sgr A* sits in the most crowded star field in the
+sky.
+
+What happens when you subtract two epochs of a nebula? Almost every "difference"
+turns out to be a star that is already in the catalogue, because what changes
+between SPHEREx passes in a crowded field is mostly the PSF and the detector,
+not the sky. The numbers, straight from the shipped data: the Crab Nebula gives
+10 detections and all 10 are `KNOWN`; M45 gives 6, all `KNOWN`; Sgr A* gives 7,
+all `KNOWN`. That is the triage doing exactly its job -- a difference image is
+not a discovery until you have checked whether something was already there.
+
+Two fields produce nothing at all, and that is also honest: M42 is smooth glowing
+gas with no compact source that changes between the two epochs, and TRAPPIST-1
+only has 2 usable cutouts (one band, two epochs) because the archive kept timing
+out on that position while this was built. With 12-18 cutouts the single-star
+brief targets are where `CANDIDATE` verdicts actually mean something.
+
+
 ---
 
 ## 3. What is inside a SPHEREx file
@@ -265,6 +293,19 @@ thumbnail is just a shortcut for "open that field".
 That is why the same page works with no server at all (Netlify/Vercel): the JSON
 is pre-computed once and served as plain files.
 
+**If you want it live on Netlify.** Netlify cannot run Python -- its functions are
+JavaScript/TypeScript/Go, and astropy + reproject + numpy would not fit the
+bundle anyway. What it can do is *proxy*: deploy the FastAPI app on Render, Fly,
+Railway or any VPS, then add one rule to `netlify.toml` forwarding
+`/live-api/*` to that server, and rebuild the site with
+`python export_static.py --api-base /live-api`. The page then keeps its
+pre-rendered JSON for instant loads and quietly falls back to the proxy for
+anything that is not pre-rendered -- which is what makes *Live from IRSA* and
+*Open any field* work on the deployed site. Same origin, so nothing about CORS
+changes. Full steps are in README section "Hybrid: static on Netlify, live
+pipeline behind a proxy".
+
+
 ---
 
 ## 5a. A guided tour of the website
@@ -297,6 +338,12 @@ The screen has two columns and nothing requires a page reload.
 * **Triage Verdict** -- for the *selected* detection: verdict badge, which
   catalogue matched and how far away it was, RA/Dec, significance, kind (dipole
   or monopole) and confidence.
+* **Open any field** -- type an RA and Dec (degrees) and press the button. The
+  server fetches those cutouts from IRSA, runs the pipeline on them, and adds the
+  field to the dropdown and to the all-sky chart. This works in live mode only
+  (the pre-rendered static build has no server to ask), and it takes about a
+  minute per new field because every cutout has to be cut out of a 70 MB image at
+  the archive.
 * **Pipeline statistics** -- explained in section 6.
 
 ### 5.3 Right column (/02) -- Command Dashboard
@@ -575,6 +622,15 @@ pipeline can see.
 In principle this is the right *technique* (subtract two epochs, look for a moving
 dot). In practice a 9' field, two bands and two epochs is a toy version: real
 searches use many fields, many epochs and much deeper images.
+
+**Are there really only five pictures?**
+No -- five is just how many fields are **cached**. SPHEREx photographs the whole
+sky (about 41,253 square degrees); a 9-arcminute field is 0.0225 square degrees,
+so the sky is roughly 1.8 million fields of this size. This app ships five of
+them, and can pull in any other one: tick *Live from IRSA* or type an RA/Dec in
+*Open any field*, and the cutouts for that position are fetched and analysed on
+the spot. A field added that way lives in the server's memory only -- it does not
+survive a restart unless you also download it with `step1_ingest.py`.
 
 **Can it work without downloading anything?**
 Yes -- tick *Live from IRSA*. The cutouts are fetched and parsed in memory and nothing is saved. The cost is time: the first look at a target is dominated by IRSA's cutout service (tens of seconds), after which the result is cached in RAM for 30 minutes.

@@ -4,11 +4,16 @@
 //   server  (default)  -> FastAPI, /api/*
 //   static  (<body data-mode="static">) -> pre-rendered api/*.json
 //
+// A static build can still reach a real backend: <body data-api-base="/live-api">
+// points at a proxy (see netlify.toml) that forwards to the deployed FastAPI app.
+// Pre-rendered JSON is tried first; anything missing falls back to the live API.
+//
 // The map is a small interactive canvas engine: pan, zoom, three data layers,
 // and overlays for the survey grid, catalog stars and detections.
 
 const STATIC_MODE = document.body.dataset.mode === 'static';
 const API_BASE = window.location.origin;
+let LIVE_API = (document.body.dataset.apiBase || '').replace(/\/+$/, '');
 
 function apiUrl(kind, target) {
   if (STATIC_MODE) {
@@ -21,6 +26,37 @@ function apiUrl(kind, target) {
   if (state.live && kind === 'dashboard') params.push('source=live');
   const query = params.length ? `?${params.join('&')}` : '';
   return `${API_BASE}/api/${kind}${query}`;
+}
+
+// A static build with no declared base may still be sitting behind a proxy
+// (the /live-api redirect in netlify.toml). Probe once, quietly.
+if (STATIC_MODE && !LIVE_API) {
+  fetch('/live-api/targets').then((r) => {
+    if (!r.ok) return;
+    LIVE_API = '/live-api';
+    const hint = document.getElementById('field-hint');
+    if (hint) hint.textContent = 'live proxy detected \u2014 any field is reachable';
+  }).catch(() => {});
+}
+
+// URL of the real pipeline. In a static build this is the proxy prefix.
+function remoteUrl(kind, target) {
+  const base = LIVE_API || `${API_BASE}/api`;
+  const params = [];
+  if (target) params.push(`target=${encodeURIComponent(target)}`);
+  if (state.live && kind === 'dashboard') params.push('source=live');
+  const query = params.length ? `?${params.join('&')}` : '';
+  return `${base}/${kind}${query}`;
+}
+
+// Pre-rendered JSON first, live API when it is missing (or when the user asked
+// for live data explicitly).
+async function fetchApi(kind, target) {
+  const wantsLive = STATIC_MODE && LIVE_API && (kind === 'dashboard' ? state.live : false);
+  if (wantsLive) return fetch(remoteUrl(kind, target));
+  const resp = await fetch(apiUrl(kind, target));
+  if (resp.ok || !(STATIC_MODE && LIVE_API)) return resp;
+  return fetch(remoteUrl(kind, target));
 }
 
 // ---------------------------------------------------------------- utilities
@@ -771,7 +807,7 @@ async function runPipeline() {
   setText('card-total', '\u2026');
 
   try {
-    const resp = await fetch(apiUrl('dashboard', target));
+    const resp = await fetchApi('dashboard', target);
     if (!resp.ok) {
       setText('map-hint', STATIC_MODE
         ? `No pre-rendered dashboard for ${target}.`
@@ -839,7 +875,7 @@ async function runRecovery() {
   setText('recovery-out', 'running injection-recovery grid\u2026');
   setText('footer-status', `recovery: ${target}`);
   try {
-    const resp = await fetch(apiUrl('recovery', target));
+    const resp = await fetchApi('recovery', target);
     if (!resp.ok) {
       setText('recovery-out', `no recovery grid available for ${target}`);
       return;
@@ -1091,7 +1127,8 @@ async function loadMosaic(refresh) {
   show('map-loader');
   try {
     const query = (!STATIC_MODE && refresh) ? '?refresh=1' : '';
-    const resp = await fetch(apiUrl('mosaic') + query);
+    let resp = await fetch(apiUrl('mosaic') + query);
+    if (!resp.ok && STATIC_MODE && LIVE_API) resp = await fetch(remoteUrl('mosaic') + query);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     state.mosaic = await resp.json();
     setText('map-hint',
@@ -1235,6 +1272,48 @@ function attachUiEvents() {
         ? 'live mode: cutouts are fetched from IRSA and kept in RAM (nothing written to disk)'
         : 'cache mode: reading data_cache/');
       runPipeline();
+    });
+  }
+
+  const fieldBtn = $('btn-field');
+  if (fieldBtn) {
+    fieldBtn.addEventListener('click', async () => {
+      const ra = parseFloat($('field-ra').value);
+      const dec = parseFloat($('field-dec').value);
+      const name = $('field-name').value.trim();
+      if (!Number.isFinite(ra) || !Number.isFinite(dec)) {
+        setText('field-hint', 'enter RA and Dec in degrees');
+        return;
+      }
+      if (STATIC_MODE && !LIVE_API) {
+        setText('field-hint', 'this needs a backend — set data-api-base to your API URL');
+        return;
+      }
+      setText('field-hint', 'fetching cutouts from IRSA — this can take a minute…');
+      show('map-loader');
+      try {
+        const q = `?ra=${ra}&dec=${dec}&name=${encodeURIComponent(name)}&slots=4`;
+        const resp = await fetch(`${LIVE_API || `${API_BASE}/api`}/field${q}`);
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        const sel = $('target-select');
+        if (![...sel.options].some((o) => o.value === data.target)) {
+          const opt = document.createElement('option');
+          opt.value = data.target;
+          opt.textContent = `${data.common} (${data.ra.toFixed(2)}, ${data.dec.toFixed(2)})`;
+          sel.appendChild(opt);
+        }
+        sel.value = data.target;
+        setText('field-hint',
+          `${data.common}: ${data.n_detections} detections, max ${data.max_snr}σ, ` +
+          `${data.n_exposures} exposures, ${data.n_epochs} epoch(s)`);
+        state.mosaic = null;          // tiles will rebuild with the new field
+        runPipeline();
+      } catch (e) {
+        setText('field-hint', 'failed: ' + e.message);
+      } finally {
+        hide('map-loader');
+      }
     });
   }
 

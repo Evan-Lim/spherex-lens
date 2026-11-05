@@ -66,6 +66,19 @@
           <input type="checkbox" id="tog-live">
           <span>Live from IRSA (no cache, no download)</span>
         </label>
+        <div class="field-add">
+          <div class="section-label" style="margin:8px 0 5px">Open any field</div>
+          <div class="field-add-row">
+            <input id="field-ra" class="control-input" type="number" step="0.001"
+                   placeholder="RA (deg)">
+            <input id="field-dec" class="control-input" type="number" step="0.001"
+                   placeholder="Dec (deg)">
+            <input id="field-name" class="control-input" type="text"
+                   placeholder="name (optional)">
+          </div>
+          <button id="btn-field" class="btn btn-secondary">Load field from IRSA</button>
+          <div class="hint-inline" id="field-hint">streams the cutouts, runs the pipeline, writes nothing</div>
+        </div>
       </div>
 
       <div class="section">

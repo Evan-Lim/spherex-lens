@@ -52,7 +52,8 @@ except ModuleNotFoundError as exc:      # e.g. running with the wrong Python
     )
 
 
-def build(outdir="site", targets=None, with_recovery=True, with_figures=True):
+def build(outdir="site", targets=None, with_recovery=True, with_figures=True,
+          api_base=""):
     """Render the API responses for every cached target into outdir/."""
     targets = targets or [t["name"] for t in portal.list_targets()["targets"]]
     if not targets:
@@ -68,7 +69,10 @@ def build(outdir="site", targets=None, with_recovery=True, with_figures=True):
     index_path = os.path.join(outdir, "index.html")
     with open(index_path) as f:
         html = f.read()
-    html = html.replace("<body>", '<body data-mode="static" data-api-dir="api">', 1)
+    body_attrs = 'data-mode="static" data-api-dir="api"'
+    if api_base:
+        body_attrs += f' data-api-base="{api_base}"'
+    html = html.replace("<body>", f"<body {body_attrs}>", 1)
     with open(index_path, "w") as f:
         f.write(html)
 
@@ -132,6 +136,10 @@ def main():
     parser.add_argument("--no-recovery", action="store_true",
                         help="skip the (slow) injection-recovery grids")
     parser.add_argument("--no-figures", action="store_true")
+    parser.add_argument("--api-base", default="",
+                        help="proxy prefix for a live backend, e.g. /live-api "
+                             "(see netlify.toml); enables live mode and "
+                             "'open any field' on the deployed site")
     args = parser.parse_args()
 
     if os.path.isdir(args.outdir):
@@ -140,13 +148,17 @@ def main():
     print(f"Rendering static site into {args.outdir}/ ...")
     written, available = build(args.outdir, args.targets,
                                with_recovery=not args.no_recovery,
-                               with_figures=not args.no_figures)
+                               with_figures=not args.no_figures,
+                               api_base=args.api_base)
 
     total = sum(os.path.getsize(p) for p in written if os.path.isfile(p))
     print(f"\n{len(available)} target(s): "
           + ", ".join(t["common"] for t in available))
     print(f"{len(written)} artefacts, {total / 1e6:.1f} MB of JSON "
           f"-> {args.outdir}/")
+    if args.api_base:
+        print(f"Live backend proxied at {args.api_base}/ "
+              "(set the redirect target in netlify.toml)")
     print("\nDeploy:")
     print(f"  netlify deploy --prod --dir {args.outdir}")
     print(f"  vercel --cwd {args.outdir}")

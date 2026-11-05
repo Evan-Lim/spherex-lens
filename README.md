@@ -42,6 +42,12 @@ download per (epoch, detector). Each takes ~1 min at IRSA's ~100 KB/s, so a full
 five-target ingest is a ~1 hour job that resumes from cache if it is interrupted
 (`Ctrl-C` is safe; re-running skips finished files).
 
+The eight bonus fields described further down add another ~46 cutouts (~250 MB),
+which is why a complete `data_cache/` is ~700 MB of FITS. Those directories are
+gitignored -- the repository ships the catalogue JSONs and the pre-rendered
+`site/`, not the pixels.
+
+
 **Every epoch is used.** `app.py` co-adds each epoch separately and runs ZOGY on
 each *consecutive* pair (E1->E2, E2->E3, ...) plus the deep pair E1->En, then
 merges duplicate detections (same position within 2 pixels, keeping the highest
@@ -66,6 +72,34 @@ exposure and millions of exposures. The same code scales by looping targets
 (SIA2 cone per field), or by querying in bulk through the public S3 bucket
 (`nasa-irsa-spherex`) / TAP instead of one cutout at a time — the pipeline never
 holds more than one epoch stack (180x180) in memory.
+
+### Are there only five pictures?
+
+No. Five is how many fields are **registered in `data_cache/`** (the five
+mandatory brief targets); the archive holds the whole sky. Concretely:
+
+* SPHEREx covers ~41,253 deg2; a 9' x 9' field is 0.0225 deg2, so the sky is
+  roughly **1.8 million fields** of this size.
+* A single 0.1-degree cone search already returns **250-591 Level-2 images** per
+  target (see the table above) -- the archive is dense, not sparse.
+* Any position can be pulled in on demand. Either tick *Live from IRSA*, or use
+  the **Open any field** box in the target panel (RA, Dec, optional name), which
+  calls:
+
+```bash
+curl 'http://localhost:8000/api/field?ra=269.85&dec=4.95&name=My_Field&slots=4'
+# -> {"target":"My_Field","n_detections":2,"max_snr":46.58,"n_exposures":4,...}
+```
+
+  The cutouts are streamed from IRSA into RAM, the pipeline runs, and the field
+  is registered for that server process (the dropdown, `/api/targets`,
+  `/api/dashboard` and the all-sky mosaic all know it). Nothing is written to
+disk, and a restart forgets it. Measured: **46 s** for a new field at
+  RA 269.85, Dec 4.95 -- 2 detections, max 46.6 sigma.
+
+To make a field **permanent**, add it to `TARGETS` in `step1_ingest.py` and
+re-run (it then lives in `data_cache/` and ships in the static build), or drop
+cutouts plus a `<Name>_meta.json` into `data_cache/` by hand.
 
 ### Live mode -- no downloads at all
 
@@ -181,6 +215,58 @@ Serving layer: `app.py` (FastAPI) + `static/index.html`, `static/style.css`,
 `astropy.coordinates.SkyCoord` also accepts sexagesimal input, e.g.
 `SkyCoord("08h55m10.831s", "-07d14m42.53s")` gives the WISE 0855 coordinates
 above.
+
+## Extra fields: famous objects
+
+Beyond the five, the repo also pre-renders eight well-known fields. They are
+ingested with the same code path (2 bands x 2 epochs each, so 4 cutouts apiece)
+and are there to show that the pipeline is not tuned to one kind of target --
+nebulae, a nearby spiral, the Galactic Centre and two famous planet hosts all go
+through it unchanged:
+
+| Field key | Object | Type | RA (deg) | Dec (deg) |
+|---|---|---|---|---|
+| `Andromeda_M31` | Andromeda Galaxy (M31) | spiral galaxy | 10.684700 | +41.269167 |
+| `Orion_M42` | Orion Nebula (M42) | HII region | 83.822083 | -5.391111 |
+| `Pleiades_M45` | Pleiades (M45) | open cluster | 56.750000 | +24.116667 |
+| `Crab_M1` | Crab Nebula (M1) | supernova remnant | 83.633083 | +22.014500 |
+| `Whirlpool_M51` | Whirlpool Galaxy (M51) | spiral galaxy | 202.469575 | +47.195258 |
+| `SgrA_star` | Sagittarius A* | Galactic Centre | 266.416817 | -29.007825 |
+| `Proxima_Cen` | Proxima Centauri | M5.5V flare star | 217.428951 | -62.679483 |
+| `TRAPPIST_1` | TRAPPIST-1 | M8V planet host | 346.622400 | -5.041300 |
+
+Add them with:
+
+```bash
+python step1_ingest.py --targets Andromeda_M31 Orion_M42 Pleiades_M45 Crab_M1 \
+                              Whirlpool_M51 SgrA_star Proxima_Cen TRAPPIST_1 \
+                       --epochs firstlast --bands SPHEREX-D1 SPHEREX-D4
+```
+
+These are demonstration fields, not brief deliverables: they get 2 bands x 2
+epochs (4 cutouts) rather than 12-18, so they exercise the pipeline but cannot
+carry the science. What they actually produce (from `site/api/*.json`):
+
+| Field | exposures | epochs | detections | KNOWN | CANDIDATE | max SNR |
+|---|---|---|---|---|---|---|
+| Andromeda (M31) | 4 | 2 | 3 | 2 | 1 | 33.6 |
+| Orion Nebula (M42) | 4 | 2 | 0 | 0 | 0 | -- |
+| Pleiades (M45) | 4 | 2 | 6 | 6 | 0 | 23.0 |
+| Crab Nebula (M1) | 4 | 2 | 10 | 10 | 0 | 28.1 |
+| Whirlpool (M51) | 4 | 2 | 4 | 3 | 1 | 27.6 |
+| Sagittarius A* | 2 | 2 | 7 | 7 | 0 | 12.3 |
+| Proxima Centauri | 4 | 2 | 6 | 4 | 2 | 18.7 |
+| TRAPPIST-1 | 2 | 2 | 0 | 0 | 0 | -- |
+
+Read that table honestly and it says something real: in crowded or nebular
+fields the differences almost all land on **catalogued** stars (M1 10/10, Sgr A*
+7/7, M45 6/6), because the residual structure is the PSF of known sources, not new
+objects -- the triage is doing its job. Two fields return nothing at all: M42 is a
+smooth wall of gas with no compact difference, and TRAPPIST-1 only has 2 usable
+cutouts (one band, two epochs) because IRSA kept timing out on that position.
+The single-star brief targets, with 12-18 cutouts over 2-3 epochs, are where the
+`CANDIDATE` verdicts are meaningful.
+
 
 ---
 
@@ -539,6 +625,7 @@ Two honest caveats, both visible in the figures:
 | `GET /api/targets` | Targets present in `data_cache/` |
 | `GET /api/dashboard?target=WISE_0855` | Runs stages 2-5 and returns `image`, `zogy_image`, `zogy_snr`, `sigma1`, `sigma2`, triaged `detections`, and `spectrum` (102 wavelengths, flux, classifier indices + label, plus the aperture flux at the target position) |
 | `GET /api/recovery?target=WISE_0855` | Injection-recovery grid (`snr`, `mu`, `recovery`) |
+| `GET /api/field?ra=&dec=&name=` | Register any sky position: streams its cutouts from IRSA, runs the pipeline, adds it to the dropdown/mosaic (RAM only) |
 | `GET /api/mosaic` | One 48x48 significance thumbnail + statistics per cached field, for the all-sky view (cached in RAM for 15 min) |
 | `GET /` | Static dashboard (`static/index.html`) |
 
@@ -713,7 +800,7 @@ response as a file, then flips the dashboard into static mode
 (`<body data-mode="static">`), so no Python is needed at runtime:
 
 ```bash
-python export_static.py                       # -> site/  (~3 MB, 5 targets)
+python export_static.py                       # -> site/  (5 brief + 8 famous fields)
 python export_static.py --no-recovery         # faster: skip the recovery grids
 python export_static.py --targets WISE_0855 R_Draconis
 ```
@@ -752,6 +839,48 @@ Because the JSON is plain files, the dashboard works identically offline --
 runs an FFT subtraction and a 12-cell injection-recovery grid. That is seconds
 of CPU and a few hundred MB of native dependencies -- outside the limits of
 serverless static platforms, which is why the static build pre-renders instead.
+(Netlify Functions also only run JavaScript/TypeScript/Go, and 50 MB zipped /
+250 MB unzipped would not fit numpy + scipy + astropy + reproject even if they
+did.)
+
+### C. Hybrid: static on Netlify, live pipeline behind a proxy
+
+You can have both. Netlify serves the pre-rendered JSON (instant, no backend),
+and a `[[redirects]]` rule forwards `/live-api/*` to the FastAPI app running
+somewhere that does allow Python (Render/Fly/Railway/VPS):
+
+```toml
+# netlify.toml
+[[redirects]]
+  from = "/live-api/*"
+  to = "https://spherex-lens.onrender.com/api/:splat"
+  status = 200
+  force = true
+```
+
+```bash
+python export_static.py --api-base /live-api   # writes <body data-api-base="/live-api">
+netlify deploy --prod --dir site
+```
+
+What the deployed site then does:
+
+| Interaction | Path taken |
+|---|---|
+| Load a pre-rendered field | `api/dashboard-<Target>.json` -- static, instant |
+| A field that was not pre-rendered | falls back to `/live-api/dashboard?target=...` |
+| "Live from IRSA" toggle | always `/live-api/dashboard?...&source=live` |
+| "Open any field" (RA/Dec) | `/live-api/field?ra=&dec=` -> IRSA, on the spot |
+
+Without `--api-base` the site stays 100 % static and the field box says so. The
+proxy keeps CORS out of the picture (same origin), and the first request after
+idle may take ~30 s on a free Render instance while the container wakes up.
+
+You can skip the rebuild entirely: a static page with no `data-api-base` probes
+`/live-api/targets` once at load, and if the redirect answers it switches itself
+into hybrid mode (the field hint then reads *"live proxy detected"*). So the
+minimum Netlify-only change is the `[[redirects]]` block, nothing else.
+
 
 ---
 

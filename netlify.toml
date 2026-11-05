@@ -10,6 +10,36 @@
   publish = "site"
   command = ""
 
+# ---------------------------------------------------------------------------
+# OPTIONAL: live pipeline on a static host
+# ---------------------------------------------------------------------------
+# Netlify cannot run Python (its functions are Node/Go/Deno, and astropy +
+# reproject + numpy will not fit the bundle anyway). But the dashboard does not
+# need Python *on* Netlify: deploy the FastAPI app anywhere that runs Python
+# (Render, Fly.io, Railway, a VPS) and let Netlify proxy to it.
+#
+#   1. deploy the API:            render.yaml (repo root) or  fly deploy / docker compose up
+#   2. note its URL, e.g.        https://spherex-lens.onrender.com
+#   3. uncomment + edit here:
+#
+# [[redirects]]
+#   from = "/live-api/*"
+#   to = "https://spherex-lens.onrender.com/api/:splat"
+#   status = 200
+#   force = true
+#   [redirects.headers]
+#     X-Forwarded-Host = "netlify"
+#
+#   4. rebuild the site so the frontend knows about the proxy:
+#        python export_static.py --api-base /live-api
+#
+# With that in place the deployed site is a hybrid:
+#   * the pre-rendered fields in api/*.json load instantly, with no backend at all
+#   * "Live from IRSA" and "Open any field" hit /live-api/* -> the Python app
+#   * anything not pre-rendered falls back to the proxy automatically
+# Without --api-base the site stays 100 % static (still fully functional, just
+# limited to the pre-rendered fields).
+
 [[headers]]
   for = "/api/*"
   [headers.values]

@@ -780,3 +780,7 @@ body.sky-mode #canvas-map { cursor: crosshair; }
   color: var(--muted);
   padding-top: 6px;
 }
+
+.field-add { margin-top: 8px; }
+.field-add-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.field-add-row .control-input { flex: 1 1 0; min-width: 0; }

@@ -1,16 +1,46 @@
 {
   "targets": [
     {
+      "name": "Andromeda_M31",
+      "common": "Andromeda Galaxy (M31)",
+      "ra": 10.6847,
+      "dec": 41.269167
+    },
+    {
       "name": "Barnards_Star",
       "common": "Barnard's Star",
       "ra": 269.452083,
       "dec": 4.693333
     },
     {
+      "name": "Crab_M1",
+      "common": "Crab Nebula (M1)",
+      "ra": 83.633083,
+      "dec": 22.0145
+    },
+    {
       "name": "Epsilon_Indi_B",
       "common": "Epsilon Indi B",
       "ra": 331.04375,
       "dec": -56.782778
+    },
+    {
+      "name": "Orion_M42",
+      "common": "Orion Nebula (M42)",
+      "ra": 83.822083,
+      "dec": -5.391111
+    },
+    {
+      "name": "Pleiades_M45",
+      "common": "Pleiades (M45)",
+      "ra": 56.75,
+      "dec": 24.116667
+    },
+    {
+      "name": "Proxima_Cen",
+      "common": "Proxima Centauri",
+      "ra": 217.428951,
+      "dec": -62.679483
     },
     {
       "name": "RW_Aurigae",
@@ -25,10 +55,28 @@
       "dec": 66.754722
     },
     {
+      "name": "SgrA_star",
+      "common": "Sagittarius A*",
+      "ra": 266.416817,
+      "dec": -29.007825
+    },
+    {
+      "name": "TRAPPIST_1",
+      "common": "TRAPPIST-1",
+      "ra": 346.6224,
+      "dec": -5.0413
+    },
+    {
       "name": "WISE_0855",
       "common": "WISE 0855",
       "ra": 133.795129,
       "dec": -7.245147
+    },
+    {
+      "name": "Whirlpool_M51",
+      "common": "Whirlpool Galaxy (M51)",
+      "ra": 202.469575,
+      "dec": 47.195258
     }
   ]
 }
