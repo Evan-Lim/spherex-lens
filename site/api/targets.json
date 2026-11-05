@@ -1,0 +1,34 @@
+{
+  "targets": [
+    {
+      "name": "Barnards_Star",
+      "common": "Barnard's Star",
+      "ra": 269.452083,
+      "dec": 4.693333
+    },
+    {
+      "name": "Epsilon_Indi_B",
+      "common": "Epsilon Indi B",
+      "ra": 331.04375,
+      "dec": -56.782778
+    },
+    {
+      "name": "RW_Aurigae",
+      "common": "RW Aurigae",
+      "ra": 76.95625,
+      "dec": 30.401389
+    },
+    {
+      "name": "R_Draconis",
+      "common": "R Draconis",
+      "ra": 248.1675,
+      "dec": 66.754722
+    },
+    {
+      "name": "WISE_0855",
+      "common": "WISE 0855",
+      "ra": 133.795129,
+      "dec": -7.245147
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+# Render blueprint: full FastAPI app in a Docker container.
+# Dashboard -> New + -> Blueprint -> pick this repo.  Nothing else to configure.
+services:
+  - type: web
+    name: spherex-lens
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/targets
+    autoDeploy: true
+    envVars:
+      - key: SPHEREX_CACHE
+        value: data_cache
+      - key: PORT
+        value: "8000"

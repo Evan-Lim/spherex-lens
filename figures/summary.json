@@ -14,8 +14,8 @@
       "candidates": 2,
       "dipoles": 1,
       "monopoles": 1,
-      "max_snr": 35.22,
-      "ch4": 1.04,
+      "max_snr": 33.29,
+      "ch4": 1.06,
       "h2o": 0.89,
       "nir_slope": -0.56,
       "spectral_label": "M-dwarf / Mira red giant"
@@ -29,14 +29,14 @@
       "n_epoch2": 2,
       "sigma1": 2.1213,
       "sigma2": 2.1213,
-      "detections": 4,
+      "detections": 5,
       "known": 2,
-      "candidates": 2,
-      "dipoles": 3,
-      "monopoles": 1,
-      "max_snr": 33.95,
-      "ch4": 1.81,
-      "h2o": 0.63,
+      "candidates": 3,
+      "dipoles": 1,
+      "monopoles": 4,
+      "max_snr": 32.54,
+      "ch4": 1.82,
+      "h2o": 0.64,
       "nir_slope": 0.42,
       "spectral_label": "T-type brown dwarf"
     },
@@ -54,9 +54,9 @@
       "candidates": 0,
       "dipoles": 1,
       "monopoles": 1,
-      "max_snr": 34.93,
-      "ch4": 0.83,
-      "h2o": 0.53,
+      "max_snr": 34.61,
+      "ch4": 0.84,
+      "h2o": 0.54,
       "nir_slope": 0.32,
       "spectral_label": "Dusty T Tauri / variable star"
     },
@@ -72,12 +72,12 @@
       "detections": 3,
       "known": 0,
       "candidates": 3,
-      "dipoles": 2,
-      "monopoles": 1,
-      "max_snr": 33.02,
+      "dipoles": 1,
+      "monopoles": 2,
+      "max_snr": 34.1,
       "ch4": 1.06,
-      "h2o": 0.91,
-      "nir_slope": -0.57,
+      "h2o": 0.92,
+      "nir_slope": -0.56,
       "spectral_label": "M-dwarf / Mira red giant"
     },
     {
@@ -89,21 +89,21 @@
       "n_epoch2": 2,
       "sigma1": 2.1213,
       "sigma2": 2.1213,
-      "detections": 3,
-      "known": 2,
-      "candidates": 1,
-      "dipoles": 2,
-      "monopoles": 1,
-      "max_snr": 33.82,
-      "ch4": 2.74,
+      "detections": 4,
+      "known": 1,
+      "candidates": 3,
+      "dipoles": 1,
+      "monopoles": 3,
+      "max_snr": 32.69,
+      "ch4": 2.75,
       "h2o": 0.85,
-      "nir_slope": 1.01,
+      "nir_slope": 1.0,
       "spectral_label": "Ultracool Y-dwarf"
     }
   ],
   "extras": {
     "detail_target": "WISE_0855",
-    "clean_pixel_fraction": 98.146,
+    "clean_pixel_fraction": 97.888,
     "recovery_grid": [
       {
         "snr": 3,
@@ -163,12 +163,12 @@
       {
         "snr": 7,
         "mu": 10,
-        "recovery": 0.36
+        "recovery": 0.64
       },
       {
         "snr": 10,
         "mu": 1,
-        "recovery": 0.0
+        "recovery": 0.04
       },
       {
         "snr": 10,
@@ -193,12 +193,12 @@
       {
         "snr": 15,
         "mu": 2,
-        "recovery": 0.04
+        "recovery": 0.08
       },
       {
         "snr": 15,
         "mu": 5,
-        "recovery": 1.0
+        "recovery": 0.88
       },
       {
         "snr": 15,

@@ -34,14 +34,15 @@ from matplotlib.patches import Rectangle
 from astropy.io import fits
 
 from step2_coadd import (coadd_detector, make_target_wcs, load_exposure,
-                         BAD_BITS, BIT_SATURATED, BIT_COSMIC_RAY, BIT_HOT_PIXEL,
-                         BIT_DEAD, BIT_STRAY_LIGHT)
+                         BAD_BITS, BIT_TRANSIENT, BIT_OVERFLOW, BIT_SUR_ERROR,
+                         BIT_NONFUNC, BIT_HOT, BIT_COLD, BIT_OUTLIER,
+                         BIT_PERSIST, BIT_REFERENCE)
 from step3_zogy import zogy, find_detections
 from step4_triage import triage
 from step5_spectrum import extract_spectrum_from_cutout, three_index_classifier
 from step6_injection import run_injection_recovery
 
-CACHE = "data_cache"
+CACHE = os.environ.get("SPHEREX_CACHE", "data_cache")
 NPIX = 180
 PIXSCALE = 3.0
 DT_YEARS = 0.5
@@ -91,9 +92,17 @@ def analyse(target):
     paths = meta["paths"]
     wcs = make_target_wcs(ra, dec, npix=NPIX, pixscale_arcsec=PIXSCALE)
 
-    half = max(1, len(paths) // 2)
-    img1, noise1 = coadd_detector(paths[:half], wcs, npix=NPIX)
-    img2, noise2 = coadd_detector(paths[half:], wcs, npix=NPIX)
+    epochs = meta.get("epochs")
+    if epochs and len(epochs) == len(paths) and len(set(epochs)) > 1:
+        first = min(epochs)
+        epoch1 = [p for p, e in zip(paths, epochs) if e == first]
+        epoch2 = [p for p, e in zip(paths, epochs) if e != first]
+    else:
+        half = max(1, len(paths) // 2)
+        epoch1, epoch2 = paths[:half], paths[half:]
+
+    img1, noise1 = coadd_detector(epoch1, wcs, npix=NPIX)
+    img2, noise2 = coadd_detector(epoch2, wcs, npix=NPIX)
     sigma1 = float(np.nanmedian(noise1))
     sigma2 = float(np.nanmedian(noise2))
 
@@ -120,7 +129,7 @@ def analyse(target):
         "img1": img1, "img2": img2, "D": D, "S": S,
         "sigma1": sigma1, "sigma2": sigma2,
         "detections": rows,
-        "n_epoch1": half, "n_epoch2": len(paths) - half,
+        "n_epoch1": len(epoch1), "n_epoch2": len(epoch2),
     }
 
     if meta.get("spectrum_fits") and os.path.exists(meta["spectrum_fits"]):
@@ -129,6 +138,19 @@ def analyse(target):
             "wavelengths": lam, "flux": flux, "error": err,
             "classification": three_index_classifier(lam, flux),
         }
+    else:
+        # Real cutouts: the only honest "spectrum" from a handful of exposures
+        # is the aperture photometry at each file's own central wavelength.
+        points = []
+        for path in paths:
+            spec = extract_spectrum_from_cutout(path, ra, dec)
+            if spec.get("wavelength_um") is not None:
+                points.append({"wavelength_um": float(spec["wavelength_um"]),
+                               "flux": float(spec["flux"]),
+                               "bandwidth_um": spec.get("bandwidth_um"),
+                               "file": os.path.basename(path)})
+        result["spectrum_points"] = sorted(points,
+                                           key=lambda p: p["wavelength_um"])
     return result
 
 
@@ -173,6 +195,7 @@ def fig_band_coverage(targets, outdir):
                  "(0.75-5.00 um)")
     ax.set_xticks([])
 
+    plotted = 0
     for name in targets:
         meta = load_meta(name)
         if not meta.get("spectrum_fits"):
@@ -180,6 +203,12 @@ def fig_band_coverage(targets, outdir):
         lam, flux, _ = read_spectrum(meta["spectrum_fits"])
         ax2.plot(lam, flux / flux.max(), lw=1.6,
                  label=meta["meta"].get("common", name))
+        plotted += 1
+    if plotted == 0:
+        ax2.text(0.5, 0.5, "no 102-band SPECTRUM tables in this cache\n"
+                           "(real cutouts carry per-pixel WCS-WAVE calibration)",
+                 transform=ax2.transAxes, ha="center", va="center",
+                 fontsize=9, color="#64748b")
     for centre, label in ((1.72, "CH$_4$"), (2.32, "CH$_4$"),
                           (1.50, "H$_2$O"), (2.00, "H$_2$O"), (3.00, "H$_2$O")):
         ax2.axvline(centre, color="#cbd5e1", lw=0.8, ls=":", zorder=0)
@@ -251,7 +280,7 @@ def fig_detections(res, outdir):
 def fig_spectrum(res, outdir):
     """Spectrum with the three classifier windows drawn on it."""
     spec = res.get("spectrum")
-    if spec is None:
+    if spec is None or spec.get("classification") is None:
         return None
     lam, flux = spec["wavelengths"], spec["flux"]
     cls = spec["classification"]
@@ -391,9 +420,10 @@ def fig_flags(res, outdir):
     """FLAGS bit coverage for one exposure and the masked fraction."""
     img, flags, var, wcs = load_exposure(res["paths"][0])
 
-    bits = [(BIT_DEAD, "dead"), (BIT_SATURATED, "saturated"),
-            (BIT_COSMIC_RAY, "cosmic ray"), (BIT_HOT_PIXEL, "hot pixel"),
-            (BIT_STRAY_LIGHT, "stray light")]
+    bits = [(BIT_TRANSIENT, "transient"), (BIT_OVERFLOW, "overflow"),
+            (BIT_SUR_ERROR, "sur error"), (BIT_NONFUNC, "nonfunc"),
+            (BIT_HOT, "hot"), (BIT_COLD, "cold"), (BIT_OUTLIER, "outlier"),
+            (BIT_PERSIST, "persist"), (BIT_REFERENCE, "reference")]
     total = flags.size
     labels, fracs = [], []
     for bit, name in bits:
@@ -407,9 +437,10 @@ def fig_flags(res, outdir):
     categorical = np.zeros(flags.shape)
     for idx, (bit, _) in enumerate(bits, start=1):
         categorical[(flags & bit) != 0] = idx
-    cmap = matplotlib.colors.ListedColormap(
-        ["#e2e8f0", "#0ea5e9", "#dc2626", "#f59e0b", "#8b5cf6", "#16a34a"])
-    ax.imshow(categorical, origin="lower", cmap=cmap, vmin=0, vmax=5,
+    palette = ["#e2e8f0", "#0ea5e9", "#dc2626", "#f59e0b", "#8b5cf6",
+               "#16a34a", "#db2777", "#0891b2", "#65a30d", "#a16207"]
+    cmap = matplotlib.colors.ListedColormap(palette[:len(bits) + 1])
+    ax.imshow(categorical, origin="lower", cmap=cmap, vmin=0, vmax=len(bits),
               interpolation="nearest")
     ax.set_title("FLAGS bit mask (one exposure)")
     ax.set_xlabel("pixel x")
@@ -422,10 +453,10 @@ def fig_flags(res, outdir):
     ax.legend(handles=handles, frameon=False, fontsize=7, loc="upper center",
               bbox_to_anchor=(0.5, -0.12), ncol=3)
 
-    bars = ax2.bar(labels, fracs, color=[BLUE, RED, AMBER, "#8b5cf6", GREEN])
+    bars = ax2.bar(labels, fracs, color=palette[1:len(bits) + 1])
     ax2.set_ylabel("Pixels flagged (%)")
     ax2.set_title(f"Contamination: {clean:.1f}% of pixels survive the mask")
-    ax2.tick_params(axis="x", rotation=20, labelsize=7.5)
+    ax2.tick_params(axis="x", rotation=35, labelsize=7)
     for bar, frac in zip(bars, fracs):
         ax2.annotate(f"{frac:.2f}%", (bar.get_x() + bar.get_width() / 2,
                                       bar.get_height()),

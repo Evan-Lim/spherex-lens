@@ -1,0 +1,27 @@
+# Fly.io config: full FastAPI app.
+#   fly launch --no-deploy --copy-config
+#   fly deploy
+app = "spherex-lens"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SPHEREX_CACHE = "data_cache"
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.http_options.response.headers]
+    Cache-Control = "public, max-age=300"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

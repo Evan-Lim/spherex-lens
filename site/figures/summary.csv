@@ -1,0 +1,6 @@
+target,common,ra,dec,n_epoch1,n_epoch2,sigma1,sigma2,detections,known,candidates,dipoles,monopoles,max_snr,ch4,h2o,nir_slope,spectral_label
+Barnards_Star,Barnard's Star,269.452083,4.693333,2,2,0.0106,0.0119,12,4,8,3,9,29.55,,,,
+Epsilon_Indi_B,Epsilon Indi B,331.04375,-56.782778,2,2,0.0118,0.011,5,0,5,3,2,22.42,,,,
+RW_Aurigae,RW Aurigae,76.95625,30.401389,2,2,0.0133,0.0134,1,0,1,0,1,5.72,,,,
+R_Draconis,R Draconis,248.1675,66.754722,2,2,0.0128,0.0117,6,6,0,4,2,18.86,,,,
+WISE_0855,WISE 0855,133.795129,-7.245147,2,2,0.01,0.0098,2,0,2,0,2,8.95,,,,

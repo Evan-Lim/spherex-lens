@@ -1,0 +1,21 @@
+# Netlify: static deployment of the pre-rendered site in site/.
+#
+#   python export_static.py      # regenerate site/ (needs Python + requirements)
+#   netlify deploy --prod --dir site
+#
+# Netlify runs no Python, so the API responses are pre-computed into
+# site/api/*.json by export_static.py; the dashboard reads them directly.
+
+[build]
+  publish = "site"
+  command = ""
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/figures/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"

@@ -29,7 +29,7 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 
-CACHE = "data_cache"
+CACHE = os.environ.get("SPHEREX_CACHE", "data_cache")
 
 PIXSCALE = 1.5          # arcsec per pixel of the synthetic cutouts
 PSF_SIGMA_PX = 3.0      # ~4.5 arcsec FWHM, close to the SPHEREx PSF
@@ -50,12 +50,10 @@ DETECTORS = {
 CHANNELS_PER_DETECTOR = 17
 EXPOSURE_DETECTORS = ["D3", "D4", "D3", "D4"]   # epochs 1 and 2 use D3 + D4
 
-# FLAGS bits, mirroring step2_coadd.py.
-BIT_DEAD = 1 << 0
-BIT_SATURATED = 1 << 1
-BIT_COSMIC_RAY = 1 << 2
-BIT_HOT_PIXEL = 1 << 5
-BIT_STRAY_LIGHT = 1 << 8
+# FLAGS bits, imported so the synthetic data uses exactly the same real
+# SPHEREx L2 mask planes as step2_coadd.py.
+from step2_coadd import (BIT_TRANSIENT, BIT_OVERFLOW, BIT_NONFUNC, BIT_HOT,
+                         BIT_REFERENCE, BIT_OUTLIER)
 
 # Per-target SED parameters for the synthetic 102-band spectrum.  The
 # absorption troughs are placed exactly where step5_spectrum.py samples them:
@@ -158,24 +156,26 @@ def exposure_image(rng, wcs, npix, ra_c, dec_c, stars, sources):
 
 def make_flags(rng, img, npix):
     """
-    Contamination bitmask: cosmic rays, hot pixels, dead pixels, a stray-light
-    edge and saturated cores -- one of each of the five bits step2_coadd masks.
+    Contamination bitmask built from the real SPHEREx L2 mask planes:
+    transients, overflow, non-functional pixels, hot pixels, reference-pixel
+    edges and outlier-flagged pixels.
     """
     flags = np.zeros((npix, npix), dtype=np.int32)
-    flags[rng.random((npix, npix)) < 0.004] |= BIT_COSMIC_RAY
-    flags[rng.random((npix, npix)) < 0.002] |= BIT_HOT_PIXEL
+    flags[rng.random((npix, npix)) < 0.004] |= BIT_TRANSIENT
+    flags[rng.random((npix, npix)) < 0.002] |= BIT_HOT
+    flags[rng.random((npix, npix)) < 0.003] |= BIT_OUTLIER
 
-    # A few dead pixels, as short vertical defects.
+    # A few permanently unusable columns.
     for _ in range(4):
         x = int(rng.integers(10, npix - 10))
         y = int(rng.integers(10, npix - 10))
-        flags[y:y + 3, x] |= BIT_DEAD
+        flags[y:y + 3, x] |= BIT_NONFUNC
 
-    # Stray light creeping in along the detector edge.
-    flags[:, :5] |= BIT_STRAY_LIGHT
+    # Reference pixels along one detector edge.
+    flags[:, :5] |= BIT_REFERENCE
 
-    # Saturated cores: only the brightest pixels, as on real data.
-    flags[img > np.median(img) + 40.0 * NOISE_SIGMA] |= BIT_SATURATED
+    # Overflow in the cores of the brightest stars.
+    flags[img > np.median(img) + 40.0 * NOISE_SIGMA] |= BIT_OVERFLOW
     return flags
 
 

@@ -20,3 +20,5 @@ env/
 # make_demo_data.py.
 data_cache/*.fits
 data_cache/*.fits.gz
+data_cache_demo/*.fits
+data_cache_demo/*.fits.gz

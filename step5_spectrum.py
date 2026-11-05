@@ -12,9 +12,56 @@ from astropy.io import fits
 from astropy.wcs import WCS
 
 
+def _wavelength_from_wave_tab(hdul, x_cut, y_cut):
+    """
+    Central wavelength (um) at a cutout pixel from the real WCS-WAVE table.
+
+    SPHEREx Level-2 files do not store CWAVE/CBAND images: the wavelength
+    calibration is a FITS "WAVE-TAB" lookup (Paper 3, section 6.1) on a coarse
+    9x9 grid of the *parent* 2040x2040 image, stored in a BINTABLE with X, Y
+    key columns and VALUES(x, y, 2) = (wavelength, bandwidth).  The image
+    header carries CRPIX1W/CRPIX2W so the cutout pixel can be mapped back to
+    parent coordinates before the bilinear interpolation.
+    """
+    if "WCS-WAVE" not in hdul:
+        return None, None
+    header = hdul["IMAGE"].header
+    x_parent = x_cut - float(header.get("CRPIX1W", 0.0))
+    y_parent = y_cut - float(header.get("CRPIX2W", 0.0))
+
+    table = hdul["WCS-WAVE"].data
+    keys_x = np.asarray(table["X"][0], dtype=float)
+    keys_y = np.asarray(table["Y"][0], dtype=float)
+    values = np.asarray(table["VALUES"][0], dtype=float)   # (ny, nx, 2)
+
+    if not (keys_x[0] <= x_parent <= keys_x[-1]):
+        return None, None
+    if not (keys_y[0] <= y_parent <= keys_y[-1]):
+        return None, None
+
+    ix = int(np.clip(np.searchsorted(keys_x, x_parent) - 1, 0, len(keys_x) - 2))
+    iy = int(np.clip(np.searchsorted(keys_y, y_parent) - 1, 0, len(keys_y) - 2))
+    fx = (x_parent - keys_x[ix]) / (keys_x[ix + 1] - keys_x[ix])
+    fy = (y_parent - keys_y[iy]) / (keys_y[iy + 1] - keys_y[iy])
+
+    lam = ((1 - fx) * (1 - fy) * values[iy, ix, 0]
+           + fx * (1 - fy) * values[iy, ix + 1, 0]
+           + (1 - fx) * fy * values[iy + 1, ix, 0]
+           + fx * fy * values[iy + 1, ix + 1, 0])
+    band = ((1 - fx) * (1 - fy) * values[iy, ix, 1]
+            + fx * (1 - fy) * values[iy, ix + 1, 1]
+            + (1 - fx) * fy * values[iy + 1, ix, 1]
+            + fx * fy * values[iy + 1, ix + 1, 1])
+    return float(lam), float(band)
+
+
 def extract_spectrum_from_cutout(cutout_path, ra, dec, aperture_radius_pix=3):
     """
     Extract the flux at (ra, dec) from a single SPHEREx cutout.
+
+    Returns the background-subtracted aperture flux, the central wavelength of
+    the aperture (from CWAVE when present, else from the real WCS-WAVE lookup
+    table) and the pixel coordinates of the aperture centre.
     """
     with fits.open(cutout_path) as hdul:
         if "IMAGE" in hdul:
@@ -24,17 +71,20 @@ def extract_spectrum_from_cutout(cutout_path, ra, dec, aperture_radius_pix=3):
             img = hdul[0].data.astype(float)
             wcs = WCS(hdul[0].header)
 
-        if "CWAVE" in hdul:
-            cwave = hdul["CWAVE"].data.astype(float)
+        cwave = hdul["CWAVE"].data.astype(float) if "CWAVE" in hdul else None
+
+        try:
+            cx, cy = wcs.world_to_pixel_values(ra, dec)
+        except Exception:
+            return {"flux": 0.0, "wavelength_um": None, "bandwidth_um": None,
+                    "center_pix": (0, 0)}
+
+        cy_i, cx_i = int(cy), int(cx)
+
+        if cwave is not None and 0 <= cy_i < cwave.shape[0] and 0 <= cx_i < cwave.shape[1]:
+            lam, band = float(cwave[cy_i, cx_i]), None
         else:
-            cwave = None
-
-    try:
-        cx, cy = wcs.world_to_pixel_values(ra, dec)
-    except Exception:
-        return {"flux": 0.0, "wavelength_um": None, "center_pix": (0, 0)}
-
-    cy_i, cx_i = int(cy), int(cx)
+            lam, band = _wavelength_from_wave_tab(hdul, cx, cy)
 
     yy, xx = np.mgrid[0:img.shape[0], 0:img.shape[1]]
     dist = np.hypot(xx - cx, yy - cy)
@@ -43,19 +93,18 @@ def extract_spectrum_from_cutout(cutout_path, ra, dec, aperture_radius_pix=3):
     annulus = (dist > aperture_radius_pix + 2) & (dist < aperture_radius_pix + 6)
 
     if aperture.sum() == 0:
-        return {"flux": 0.0, "wavelength_um": None, "center_pix": (cy_i, cx_i)}
+        return {"flux": 0.0, "wavelength_um": lam, "bandwidth_um": band,
+                "center_pix": (cy_i, cx_i)}
 
     bg = np.nanmean(img[annulus]) if annulus.sum() > 0 else 0.0
+    if not np.isfinite(bg):
+        bg = 0.0
     flux = np.nansum(img[aperture]) - bg * aperture.sum()
-
-    if cwave is not None and 0 <= cy_i < cwave.shape[0] and 0 <= cx_i < cwave.shape[1]:
-        lam = float(cwave[cy_i, cx_i])
-    else:
-        lam = None
 
     return {
         "flux": float(flux),
         "wavelength_um": lam,
+        "bandwidth_um": band,
         "center_pix": (cy_i, cx_i),
     }
 

@@ -1,6 +1,24 @@
 // SPHEREx Discovery Portal frontend
+//
+// Works in two modes:
+//   * server mode (default)  -- served by FastAPI, talks to /api/*
+//   * static mode            -- <body data-mode="static">, reads pre-rendered
+//                               JSON from api/<kind>-<target>.json (this is
+//                               what the Netlify/Vercel/GitHub Pages build in
+//                               site/ uses)
 
+const STATIC_MODE = document.body.dataset.mode === 'static';
 const API_BASE = window.location.origin;
+
+function apiUrl(kind, target) {
+  if (STATIC_MODE) {
+    const dir = document.body.dataset.apiDir || 'api';
+    const suffix = target ? `-${encodeURIComponent(target)}` : '';
+    return `${dir}/${kind}${suffix}.json`;
+  }
+  const query = target ? `?target=${encodeURIComponent(target)}` : '';
+  return `${API_BASE}/api/${kind}${query}`;
+}
 
 let currentData = null;
 
@@ -132,7 +150,14 @@ async function runPipeline() {
   setText('card-total', '...');
 
   try {
-    const resp = await fetch(`${API_BASE}/api/dashboard?target=${encodeURIComponent(target)}`);
+    const resp = await fetch(apiUrl('dashboard', target));
+    if (!resp.ok) {
+      setText('map-hint', STATIC_MODE
+        ? `No pre-rendered dashboard for ${target} (not in the static build).`
+        : `Request failed: HTTP ${resp.status}`);
+      hide('map-loader');
+      return;
+    }
     const data = await resp.json();
 
     if (data.error) {
@@ -173,7 +198,11 @@ async function runRecovery() {
   const target = document.getElementById('target-select').value;
   setText('map-hint', 'Running recovery grid...');
   try {
-    const resp = await fetch(`${API_BASE}/api/recovery?target=${encodeURIComponent(target)}`);
+    const resp = await fetch(apiUrl('recovery', target));
+    if (!resp.ok) {
+      setText('map-hint', `No recovery grid available for ${target}.`);
+      return;
+    }
     const data = await resp.json();
     if (data.error) {
       setText('map-hint', data.error);
@@ -192,9 +221,28 @@ function injectPlanetX() {
   setText('map-hint', 'Planet X injection -- not yet implemented in demo');
 }
 
+// Populate the target dropdown from whatever data the deployment ships.
+async function loadTargets() {
+  try {
+    const resp = await fetch(apiUrl('targets'));
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const targets = (data.targets || []).filter(t => t && t.name);
+    if (targets.length === 0) return;
+    const sel = document.getElementById('target-select');
+    const previous = sel.value;
+    sel.innerHTML = targets
+      .map(t => `<option value="${t.name}">${t.common || t.name}</option>`)
+      .join('');
+    if (targets.some(t => t.name === previous)) sel.value = previous;
+  } catch (e) {
+    /* keep the hard-coded list */
+  }
+}
+
 document.getElementById('btn-run').addEventListener('click', runPipeline);
 document.getElementById('btn-recovery').addEventListener('click', runRecovery);
 document.getElementById('btn-inject').addEventListener('click', injectPlanetX);
 document.getElementById('target-select').addEventListener('change', runPipeline);
 
-runPipeline();
+loadTargets().then(runPipeline);

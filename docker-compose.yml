@@ -1,0 +1,11 @@
+# Local container run:  docker compose up --build  ->  http://localhost:8000
+services:
+  portal:
+    build: .
+    image: spherex-lens:local
+    ports:
+      - "8000:8000"
+    environment:
+      SPHEREX_CACHE: data_cache
+      PORT: "8000"
+    restart: unless-stopped

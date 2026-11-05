@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPHEREx Discovery Portal</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-mode="static" data-api-dir="api">
+
+  <!-- Left sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">SPHEREx Portal</div>
+      <div class="subtitle">Discovery Triage System</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Target</div>
+      <select id="target-select" class="control-select">
+        <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
+        <option value="Barnards_Star">Barnard's Star (M4V)</option>
+        <option value="Epsilon_Indi_B">Epsilon Indi B (T-dwarf)</option>
+        <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
+        <option value="R_Draconis">R Draconis (Mira)</option>
+      </select>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Actions</div>
+      <button id="btn-run" class="btn btn-primary">Run Pipeline</button>
+      <button id="btn-recovery" class="btn btn-secondary">Run Recovery</button>
+      <button id="btn-inject" class="btn btn-danger">Inject Planet X</button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Triage Verdict</div>
+      <div id="verdict-box" class="verdict-box">
+        <div class="verdict-label">No detection yet</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Statistics</div>
+      <div class="stat-row">
+        <span>Detections</span><span id="stat-detect">0</span>
+      </div>
+      <div class="stat-row">
+        <span>Unknown</span><span id="stat-unknown">0</span>
+      </div>
+      <div class="stat-row">
+        <span>SNR (max)</span><span id="stat-snr">--</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div class="page-title">Command Dashboard</div>
+        <div class="page-subtitle">NASA SPHEREx Level-2 cutouts &middot; ZOGY subtraction</div>
+      </div>
+      <div class="status-pill">
+        <span class="dot green"></span> Normal Ops
+      </div>
+    </header>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-card-label">Verified Occupants</div>
+        <div class="stat-card-value" id="card-total">0</div>
+        <div class="stat-card-hint">sources detected</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">Unaccounted</div>
+        <div class="stat-card-value red" id="card-unknown">0</div>
+        <div class="stat-card-hint">no catalog match</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">Max SNR</div>
+        <div class="stat-card-value" id="card-snr">--</div>
+        <div class="stat-card-hint">significance map</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Live ZOGY Map</div>
+        <div class="panel-hint" id="map-hint">Run pipeline to load</div>
+      </div>
+      <div class="map-container">
+        <canvas id="canvas-map"></canvas>
+        <div id="map-loader" class="loader hidden">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Detections</div>
+        <div class="panel-hint">Click any row to inspect</div>
+      </div>
+      <div class="table-container">
+        <table class="detections-table">
+          <thead>
+            <tr>
+              <th>RA</th>
+              <th>Dec</th>
+              <th>SNR</th>
+              <th>Kind</th>
+              <th>Verdict</th>
+              <th>Match</th>
+            </tr>
+          </thead>
+          <tbody id="detections-body">
+            <tr><td colspan="6" class="empty">No detections yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

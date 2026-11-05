@@ -29,7 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CACHE = "data_cache"
+CACHE = os.environ.get("SPHEREX_CACHE", "data_cache")
 
 
 def load_target(target):
@@ -86,9 +86,15 @@ def get_dashboard(target: str = Query("WISE_0855")):
     npix = 180
     wcs = make_target_wcs(ra, dec, npix=npix, pixscale_arcsec=3.0)
 
-    half = len(paths) // 2
-    epoch1_files = paths[:half] if half > 0 else paths[:1]
-    epoch2_files = paths[half:] if half > 0 else paths[1:]
+    epochs = meta.get("epochs")
+    if epochs and len(epochs) == len(paths) and len(set(epochs)) > 1:
+        first = min(epochs)
+        epoch1_files = [p for p, e in zip(paths, epochs) if e == first]
+        epoch2_files = [p for p, e in zip(paths, epochs) if e != first]
+    else:
+        half = len(paths) // 2
+        epoch1_files = paths[:half] if half > 0 else paths[:1]
+        epoch2_files = paths[half:] if half > 0 else paths[1:]
 
     try:
         img1, noise1 = coadd_detector(epoch1_files, wcs, npix=npix)
@@ -131,10 +137,24 @@ def get_dashboard(target: str = Query("WISE_0855")):
             table = hdul["SPECTRUM"].data
             wavelengths = np.asarray(table["WAVELENGTH"], dtype=float).tolist()
             flux = np.asarray(table["FLUX"], dtype=float).tolist()
+        classification = three_index_classifier(np.array(wavelengths), np.array(flux))
     else:
-        wavelengths = np.linspace(0.75, 5.0, 102).tolist()
-        flux = [float(1.0 + 0.3 * np.sin(i / 10.0)) for i in range(102)]
-    classification = three_index_classifier(np.array(wavelengths), np.array(flux))
+        # Real SPHEREx cutouts: build the observed spectrum from the aperture
+        # photometry of every cached exposure, using each file's own WCS-WAVE
+        # wavelength calibration.
+        points = []
+        for path in paths:
+            spec = extract_spectrum_from_cutout(path, ra, dec)
+            if spec.get("wavelength_um") is not None:
+                points.append((spec["wavelength_um"], spec["flux"]))
+        points.sort()
+        wavelengths = [float(p[0]) for p in points]
+        flux = [float(p[1]) for p in points]
+        # The three-index classifier needs a sampled spectrum, not a handful
+        # of exposures, so it is only reported when enough channels exist.
+        classification = (three_index_classifier(np.array(wavelengths),
+                                                 np.array(flux))
+                          if len(points) >= 30 else None)
 
     def clean_array(arr):
         arr = np.round(arr, 2)
