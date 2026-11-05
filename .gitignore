@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Large downloaded FITS cutouts. The *_meta.json files are small and worth
+# committing (the blueprint recommends shipping the pre-cached demo data),
+# but the arrays themselves are regenerable with step1_ingest.py or
+# make_demo_data.py.
+data_cache/*.fits
+data_cache/*.fits.gz

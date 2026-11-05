@@ -1,0 +1,20 @@
+# SPHEREx Discovery Portal -- Python 3.11 (conda env "spherex")
+#
+#   conda create -n spherex python=3.11 -y
+#   conda activate spherex
+#   pip install -r requirements.txt
+#
+# This is the package list from the blueprint (Section 2.3) plus "requests",
+# which step1_ingest.py uses to talk to the IRSA SIA2 service.
+
+numpy>=1.24
+scipy>=1.10
+astropy>=5.3
+reproject>=0.11
+pyvo>=1.4
+astroquery>=0.4.6
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pillow>=10.0
+matplotlib>=3.7
+requests>=2.31
