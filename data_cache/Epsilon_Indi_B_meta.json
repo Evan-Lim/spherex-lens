@@ -2176,5 +2176,59 @@
   "collection": "spherex_qr2",
   "cutout_size_deg": 0.2,
   "sia2_rows": 362,
-  "n_epochs": 3
+  "n_epochs": 3,
+  "sources": [
+    {
+      "path": "data_cache/level2_2025W17_4B_0468_1D1_spx_l2b-v20-2025-241_cut.fits",
+      "file": "level2_2025W17_4B_0468_1D1_spx_l2b-v20-2025-241_cut.fits",
+      "epoch": 1,
+      "band": "SPHEREx-D1",
+      "detector": "D1",
+      "obs_id": "2025W17_4B_0468_1",
+      "mjd": 60792.841183,
+      "url": "https://irsa.ipac.caltech.edu/ibe/data/spherex/qr2/level2/2025W17_4B/l2b-v20-2025-241/1/level2_2025W17_4B_0468_1D1_spx_l2b-v20-2025-241.fits",
+      "collection": "spherex_qr2",
+      "cutout_size_deg": 0.2,
+      "bytes": 5279040
+    },
+    {
+      "path": "data_cache/level2_2025W17_4B_0468_2D4_spx_l2b-v20-2025-240_cut.fits",
+      "file": "level2_2025W17_4B_0468_2D4_spx_l2b-v20-2025-240_cut.fits",
+      "epoch": 1,
+      "band": "SPHEREx-D4",
+      "detector": "D4",
+      "obs_id": "2025W17_4B_0468_2",
+      "mjd": 60792.842675,
+      "url": "https://irsa.ipac.caltech.edu/ibe/data/spherex/qr2/level2/2025W17_4B/l2b-v20-2025-240/4/level2_2025W17_4B_0468_2D4_spx_l2b-v20-2025-240.fits",
+      "collection": "spherex_qr2",
+      "cutout_size_deg": 0.2,
+      "bytes": 5279040
+    },
+    {
+      "path": "data_cache/level2_2026W17_1B_0337_3D1_spx_l2b-v24-2026-115_cut.fits",
+      "file": "level2_2026W17_1B_0337_3D1_spx_l2b-v24-2026-115_cut.fits",
+      "epoch": 2,
+      "band": "SPHEREx-D1",
+      "detector": "D1",
+      "obs_id": "2026W17_1B_0337_3",
+      "mjd": 61151.833083,
+      "url": "https://irsa.ipac.caltech.edu/ibe/data/spherex/qr2/level2/2026W17_1B/l2b-v24-2026-115/1/level2_2026W17_1B_0337_3D1_spx_l2b-v24-2026-115.fits",
+      "collection": "spherex_qr2",
+      "cutout_size_deg": 0.2,
+      "bytes": 5281920
+    },
+    {
+      "path": "data_cache/level2_2026W17_1B_0337_3D4_spx_l2b-v24-2026-115_cut.fits",
+      "file": "level2_2026W17_1B_0337_3D4_spx_l2b-v24-2026-115_cut.fits",
+      "epoch": 2,
+      "band": "SPHEREx-D4",
+      "detector": "D4",
+      "obs_id": "2026W17_1B_0337_3",
+      "mjd": 61151.833083,
+      "url": "https://irsa.ipac.caltech.edu/ibe/data/spherex/qr2/level2/2026W17_1B/l2b-v24-2026-115/4/level2_2026W17_1B_0337_3D4_spx_l2b-v24-2026-115.fits",
+      "collection": "spherex_qr2",
+      "cutout_size_deg": 0.2,
+      "bytes": 5279040
+    }
+  ]
 }

@@ -3,124 +3,216 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SPHEREx Discovery Portal</title>
+  <title>SPHERExLens -- Discovery Triage</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-mode="static" data-api-dir="api">
 
-  <!-- Left sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">SPHEREx Portal</div>
-      <div class="subtitle">Discovery Triage System</div>
+  <!-- ===================== brand / status bar ===================== -->
+  <header class="chrome">
+    <div class="chrome-left">
+      <span class="brand-mark"></span>
+      <span class="brand-name">SPHERExLens</span>
+      <span class="brand-sub">NEXUS&nbsp;//&nbsp;SPHEREX-QR2</span>
     </div>
-
-    <div class="sidebar-section">
-      <div class="section-label">Target</div>
-      <select id="target-select" class="control-select">
-        <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
-        <option value="Barnards_Star">Barnard's Star (M4V)</option>
-        <option value="Epsilon_Indi_B">Epsilon Indi B (T-dwarf)</option>
-        <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
-        <option value="R_Draconis">R Draconis (Mira)</option>
-      </select>
+    <div class="chrome-right">
+      <span class="status-pill">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">STANDBY &middot; NO FIELD LOADED</span>
+      </span>
+      <button id="btn-demo" class="btn btn-ghost">Auto Demo</button>
+      <button id="btn-reset" class="btn btn-ghost">Reset</button>
     </div>
+  </header>
 
-    <div class="sidebar-section">
-      <div class="section-label">Actions</div>
-      <button id="btn-run" class="btn btn-primary">Run Pipeline</button>
-      <button id="btn-recovery" class="btn btn-secondary">Run Recovery</button>
-      <button id="btn-inject" class="btn btn-danger">Inject Planet X</button>
-    </div>
+  <main class="workspace">
 
-    <div class="sidebar-section">
-      <div class="section-label">Triage Verdict</div>
-      <div id="verdict-box" class="verdict-box">
-        <div class="verdict-label">No detection yet</div>
+    <!-- ===================== /01 target control ===================== -->
+    <section class="panel panel-left">
+      <div class="panel-head">
+        <div>
+          <h1>Target Control</h1>
+          <p class="panel-sub">five mandatory objects &middot; live NASA archive</p>
+        </div>
+        <span class="panel-index">/01</span>
       </div>
-    </div>
 
-    <div class="sidebar-section">
-      <div class="section-label">Statistics</div>
-      <div class="stat-row">
-        <span>Detections</span><span id="stat-detect">0</span>
-      </div>
-      <div class="stat-row">
-        <span>Unknown</span><span id="stat-unknown">0</span>
-      </div>
-      <div class="stat-row">
-        <span>SNR (max)</span><span id="stat-snr">--</span>
-      </div>
-    </div>
-  </aside>
+      <span class="tag tag-blue">&#9670; ARCHIVE ACCESS</span>
 
-  <!-- Main content -->
-  <main class="main">
-    <header class="topbar">
-      <div>
-        <div class="page-title">Command Dashboard</div>
-        <div class="page-subtitle">NASA SPHEREx Level-2 cutouts &middot; ZOGY subtraction</div>
+      <div class="section">
+        <div class="section-label">Target</div>
+        <select id="target-select" class="control-select">
+          <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
+          <option value="Barnards_Star">Barnard's Star (M4V)</option>
+          <option value="Epsilon_Indi_B">Epsilon Indi B (T-dwarf)</option>
+          <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
+          <option value="R_Draconis">R Draconis (Mira)</option>
+        </select>
+        <dl class="kv" id="target-meta">
+          <div><dt>RA</dt><dd id="kv-ra">--</dd></div>
+          <div><dt>Dec</dt><dd id="kv-dec">--</dd></div>
+          <div><dt>Class</dt><dd id="kv-type">--</dd></div>
+        </dl>
       </div>
-      <div class="status-pill">
-        <span class="dot green"></span> Normal Ops
-      </div>
-    </header>
 
-    <section class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-card-label">Verified Occupants</div>
-        <div class="stat-card-value" id="card-total">0</div>
-        <div class="stat-card-hint">sources detected</div>
+      <div class="section">
+        <div class="section-label">Actions</div>
+        <button id="btn-run" class="btn btn-primary">
+          <span class="btn-icon">&#9635;</span> Run Pipeline
+        </button>
+        <button id="btn-recovery" class="btn btn-secondary">Recovery Grid</button>
+        <button id="btn-export" class="btn btn-secondary">Copy Share Link</button>
       </div>
-      <div class="stat-card">
-        <div class="stat-card-label">Unaccounted</div>
-        <div class="stat-card-value red" id="card-unknown">0</div>
-        <div class="stat-card-hint">no catalog match</div>
+
+      <div class="section">
+        <div class="section-label">Triage Verdict</div>
+        <div id="verdict-box" class="verdict-box">
+          <div class="verdict-label">No detection yet</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-card-label">Max SNR</div>
-        <div class="stat-card-value" id="card-snr">--</div>
-        <div class="stat-card-hint">significance map</div>
+
+      <div class="section">
+        <div class="section-label">Pipeline statistics</div>
+        <div class="stat-row"><span>Exposures</span><b id="stat-exp">--</b></div>
+        <div class="stat-row"><span>Epochs</span><b id="stat-epochs">--</b></div>
+        <div class="stat-row"><span>Baseline</span><b id="stat-baseline">--</b></div>
+        <div class="stat-row"><span>Noise &sigma;<sub>1</sub></span><b id="stat-sigma">--</b></div>
+        <div class="stat-row"><span>5&sigma; depth</span><b id="stat-depth">--</b></div>
+        <div class="stat-row"><span>Field / pixel</span><b id="stat-fov">--</b></div>
+        <div class="stat-row"><span>Gaia &middot; VSX</span><b id="stat-cats">--</b></div>
+        <div class="stat-row"><span>Dipoles &middot; mono</span><b id="stat-kinds">--</b></div>
+        <div class="stat-row"><span>Detections</span><b id="stat-detect">0</b></div>
+        <div class="stat-row"><span>Unknown</span><b id="stat-unknown">0</b></div>
+        <div class="stat-row"><span>SNR (max)</span><b id="stat-snr">--</b></div>
+      </div>
+
+      <div class="section section-last">
+        <div class="section-label">Recovery summary</div>
+        <div id="recovery-out" class="mono-box">injection-recovery not run yet</div>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-header">
-        <div class="panel-title">Live ZOGY Map</div>
-        <div class="panel-hint" id="map-hint">Run pipeline to load</div>
+    <!-- ===================== /02 command dashboard ===================== -->
+    <section class="panel panel-main">
+      <div class="panel-head">
+        <div>
+          <h1>Command Dashboard</h1>
+          <p class="panel-sub">ZOGY proper subtraction &middot; epoch pairs &middot; field 9&prime;</p>
+        </div>
+        <span class="panel-index">/02</span>
       </div>
-      <div class="map-container">
-        <canvas id="canvas-map"></canvas>
-        <div id="map-loader" class="loader hidden">
-          <div class="spinner"></div>
+
+      <span class="tag tag-amber">&#9670; SCIENCE &amp; TRIAGE OPS</span>
+
+      <div class="section">
+        <div class="section-label">Field metrics</div>
+        <div class="cards">
+          <div class="card card-blue">
+            <div class="card-label">Detections</div>
+            <div class="card-value" id="card-total">0</div>
+            <div class="card-hint">above 5&sigma; &middot; this field</div>
+          </div>
+          <div class="card card-red">
+            <div class="card-label">Unaccounted</div>
+            <div class="card-value" id="card-unknown">0</div>
+            <div class="card-hint">no catalog match</div>
+          </div>
+          <div class="card card-green">
+            <div class="card-label">Max SNR</div>
+            <div class="card-value" id="card-snr">--</div>
+            <div class="card-hint">significance map</div>
+          </div>
+          <div class="card card-amber">
+            <div class="card-label">Baseline</div>
+            <div class="card-value" id="card-baseline">--</div>
+            <div class="card-hint">days between epochs</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">
+          Live map <span class="hint-inline" id="map-hint">run pipeline to load</span>
+        </div>
+
+        <div class="map-toolbar">
+          <div class="segmented" id="layer-switch">
+            <button class="seg" data-layer="image">Co-add</button>
+            <button class="seg" data-layer="zogy_image">Difference&nbsp;D</button>
+            <button class="seg active" data-layer="zogy_snr">Significance&nbsp;S</button>
+          </div>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="tog-grid" checked><span>Grid</span></label>
+            <label class="toggle"><input type="checkbox" id="tog-cat" checked><span>Catalogs</span></label>
+            <label class="toggle"><input type="checkbox" id="tog-det" checked><span>Detections</span></label>
+          </div>
+          <div class="zoom-group">
+            <button id="zoom-out" title="Zoom out">&minus;</button>
+            <span id="zoom-label">1.0&times;</span>
+            <button id="zoom-in" title="Zoom in">+</button>
+            <button id="zoom-fit" title="Fit to field">Fit</button>
+          </div>
+        </div>
+
+        <div class="map-wrap">
+          <canvas id="canvas-map"></canvas>
+          <div class="map-readout mono" id="map-readout">RA --&middot;--- &nbsp; Dec --&middot;--- &nbsp; --</div>
+          <div class="map-scalebar"><span id="scalebar-line"></span><span id="scalebar-text">--</span></div>
+          <div class="map-tip mono hidden" id="map-tip"></div>
+          <div id="map-loader" class="loader hidden"><div class="spinner"></div></div>
+        </div>
+
+        <div class="legend">
+          <span class="legend-item"><i class="sw sw-gaia"></i> Gaia DR3</span>
+          <span class="legend-item"><i class="sw sw-vsx"></i> VSX</span>
+          <span class="legend-item"><i class="sw sw-dipole"></i> dipole (mover)</span>
+          <span class="legend-item"><i class="sw sw-monopole"></i> monopole (variable)</span>
+          <span class="legend-item hint-inline">drag to pan &middot; wheel to zoom &middot; click a marker</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Detections <span class="hint-inline">click a row to inspect</span></div>
+        <div class="table-wrap">
+          <table class="detections-table">
+            <thead>
+              <tr>
+                <th>RA</th><th>Dec</th><th>SNR</th><th>Kind</th><th>Verdict</th><th>Match</th><th>&mu; (&Prime;/yr)</th>
+              </tr>
+            </thead>
+            <tbody id="detections-body">
+              <tr><td colspan="7" class="empty">No detections yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section section-last">
+        <div class="section-label">Image sources &amp; provenance</div>
+        <div class="archive-line" id="archive-line">
+          every pixel on this page comes from a named NASA archive record
+        </div>
+        <div class="table-wrap">
+          <table class="sources-table">
+            <thead>
+              <tr>
+                <th>Epoch</th><th>Det</th><th>&lambda; (&micro;m)</th><th>Observation</th>
+                <th>UTC date</th><th>Pixels</th><th>Size</th><th>Archive record</th>
+              </tr>
+            </thead>
+            <tbody id="sources-body">
+              <tr><td colspan="8" class="empty">Run the pipeline to list sources</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
-
-    <section class="panel">
-      <div class="panel-header">
-        <div class="panel-title">Detections</div>
-        <div class="panel-hint">Click any row to inspect</div>
-      </div>
-      <div class="table-container">
-        <table class="detections-table">
-          <thead>
-            <tr>
-              <th>RA</th>
-              <th>Dec</th>
-              <th>SNR</th>
-              <th>Kind</th>
-              <th>Verdict</th>
-              <th>Match</th>
-            </tr>
-          </thead>
-          <tbody id="detections-body">
-            <tr><td colspan="6" class="empty">No detections yet</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
   </main>
+
+  <footer class="footer">
+    <span>SPHEREx Level-2 quick release &middot; IRSA/IPAC (Caltech) &middot; Gaia DR3 &amp; AAVSO VSX via VizieR / IRSA TAP</span>
+    <span class="mono" id="footer-status">idle</span>
+  </footer>
 
   <script src="app.js"></script>
 </body>

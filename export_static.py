@@ -30,11 +30,26 @@ Deploy with any static host:  netlify deploy --dir site
 """
 
 import os
+import sys
 import json
 import shutil
 import argparse
 
-import app as portal
+try:
+    import app as portal
+except ModuleNotFoundError as exc:      # e.g. running with the wrong Python
+    missing = exc.name or "a dependency"
+    sys.exit(
+        f"\nexport_static.py needs the project environment -- '{missing}' is not\n"
+        f"installed in {sys.executable}.\n\n"
+        "  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt\n"
+        "  .venv/bin/python export_static.py\n\n"
+        "or, with conda:\n\n"
+        "  conda create -n spherex python=3.11 -y && conda activate spherex\n"
+        "  pip install -r requirements.txt && python export_static.py\n\n"
+        "If you only want to DEPLOY, you do not need this script: site/ already\n"
+        "contains the pre-rendered site (5 targets). Publish that folder.\n"
+    )
 
 
 def build(outdir="site", targets=None, with_recovery=True, with_figures=True):

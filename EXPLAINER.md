@@ -1,0 +1,488 @@
+# SPHERExLens, explained for humans
+
+**A plain-language guide to what this project is, what it does, and how to read
+every number on the screen. No astronomy and no programming knowledge assumed.**
+
+---
+
+## 1. The one-paragraph version
+
+NASA's SPHEREx space telescope photographs the entire sky every six months, in
+102 different colours of infrared light. Because it keeps re-photographing the
+same places, you can compare pictures of the same patch of sky taken months
+apart: things that **move** (nearby stars, asteroids) or **change brightness**
+(variable stars) show up as differences. This project is a website that does
+that comparison automatically for five famous objects. It downloads the real
+NASA files, cleans them, stacks them, subtracts one epoch from the other, finds
+the significant differences, asks *"is this thing already in a catalogue?"*, and
+prints a verdict: **KNOWN** (we know what it is) or **CANDIDATE** (nobody has
+catalogued it -- worth a look).
+
+Everything you see is traceable: for every picture the site shows, there is a
+row in the *Image sources & provenance* table telling you exactly which NASA
+archive file it came from, with a link you can click.
+
+---
+
+## 2. What you are looking at, in physical terms
+
+### 2.1 The sky has an address system
+
+Astronomers locate things with two angles, like latitude and longitude on Earth:
+
+* **Right Ascension (RA)** -- the "longitude", measured in hours (0-24h) or
+  degrees (0-360°). One hour = 15°.
+* **Declination (Dec)** -- the "latitude", from -90° (south pole) to +90° (north
+  pole).
+
+So `RA 269.452°, Dec +4.693°` is a precise address on the sky (it is Barnard's
+Star). Angles on the sky are small, so astronomers use **arcminutes** (') and
+**arcseconds** ("): 1° = 60' = 3600". The full Moon is about 30' across. This
+website looks at a square **9 arcminutes on a side** -- roughly a third of the
+Moon's width, which is a comfortable "patch of sky" for a telescope.
+
+### 2.2 Why infrared
+
+Visible light gets blocked by dust, and cool objects (brown dwarfs at a few
+hundred kelvin) barely glow in visible light at all. In the near-infrared
+(0.75-5 micrometres) those objects are bright, dust is transparent, and
+molecules like water and methane leave deep fingerprints. That is exactly the
+wavelength range SPHEREx was built for.
+
+### 2.3 What SPHEREx actually is
+
+* A 20 cm telescope -- small, deliberately: it must fit in a rocket and be cheap
+  enough to *survey* rather than to *stare*.
+* **Six detector arrays**, each 2040 x 2040 pixels, each sitting under a
+  "linear variable filter" (LVF): a piece of glass whose colour changes from one
+  edge to the other. So one exposure is not one colour -- each **row** of the
+  detector is a slightly different wavelength.
+* 6 arrays x 17 wavelength channels each = **102 bands**, from 0.75 µm to
+  5.0 µm.
+* Pixels are big: one pixel covers about **6.2 arcseconds** of sky. (Compare:
+  Hubble sees 0.05" in one pixel.) SPHEREx is a wide-angle survey machine, not a
+  close-up machine.
+* It sweeps the whole sky every six months, so the same patch is re-imaged with
+  a gap of months -- perfect for finding things that change.
+
+### 2.4 The five targets (and why these five)
+
+| Target | What it is | Why it is interesting |
+|---|---|---|
+| **Barnard's Star** | A red dwarf (M4V), 6 light-years away | The fastest-moving star in our sky: 10.4"/year. Over months it visibly shifts. |
+| **Epsilon Indi B** | A brown dwarf pair (T1+T6) | A "failed star": too light to fuse hydrogen, so it just glows warm. |
+| **WISE 0855** | A Y-dwarf at ~250 K | One of the coldest objects known outside our solar system -- barely warmer than the Earth's surface on a winter night. |
+| **RW Aurigae** | A T Tauri star | A baby star still surrounded by a disc; it flickers unpredictably. |
+| **R Draconis** | A Mira variable | A dying star that pulses, changing brightness by a factor of hundreds over ~340 days. |
+
+Two of these are **movers**, two are **flickerers**, and one is an extreme cool
+object -- which is exactly why the pipeline has to be able to tell "movement"
+apart from "brightness change".
+
+---
+
+## 3. What is inside a SPHEREx file
+
+A SPHEREx download is a **FITS** file: a box with several labelled compartments
+(called *extensions*). Ours contains:
+
+| Compartment | Plain-English meaning |
+|---|---|
+| `IMAGE` | The photograph. Numbers are **surface brightness** in **MJy/sr** (megajanskys per steradian). Bigger number = brighter patch of sky. |
+| `FLAGS` | A "damage map": a whole number per pixel, where each *bit* says something specific ("this pixel was hit by a cosmic ray", "this pixel is dead", "this pixel overflowed"). |
+| `VARIANCE` | The uncertainty of each pixel, squared. Tiny values mean "trust this pixel"; large values mean "noisy". |
+| `ZODI` | A model of the zodiacal light -- sunlight scattered by interplanetary dust. |
+| `PSF` | The "blur profile" of the telescope: what a single point of light looks like after passing through the optics (121 slices of 101 x 101 pixels). |
+| `WCS-WAVE` | A look-up table that answers *"what wavelength is this pixel?"* for every position in the image. |
+
+Two extras in the header matter:
+
+* **WCS** ("World Coordinate System") -- the recipe that converts a pixel
+  position (column 57, row 40) into a sky position (RA, Dec) and back.
+* **OBSID / MJD / DETECTOR** -- which observation this is, when it was taken (in
+  Modified Julian Days), and which of the six arrays produced it.
+
+> **Why you should care about `FLAGS`:** roughly 2 % of pixels in a typical
+> SPHEREx image are damaged, cosmic-ray-hit, saturated or simply dead. If you
+> averaged those in, you would inject fake blobs into your picture. The pipeline
+> throws them away *before* averaging.
+
+---
+
+## 4. The six-step pipeline, in words you can picture
+
+The code has six files, `step1` ... `step6`. Here is what each one does, with an
+everyday analogy.
+
+### Step 1 -- Ingest: do the shopping (`step1_ingest.py`)
+
+You cannot analyse data you do not have. This step asks the NASA archive "what
+SPHEREx pictures cover Barnard's Star?" and receives a catalogue of available
+observations with their dates and URLs. Full frames are 70 MB each and there are
+hundreds of them, so instead of downloading everything it asks IRSA's **cutout
+service** for a small 0.2°-wide square around the target (about 5 MB) -- like
+asking the library for a photocopy of one page instead of the whole shelf.
+
+It keeps only exposures where the target sits comfortably inside the picture
+(otherwise you would get a thin strip with the star cut off), splits them into
+**epochs** (visits separated by more than a month), and keeps the first and the
+last epoch -- because a difference between two epochs far apart in time is the
+most sensitive way to spot movement.
+
+Finally it looks up the same patch of sky in three catalogues: **Gaia DR3**
+(1.8 billion star positions and motions), **AAVSO VSX** (variable stars), and --
+when the archive cooperates -- **AllWISE** (infrared sources). This is the
+"phone book" that later decides whether a detection is already known.
+
+*Output:* FITS files in `data_cache/` plus one JSON file per target listing the
+files, their epochs, their archive URLs, and the catalogue entries.
+
+### Step 2 -- Co-add: make a clean average (`step2_coadd.py`)
+
+Two things happen here.
+
+**Masking.** Using the `FLAGS` bitmask, the code marks every damaged pixel as
+"ignore". Same idea as crossing out smudged words before re-typing a page. The
+bits the pipeline refuses to trust are: transient events, overflow, onboard
+processing errors, phantom pixels, reference pixels at the detector edge,
+permanently unusable pixels, dichroic inefficiency, lost data, hot and cold
+pixels, uncorrected phantom signal, unreliable non-linearity corrections,
+persistent charge, and pixels flagged as outliers. Two flags are *not* masked:
+"full sample available" (information only) and "mapped to a known source" (that
+is real light, not a defect).
+
+**Stacking.** Real exposures are not perfectly aligned: the telescope wobbles,
+the sky rotates. Each exposure is therefore **reprojected** -- every output pixel
+is mapped back through both coordinate systems to find which input pixel belongs
+there -- onto one common grid. Then the exposures are averaged with
+**inverse-variance weighting**: a pixel with small uncertainty counts more than a
+noisy one. The result is an image with less noise than any individual exposure,
+because noise partly cancels while real stars add up.
+
+*Output:* two stacked images, one per epoch, plus a **noise map** telling you how
+uncertain each pixel is (typically sigma ~ 0.01 MJy/sr here).
+
+
+### Step 3 -- Subtract: the clever part (`step3_zogy.py`)
+
+Naively subtracting picture A from picture B is a trap: the telescope's blur (a
+"point spread function", PSF) differs slightly between visits, so even a
+perfectly constant star leaves a bright ring and a dark ring behind. You would
+drown in false alarms.
+
+**ZOGY** (Zackay, Ofek & Gal-Yam 2016) solves this properly: both epochs are
+first convolved to a *common* effective PSF, then subtracted in a way that is
+statistically optimal. Two outputs come out:
+
+* **D**, the difference image -- positive where the sky got brighter, negative
+  where it got fainter.
+* **S**, the *significance* map -- the same thing divided by its own uncertainty,
+  so the numbers read directly as "how many sigma".
+
+A **sigma** is a ruler for surprise: 1 sigma happens all the time by chance, 3
+sigma is unusual, **5 sigma is the standard astronomy threshold for "this is
+probably real"** (roughly a 1-in-3.5-million fluke for pure Gaussian noise).
+
+The code then looks for two shapes in **S**:
+
+* a **dipole** -- a bright spot *and* a dark spot side by side. That is what you
+  get when a source is at position X in epoch 1 and position Y in epoch 2: a
+  positive blob at the new place, a negative one at the old. **A mover.**
+* a **monopole** -- a single bright spot with no dark twin. That is what you get
+  when a star simply got brighter or fainter in place. **A variable.**
+
+Telling these apart automatically is the difference between a picture gallery and
+an instrument.
+
+### Step 4 -- Triage: is it news? (`step4_triage.py`)
+
+For every detection, the code converts the pixel position to RA/Dec and looks for
+the nearest entry in each catalogue. If something is within **30 arcseconds**
+(five SPHEREx pixels -- generous enough for a moving star's shift between
+epochs), the verdict is **KNOWN** and the match distance is reported. If nothing
+is there, the verdict is **CANDIDATE**: not a discovery, but a *permission to
+look*. A match closer than 5" raises the verdict to `high` confidence.
+
+### Step 5 -- Spectrum and colour (`step5_spectrum.py`)
+
+Two jobs:
+
+* **Aperture photometry.** Add up the light in a small circle around a position
+  and subtract the local background measured in a ring around it. The result is a
+  flux in MJy/sr.
+* **A three-index classifier.** Using the 102 wavelength channels, it measures
+  three numbers: methane absorption (**CH4**), water absorption (**H2O**) and the
+  near-infrared **slope** (how much brighter the object is at 4.5 micrometres
+  than at 1.1). A small decision tree turns those into a label: *ultracool
+  Y-dwarf*, *T-type brown dwarf*, *icy KBO / Planet-X candidate*, *dusty T
+  Tauri*, or *M-dwarf / Mira red giant*.
+
+The wavelength of each pixel is not stored as an image: it comes from the
+`WCS-WAVE` look-up table, which is why `step5_spectrum.py` interpolates it. If a
+cache has a 102-band `SPECTRUM` table next to it (the synthetic demo does), that
+table is used instead.
+
+### Step 6 -- Test your own detector (`step6_injection.py`)
+
+This is the part most projects skip and most reviewers love. You cannot claim "I
+would have found a moving object" without evidence. So the code plays hide and
+seek with itself: it **injects** fake point sources of known brightness and known
+speed into the real images, runs the whole detection chain, and counts how many
+it gets back. Doing that across a grid of brightness x speed produces a
+**recovery curve**: at SNR 10 and 10"/year it recovers 100 %; at 2"/year it
+recovers almost nothing. That curve is the honest answer to *"how good is this
+telescope plus pipeline, really?"*.
+
+
+---
+
+## 5. A guided tour of the website
+
+The screen has two columns and nothing requires a page reload.
+
+### 5.1 Top bar
+
+* **SPHERExLens** -- the project name.
+* **NEXUS // SPHEREX-QR2** -- which NASA data release you are looking at
+  (`spherex_qr2` is the second SPHEREx quick release).
+* **Status pill** -- green `NORMAL OPS - FIELD LOADED` when data is loaded, amber
+  while the pipeline runs, red if a request failed.
+* **Auto Demo** -- cycles the five targets every 12 seconds, like a slideshow.
+  Press again to stop.
+* **Reset** -- restores the default zoom and clears the selection.
+
+### 5.2 Left column (/01) -- Target Control
+
+* **Target** dropdown: the five mandatory objects. Changing it re-runs the
+  pipeline for that object.
+* **RA / Dec / exposures**: the sky address (hours-minutes-seconds and
+  degrees-arcminutes-arcseconds) and how many exposures were stacked per epoch.
+* **Actions**:
+  * `Run Pipeline` -- recompute everything for the selected target.
+  * `Recovery Grid` -- run the injection-recovery test (24 cells) and print the
+    table under "Recovery summary".
+  * `Copy Share Link` -- copy a URL with `?target=...` so you can send someone
+    straight to the same field.
+* **Triage Verdict** -- for the *selected* detection: verdict badge, which
+  catalogue matched and how far away it was, RA/Dec, significance, kind (dipole
+  or monopole) and confidence.
+* **Pipeline statistics** -- explained in section 6.
+
+### 5.3 Right column (/02) -- Command Dashboard
+
+* **Field metrics**: four cards -- detections above 5 sigma, how many are
+  unaccounted for, the strongest significance, and the time baseline between the
+  two epochs in days.
+* **Live map**: see 5.4.
+* **Detections table**: one row per detection (the ten strongest). Clicking a row
+  selects it, outlines its marker on the map and fills the verdict panel.
+* **Image sources & provenance**: one row per downloaded FITS file -- epoch,
+  detector, central wavelength, observation id, UTC date, pixel size, file size,
+  and a link that opens the *parent* Level-2 file on the IRSA server.
+
+### 5.4 The map, and how to play with it
+
+The map is a small interactive canvas, not a static picture.
+
+| Action | What it does |
+|---|---|
+| **Drag** | Pan around the field (the 9' square is bigger than the panel). |
+| **Mouse wheel** | Zoom in and out around the cursor (up to 12x). |
+| **Double-click** or `Fit` | Return to the default framing. |
+| **`+` / `-` / `0` keys** | Zoom in, zoom out, fit. |
+| **Hover** | A crosshair follows the cursor; the bottom-left readout shows RA, Dec, pixel coordinates and the value under the cursor. |
+| **Click a marker** | Select that detection (same as clicking its table row). |
+| **Co-add / Difference D / Significance S** | Switch which image you are looking at: the stacked epoch-1 picture, the ZOGY difference, or the significance map. |
+| **Grid / Catalogs / Detections** | Turn overlays on and off. |
+| **`g` / `d` / `r` keys** | Toggle grid, toggle detections, re-run the pipeline. |
+
+Overlay colours: **blue crosses** are Gaia DR3 stars in the field, **amber
+crosses** are VSX variable stars, **green circles** are dipoles (with a line
+joining the new position to the old), **amber squares** are monopoles. The scale
+bar in the corner always shows how long one arcminute is at the current zoom.
+
+---
+
+## 6. Every number on the screen, translated
+
+| Shown as | Meaning |
+|---|---|
+| **RA / Dec** | Sky address in hours-minutes-seconds and degrees-arcminutes-arcseconds. |
+| **Detections** | Number of 5-sigma peaks in the significance map: "how many things changed". |
+| **Unaccounted** | Detections with no catalogue match: "how many are worth a human look". |
+| **Max SNR** | The strongest peak, in sigma. 30 sigma is very loud; 5.7 is barely over the line. |
+| **Baseline** | Days between the two epochs. Longer baseline = more time for movement to accumulate. |
+| **Exposures** | How many files were stacked in total. More exposures = less noise. |
+| **Epochs** | Distinct observing visits. ZOGY needs at least two. |
+| **Noise sigma1** | Median per-pixel uncertainty of epoch 1, in MJy/sr (surface brightness). |
+| **5-sigma depth** | 5 x the noise: the faintest believable signal, i.e. "how deep did we look". |
+| **Field / pixel** | 9 arcminutes across, 3 arcseconds per output pixel (finer than SPHEREx's native 6.2" because the co-add oversamples). |
+| **Gaia / VSX** | How many catalogue entries were available in the patch -- the size of the "phone book". |
+| **Dipoles / mono** | Movers versus flickerers among the detections. |
+| **Confidence** | `high` if a match is within 5", else `medium`. |
+| **mu (arcsec/yr)** | Proper motion implied by the dipole separation. Barnard's Star really moves 10.4"/yr. |
+| **MJy/sr** | Megajansky per steradian -- infrared astronomy's "brightness per patch of sky". |
+
+
+---
+
+## 7. Worked example: Barnard's Star, number by number
+
+The page for Barnard's Star, as built from the live archive:
+
+* **4 exposures, 2 epochs.** Two detectors (D1, near 0.94 micrometres, and D4,
+  near 3.1) in each of two visits: MJD 60918 (2025-271) and MJD 61110
+  (2026-094). That is a **192-day baseline**, just over six months.
+* **Noise sigma1 = 0.0106, sigma2 = 0.0119 MJy/sr.** The second epoch is
+  marginally noisier; inverse-variance weighting handles that automatically.
+* **12 detections above 5 sigma** (the dashboard table shows the ten strongest).
+  **4 KNOWN** (matched to a Gaia DR3 star or a VSX variable), **8 CANDIDATE**.
+* **Strongest peak: 29.5 sigma**, mean 10.8 sigma. The bright saturated star at
+  the top of the frame is also detected as a dipole: its core is masked, and a
+  small residual ring is left over -- an honest artefact, not a discovery.
+* **300 Gaia DR3 sources and 47 VSX variables** were available inside the 9'
+  field, which is what makes the triage verdicts meaningful.
+
+For comparison, **R Draconis** (a Mira variable in a crowded field) has 6
+detections and *all six* are KNOWN: every change it shows is already catalogued,
+which is exactly what you expect for a famous pulsating star.
+
+---
+
+## 8. Where the pixels come from (and how to check)
+
+Every row of the *Image sources & provenance* table is a real, resolvable record:
+
+```
+Epoch  Det  lambda (um)  Observation             UTC date    Pixels    Size    Archive
+E1     D1   0.939        2025W35_2A_0611_2 (TM)  2025-09-27  117x117   5.0 MB  IRSA - level2_2025W35...
+```
+
+Clicking the observation id opens the parent file at
+`https://irsa.ipac.caltech.edu/ibe/data/spherex/qr2/level2/...` -- the actual
+70 MB Level-2 product the cutout was carved from. From there you can inspect the
+same data the website used, with the same headers, in any FITS viewer.
+
+The archive line above the table summarises the chain:
+`IRSA SIA2 - collection spherex_qr2 - 4 cutouts - 0.050 MJy/sr 5-sigma depth -
+Gaia DR3 300 / VSX 47 entries cross-matched`.
+
+---
+
+## 9. What this project does NOT do (honesty section)
+
+* **It is not a discovery machine.** A CANDIDATE means "no catalogue match within
+  30 arcseconds", which is most often a faint star too dim for Gaia, a cosmic ray
+  that slipped through, or a residual from a bright star's mask. Real follow-up
+  means re-observing the position.
+* **The real cutouts carry two bands, not 102.** With two file pairs the
+  "spectrum" is four aperture measurements, so the 102-band classifier is *not*
+  run on real data -- the API returns `classification: null` rather than making
+  something up. The synthetic demo cache is what exercises the classifier.
+* **AllWISE is empty in this deployment.** IRSA's TAP copy of the AllWISE table
+  was not queryable and the VizieR mirrors were unreachable, so KNOWN verdicts
+  rest on Gaia DR3 + VSX.
+* **Eight months is short.** A star moving 10"/year shifts 6-7". The dipole
+  machinery can recover that, but the injection-recovery curves show that
+  anything slower than about 5"/year at SNR 5-10 is largely missed.
+* **The map is not a photograph.** The colours are a stretch applied to
+  surface-brightness values; only the *relative* pattern is meaningful, and the
+  readout gives the actual number under the cursor.
+* **The demo cache is synthetic.** Files named `demo_*.fits` in
+  `data_cache_demo/` are generated by `make_demo_data.py` for offline work and
+  must never be presented as NASA data.
+
+
+---
+
+## 10. Mini glossary
+
+| Term | Meaning |
+|---|---|
+| **Aperture photometry** | Adding up pixels inside a circle to measure how much light an object emits. |
+| **Arcminute / arcsecond** | 1/60 and 1/3600 of a degree. The Moon is 30 arcminutes wide. |
+| **Background subtraction** | Estimating the sky glow in a ring around an object and subtracting it. |
+| **Co-add** | Averaging several exposures of the same patch to reduce noise. |
+| **Cutout** | A small square extracted from a big image, delivered by a web service. |
+| **Dipole** | A plus/minus pair in a difference image; the signature of something that moved. |
+| **Epoch** | One observing visit. ZOGY compares two epochs. |
+| **FITS** | The file format used by astronomy: a stack of labelled arrays plus a text header. |
+| **FLAGS** | Per-pixel bitmask recording defects. |
+| **Injection-recovery** | Hiding fake sources in real data to measure how many you can find again. |
+| **IRSA** | NASA/IPAC Infrared Science Archive at Caltech -- where SPHEREx data lives. |
+| **Jansky / MJy/sr** | Unit of flux density; MJy/sr is surface brightness. |
+| **LVF** | Linear variable filter: makes each detector row a different wavelength. |
+| **Monopole** | A single blob in a difference image; the signature of a brightness change. |
+| **MJD** | Modified Julian Date -- days since 1858-11-17, how astronomers write times. |
+| **Oversampling** | Sampling finer than the native pixel size (our 3" grid vs SPHEREx's 6.2"). |
+| **Proper motion** | A star's apparent movement across the sky, in arcseconds per year. |
+| **PSF** | Point spread function: the blurry shape a point of light makes. |
+| **SIA2** | IVOA "Simple Image Access v2", the web standard used to find the images. |
+| **Sigma** | A unit of statistical surprise; 5 sigma is the usual "real" threshold. |
+| **TAP / ADQL** | Standard query protocol and SQL dialect for astronomy databases. |
+| **Triage** | Deciding whether a detection is already known. |
+| **Variance / inverse-variance weighting** | Uncertainty squared; weighting by 1/variance favours trustworthy pixels. |
+| **WCS** | World Coordinate System: pixels to sky coordinates and back. |
+| **Y-dwarf / T-dwarf** | The coldest classes of brown dwarf (below ~500 K / ~500-1300 K). |
+| **ZOGY** | Zackay-Ofek-Gal-Yam optimal image subtraction (2016). |
+
+---
+
+## 11. Frequently asked questions
+
+**Is this real NASA data?**
+Yes. Every `.fits` file in `data_cache/` was downloaded from IRSA, and each one is
+listed with its observation id and a link to the parent file. The synthetic
+`demo_*.fits` files are the exception and live separately in `data_cache_demo/`.
+
+**Why does the map look purple and orange?**
+Because it is a *significance* map, not a picture. Purple/black is near zero,
+orange-to-white is a strong positive signal, blue-black is a strong negative one.
+A mover shows one positive and one negative blob -- that pair is the whole point.
+
+**Why is my favourite star not detected?**
+Either it did not change between the two epochs, or it is brighter than the
+saturation limit (masked), or it sits outside the 9' field, or its change is below
+5 sigma. The injection-recovery curves tell you exactly how faint a change the
+pipeline can see.
+
+**Can it find Planet Nine?**
+In principle this is the right *technique* (subtract two epochs, look for a moving
+dot). In practice a 9' field, two bands and two epochs is a toy version: real
+searches use many fields, many epochs and much deeper images.
+
+**How long does a page take to load?**
+The FastAPI version runs the whole pipeline per request: a few seconds for four
+cutouts. The static version loads pre-computed JSON (about 0.6 MB per target), so
+it is instant.
+
+**Can I add my own target?**
+Yes -- put cutouts in `data_cache/`, write a `<Target>_meta.json` with `paths`,
+`epochs` and (optionally) `catalogs`, and reload. The README documents the exact
+schema.
+
+**Where are the charts?**
+`figures/` holds the charts made from the synthetic cache, `figures_real/` the
+same charts made from the real cutouts, and `site/figures/` ships them with the
+static build. `python make_figures.py` regenerates them.
+
+**Is any of this invented?**
+No invented data: the numbers in this document were read off the actual output of
+the pipeline on the actual files. Where something did not work (AllWISE, the
+102-band classifier on real data), it says so.
+
+---
+
+## 12. Credits
+
+* SPHEREx data: NASA/JPL-Caltech, hosted by IRSA/IPAC. Required acknowledgement:
+  *"This publication makes use of data products from the Spectro-Photometer for
+  the History of the Universe, Epoch of Reionization and Ices Explorer
+  (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the
+  California Institute of Technology, and is funded by the National Aeronautics
+  and Space Administration."*
+* Gaia DR3: ESA/Gaia/DPAC, via VizieR / IRSA TAP.
+* AAVSO VSX: the American Association of Variable Star Observers.
+* Method: Zackay, Ofek & Gal-Yam 2016, *Proper Image Subtraction*, ApJ 830, 27.
+* Everything else (pipeline, dashboard, documentation) is in this repository.
+

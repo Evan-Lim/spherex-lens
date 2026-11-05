@@ -8,7 +8,42 @@ validate the detector with an injection-recovery loop — all served by a FastAP
 backend with a RefractID-style light-theme dashboard.
 
 This repository implements the *SPHEREx Discovery Portal: Complete Technical
-Blueprint* file-for-file.
+Blueprint* file-for-file, and adds a real-data ingest path, provenance tracking
+and a deployable dashboard.
+
+> **New here?** Read **[EXPLAINER.md](EXPLAINER.md)** -- a long, plain-language
+> guide to the sky, the telescope, the six pipeline steps, every number on the
+> dashboard, a worked example and an honesty section. No astronomy or coding
+> knowledge needed.
+
+---
+
+## The dashboard
+
+`static/` is a two-column RefractID-style console that works in both deployment
+shapes (live FastAPI or pre-rendered static files):
+
+* **Top bar** -- brand, data release (`NEXUS // SPHEREX-QR2`), status pill
+  (`NORMAL OPS · FIELD LOADED` / amber while running / red on error),
+  **Auto Demo** (cycles the five targets every 12 s) and **Reset**.
+* **/01 Target Control** -- target dropdown, RA/Dec, Run Pipeline, Recovery Grid,
+  Copy Share Link, the triage verdict and eleven live statistics (exposures,
+  epochs, baseline, noise, 5-sigma depth, field/pixel, catalogue counts,
+  dipoles/monopoles, ...).
+* **/02 Command Dashboard** -- four metric cards (detections, unaccounted,
+  max SNR, baseline days), the interactive map, the detections table and the
+  **image sources & provenance** table.
+* **Interactive map** (`static/app.js`, ~800 lines of vanilla canvas code)
+  * drag to pan, wheel to zoom (0.35x-12x), double-click / `Fit` / `0` to reset,
+    `+`/`-` keys, click a marker to select a detection;
+  * three layers: **Co-add**, **Difference D**, **Significance S**;
+  * overlays: survey grid with arcminute labels, **Gaia DR3** and **VSX**
+    catalogue crosses, dipole/monopole markers, a crosshair that reads out
+    RA/Dec/pixel/value under the cursor, and a scale bar.
+* **Provenance** -- every cutout is listed with epoch, detector, central
+  wavelength (from the real `WCS-WAVE` table), observation id, UTC date, pixel
+  size, file size and a **clickable link to the parent Level-2 file at IRSA**, so
+  any pixel on screen can be traced back to its archive record.
 
 ---
 
@@ -567,8 +602,9 @@ vercel --cwd site
 # Cloudflare Pages
 wrangler pages deploy site --project-name spherex-lens
 
-# GitHub Pages: commit site/ and point Pages at the /site folder,
-# or use actions/upload-pages-artifact with path: site
+# GitHub Pages: branch-based publishing only serves / or /docs, so either
+#   - Actions: actions/upload-pages-artifact with path: site, or
+#   - rename the folder: --outdir docs  and publish from /docs
 ```
 
 Because the JSON is plain files, the dashboard works identically offline --
@@ -603,6 +639,7 @@ spherex-lens/
 ├── app.py                   # FastAPI backend
 ├── make_demo_data.py        # optional: synthetic offline demo cache
 ├── make_figures.py          # optional: renders figures/ from the cache
+├── EXPLAINER.md             # plain-language guide to the whole project
 ├── export_static.py         # optional: pre-renders site/ for Netlify/Vercel
 ├── site/                    # static build output (index.html + api/*.json)
 ├── Dockerfile               # full app container (Render/Railway/Fly/Cloud Run)

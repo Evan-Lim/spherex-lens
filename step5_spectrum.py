@@ -55,6 +55,30 @@ def _wavelength_from_wave_tab(hdul, x_cut, y_cut):
     return float(lam), float(band)
 
 
+def wavelength_at(cutout_path, ra, dec):
+    """
+    Central wavelength and bandwidth (um) at a sky position in one cutout.
+
+    Thin wrapper around the CWAVE/WCS-WAVE lookups so callers that only need
+    the spectral calibration (the provenance table, the metadata endpoint) do
+    not have to run aperture photometry.
+    """
+    with fits.open(cutout_path) as hdul:
+        hdu = hdul["IMAGE"] if "IMAGE" in hdul else hdul[0]
+        wcs = WCS(hdu.header)
+        try:
+            x, y = wcs.world_to_pixel_values(ra, dec)
+        except Exception:
+            return None, None
+        if "CWAVE" in hdul:
+            cwave = hdul["CWAVE"].data
+            xi, yi = int(x), int(y)
+            if 0 <= yi < cwave.shape[0] and 0 <= xi < cwave.shape[1]:
+                return float(cwave[yi, xi]), None
+            return None, None
+        return _wavelength_from_wave_tab(hdul, x, y)
+
+
 def extract_spectrum_from_cutout(cutout_path, ra, dec, aperture_radius_pix=3):
     """
     Extract the flux at (ra, dec) from a single SPHEREx cutout.

@@ -298,6 +298,56 @@ def download_cutout(row, ra, dec, size_deg=0.2, overwrite=False):
     return fname
 
 
+def describe_sources(paths, epochs, rows, collection, size_deg):
+    """
+    Attach provenance to each downloaded cutout.
+
+    The SIA2 filename encodes the observation id and the detector
+    (`level2_<obs_id>D<det>_spx_...`), so every local file can be matched back
+    to the catalogue row it came from: that row carries the archive URL, the
+    filter, and the start time used for the epoch split.
+    """
+    by_fragment = {}
+    for row in rows:
+        obs_id = row.get("obs_id")
+        band = row.get("energy_bandpassname", "")
+        detector = band.replace("SPHEREx-", "")
+        if obs_id and detector:
+            by_fragment[f"{obs_id}{detector}"] = row
+
+    sources = []
+    for path, epoch in zip(paths, epochs):
+        base = os.path.basename(path)
+        match = None
+        for fragment, row in by_fragment.items():
+            if fragment in base:
+                match = row
+                break
+        band = (match or {}).get("energy_bandpassname", "")
+        try:
+            t_min = float(match["t_min"]) if match and match.get("t_min") else None
+        except (TypeError, ValueError):
+            t_min = None
+        try:
+            size_bytes = os.path.getsize(path)
+        except OSError:
+            size_bytes = None
+        sources.append({
+            "path": path,
+            "file": base,
+            "epoch": epoch,
+            "band": band,
+            "detector": band.replace("SPHEREx-", ""),
+            "obs_id": (match or {}).get("obs_id"),
+            "mjd": t_min,
+            "url": (match or {}).get("access_url"),
+            "collection": collection,
+            "cutout_size_deg": size_deg,
+            "bytes": size_bytes,
+        })
+    return sources
+
+
 def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
                              size_deg=0.2, bands=DEFAULT_BANDS,
                              overwrite=False):
@@ -507,11 +557,17 @@ def main():
             print("  nothing downloaded -- skipping this target.")
             continue
 
+        sia2_rows = query_sia2(meta["ra"], meta["dec"], radius_deg=args.radius,
+                               collection=args.collection)  # cached VOTable
+        sources = describe_sources(paths, epochs, sia2_rows,
+                                   args.collection, args.size)
+
         record = {
             "target": name,
             "meta": meta,
             "paths": paths,
             "epochs": epochs,
+            "sources": sources,
             "catalogs": cats,
             "collection": args.collection,
             "cutout_size_deg": args.size,
