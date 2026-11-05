@@ -186,7 +186,8 @@ function fitView() {
 
 function toImage(mx, my) {
   const npix = currentNpix();
-  const { scale, tx, ty } = state.view;
+  const scale = state.view.scale || 1;
+  const { tx, ty } = state.view;
   return { x: (mx - tx) / scale, y: npix - (my - ty) / scale };
 }
 
@@ -205,11 +206,15 @@ function pixelToSky(x, y) {
 }
 
 function valueAt(x, y) {
-  const arr = state.data[state.layer];
-  if (!arr) return null;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const arr = state.data && state.data[state.layer];
+  if (!arr || !arr.length) return null;
   const ix = Math.round(x), iy = Math.round(y);
-  if (iy < 0 || iy >= arr.length || ix < 0 || ix >= arr[0].length) return null;
-  return arr[iy][ix];
+  if (iy < 0 || iy >= arr.length) return null;
+  const row = arr[iy];
+  if (!row || ix < 0 || ix >= row.length) return null;
+  const v = row[ix];
+  return Number.isFinite(v) ? v : null;
 }
 
 
@@ -227,6 +232,12 @@ function draw() {
   }
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, w, h);
+
+  if (state.viewMode === 'sky') {
+    drawSky(ctx, w, h);
+    return;
+  }
+
   if (!state.data) return;
 
   const npix = state.data.map.npix;
@@ -362,8 +373,22 @@ function drawCrosshair(ctx) {
 let drag = null;
 
 function updateReadout(mx, my) {
+  if (state.viewMode === 'sky') {
+    const { w, h } = canvasSize();
+    const pad = 42, plotW = w - 2 * pad, plotH = h - 2 * pad;
+    const px = mx - pad, py = my - pad;
+    if (plotW <= 0 || plotH <= 0 || px < 0 || py < 0 || px > plotW || py > plotH) {
+      setText('map-readout', 'all-sky view · move over a tile');
+      return;
+    }
+    const ra = (360 - (px / plotW) * 360 + 360) % 360;
+    const dec = 90 - (py / plotH) * 180;
+    setText('map-readout', `${fmt.ra(ra)} ${fmt.dec(dec)}   all-sky`);
+    return;
+  }
   if (!state.data) return;
   const { x, y } = toImage(mx, my);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
   if (x < 0 || y < 0 || x > currentNpix() || y > currentNpix()) {
     setText('map-readout', 'RA --\u00b7---   Dec --\u00b7---');
     return;
@@ -401,6 +426,7 @@ function attachMapEvents() {
     }
     if (mx < 0 || my < 0 || mx > rect.width || my > rect.height) return;
     state.crosshair = { cx: mx, cy: my };
+    updateHover(mx, my);
     updateReadout(mx, my);
     draw();
   });
@@ -408,7 +434,22 @@ function attachMapEvents() {
   window.addEventListener('mouseup', (e) => {
     if (drag && drag.moved < 4) {
       const rect = canvas.getBoundingClientRect();
-      pickDetection(e.clientX - rect.left, e.clientY - rect.top);
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      if (state.viewMode === 'sky') {
+        const hit = state.tileRects.find((r) => mx >= r.x && mx <= r.x + r.w
+          && my >= r.y && my <= r.y + r.h);
+        if (hit) {
+          const sel = $('target-select');
+          if ([...sel.options].some((o) => o.value === hit.tile.target)) {
+            sel.value = hit.tile.target;
+            switchView('field');
+            runPipeline();
+          }
+        }
+      } else {
+        pickDetection(mx, my);
+      }
     }
     drag = null;
     wrap.classList.remove('dragging');
@@ -416,6 +457,8 @@ function attachMapEvents() {
 
   canvas.addEventListener('mouseleave', () => {
     state.crosshair = null;
+    state.hoverTile = null;
+    hideTooltip();
     draw();
   });
 
@@ -752,14 +795,27 @@ async function runPipeline() {
     updateZoomLabel();
     draw();
 
-    renderTargetMeta(data);
-    renderCards(data);
-    renderStats(data);
-    renderTable(data.detections);
-    renderPairs(data);
-    renderObjects(data);
-    renderProvenance(data);
-    renderVerdict(data.detections[0] || null);
+    // Each panel renders independently: a problem in one must not blank the page.
+    const failures = [];
+    const safe = (label, fn) => {
+      try { fn(); } catch (err) {
+        failures.push(label);
+        console.error(`render failed: ${label}`, err);
+      }
+    };
+    safe('target-meta', () => renderTargetMeta(data));
+    safe('cards', () => renderCards(data));
+    safe('stats', () => renderStats(data));
+    safe('detections', () => renderTable(data.detections));
+    safe('pairs', () => renderPairs(data));
+    safe('catalogue', () => renderObjects(data));
+    safe('charts', () => renderCharts(data));
+    safe('provenance', () => renderProvenance(data));
+    safe('mosaic', () => updateMosaicTile(data));
+    safe('verdict', () => renderVerdict(data.detections[0] || null));
+    if (failures.length) {
+      console.error('panels that failed to render:', failures.join(', '));
+    }
     if (state.selected >= 0) {
       document.querySelectorAll('#detections-body tr')
         .forEach((tr, i) => tr.classList.toggle('selected', i === 0));
@@ -794,18 +850,274 @@ async function runRecovery() {
       return;
     }
     const grid = data.grid || [];
+    state.recovery = grid;
     const lines = grid.slice(0, 6).map((g) =>
       `SNR ${String(g.snr).padStart(2)} \u00b7 \u03bc ${String(g.mu).padStart(2)}\u2033/yr \u2192 ${(g.recovery * 100).toFixed(0)}%`);
     const best = grid.reduce((a, b) => (b.recovery > (a ? a.recovery : -1) ? b : a), null);
     if (best) lines.push(`peak ${(best.recovery * 100).toFixed(0)}% at SNR ${best.snr}, \u03bc ${best.mu}\u2033/yr`);
     setText('recovery-out', lines.join('\n'));
     $('recovery-out').style.whiteSpace = 'pre-line';
+    drawRecoveryChart(grid);
     setText('footer-status', `recovery: ${grid.length} cells`);
   } catch (e) {
     setText('recovery-out', 'recovery failed: ' + e.message);
   }
 }
 
+
+// ------------------------------------------------------------- hover tips
+
+function hideTooltip() {
+  const tip = $('map-tip');
+  if (tip) tip.classList.add('hidden');
+}
+
+function showTooltip(lines, mx, my) {
+  const tip = $('map-tip');
+  if (!tip) return;
+  tip.innerHTML = lines.join('<br>');
+  tip.style.left = `${mx}px`;
+  tip.style.top = `${my}px`;
+  tip.classList.remove('hidden');
+}
+
+function nearestObject(x, y, maxPx) {
+  if (!state.data) return null;
+  const objs = state.data.field_objects || [];
+  let best = null, bestD = maxPx * maxPx;
+  objs.forEach((o) => {
+    if (o.in_field === false) return;
+    const dx = o.x - x, dy = o.y - y;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = o; }
+  });
+  return best;
+}
+
+function updateHover(mx, my) {
+  if (state.viewMode === 'sky') {
+    const hit = state.tileRects.find((r) => mx >= r.x && mx <= r.x + r.w
+      && my >= r.y && my <= r.y + r.h);
+    state.hoverTile = hit ? hit.tile.target : null;
+    if (hit) {
+      const t = hit.tile;
+      showTooltip([
+        `<b>${fmt.escape(t.common || t.target)}</b>`,
+        `RA ${fmt.ra(t.ra)}  Dec ${fmt.dec(t.dec)}`,
+        `${t.n_detections} detections · max ${t.max_snr ?? '--'}σ`,
+        `known ${t.n_known} · candidate ${t.n_candidate}`,
+        `${t.n_exposures} exposures · ${t.n_epochs} epoch(s) · ${t.baseline_days ?? '--'} d`,
+        'click to open this field',
+      ], mx, my);
+    } else {
+      hideTooltip();
+    }
+    return;
+  }
+
+  const { x, y } = toImage(mx, my);
+  if (!state.data || x < 0 || y < 0 || x > currentNpix() || y > currentNpix()) {
+    hideTooltip();
+    return;
+  }
+
+  const det = nearestDetection(x, y, 7);
+  if (det) {
+    showTooltip([
+      `<b>${fmt.escape(det.kind)}</b> · ${fmt.escape(det.verdict)}`,
+      `SNR ${fmt.num(det.snr, 1)}σ${det.pair ? ' · ' + fmt.escape(det.pair) : ''}`,
+      `RA ${fmt.num(det.ra, 5)}  Dec ${fmt.num(det.dec, 5)}`,
+      det.verdict === 'KNOWN'
+        ? `matched: ${Object.keys(det.matches || {}).join(', ')}`
+        : 'no catalogue match — follow-up',
+    ], mx, my);
+    return;
+  }
+
+  const obj = nearestObject(x, y, 6);
+  if (obj) {
+    showTooltip([
+      `<b>${fmt.escape(obj.verdict)}</b>${obj.name ? ' · ' + fmt.escape(obj.name) : ''}`,
+      `RA ${fmt.num(obj.ra, 5)}  Dec ${fmt.num(obj.dec, 5)}`,
+      obj.mag != null ? `mag ${fmt.num(obj.mag, 2)}` : 'mag —',
+      (obj.catalogs || []).length ? `catalogues: ${obj.catalogs.join(', ')}` : 'not in any catalogue',
+      obj.detected ? `SPHEREx sees it change (${fmt.num(obj.snr, 1)}σ)` : 'no change detected',
+    ], mx, my);
+    return;
+  }
+
+  hideTooltip();
+}
+
+function nearestDetection(x, y, maxPx) {
+  const dets = (state.data && state.data.detections) || [];
+  let best = null, bestD = maxPx * maxPx;
+  dets.forEach((d) => {
+    const pos = d.position || [0, 0];
+    const dx = pos[1] - x, dy = pos[0] - y;
+    const dd = dx * dx + dy * dy;
+    if (dd < bestD) { bestD = dd; best = d; }
+  });
+  return best;
+}
+
+function updateMosaicTile(data) {
+  if (!state.mosaic || !state.mosaic.tiles) return;
+  const tile = state.mosaic.tiles.find((t) => t.target === data.target);
+  if (!tile) return;
+  tile.n_detections = (data.stats || {}).n_detections;
+  tile.n_known = (data.stats || {}).n_known;
+  tile.n_candidate = (data.stats || {}).n_candidate;
+  tile.max_snr = (data.stats || {}).max_snr;
+  tile.source = data.source || 'cache';
+  if (state.viewMode === 'sky') draw();
+}
+
+// ------------------------------------------------------------ all-sky view
+
+state.viewMode = 'field';
+state.mosaic = null;
+state.tileRects = [];
+state.hoverTile = null;
+state.recovery = null;
+
+function skyX(ra, pad, plotW) {
+  // sky maps run right-to-left in RA: 0h at the left edge, 12h in the middle
+  return pad + ((((360 - ra) % 360) / 360) * plotW);
+}
+
+function skyY(dec, pad, plotH) {
+  return pad + ((90 - dec) / 180) * plotH;
+}
+
+function drawSky(ctx, w, h) {
+  const pad = 42;
+  const plotW = w - 2 * pad;
+  const plotH = h - 2 * pad;
+  if (plotW <= 10 || plotH <= 10) return;
+
+  ctx.save();
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(pad, pad, plotW, plotH);
+  ctx.font = '9px ui-monospace, Menlo, monospace';
+  for (let ra = 0; ra <= 360; ra += 30) {
+    const x = skyX(ra, pad, plotW);
+    ctx.strokeStyle = 'rgba(148,163,184,.28)';
+    ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, pad + plotH); ctx.stroke();
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(ra / 15)}h`, x, pad + plotH + 12);
+  }
+  for (let dec = -60; dec <= 60; dec += 30) {
+    const y = skyY(dec, pad, plotH);
+    ctx.strokeStyle = 'rgba(148,163,184,.28)';
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(pad + plotW, y); ctx.stroke();
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${dec > 0 ? '+' : ''}${dec}\u00b0`, pad - 6, y + 3);
+  }
+  ctx.strokeStyle = 'rgba(148,163,184,.6)';
+  const eq = skyY(0, pad, plotH);
+  ctx.beginPath(); ctx.moveTo(pad, eq); ctx.lineTo(pad + plotW, eq); ctx.stroke();
+  ctx.restore();
+
+  state.tileRects = [];
+  const tiles = (state.mosaic && state.mosaic.tiles) || [];
+  ctx.save();
+  tiles.forEach((tile) => {
+    const cx = skyX(tile.ra, pad, plotW);
+    const cy = skyY(tile.dec, pad, plotH);
+    const side = 74;
+    const x0 = cx - side / 2;
+    const y0 = cy - side / 2;
+    const thumb = tile.thumb || [];
+    const n = thumb.length;
+
+    if (n) {
+      const off = document.createElement('canvas');
+      off.width = n; off.height = n;
+      const octx = off.getContext('2d');
+      const img = octx.createImageData(n, n);
+      let lo = Infinity, hi = -Infinity;
+      thumb.forEach((row) => row.forEach((v) => { if (v < lo) lo = v; if (v > hi) hi = v; }));
+      if (!(hi > lo)) hi = lo + 1;
+      for (let y = 0; y < n; y++) {
+        for (let x = 0; x < n; x++) {
+          const v = Math.min(1, Math.max(0, (thumb[y][x] - lo) / (hi - lo)));
+          const i = Math.round(v * 255) * 3;
+          const o = 4 * ((n - 1 - y) * n + x);
+          img.data[o] = RAMPS.snr[i];
+          img.data[o + 1] = RAMPS.snr[i + 1];
+          img.data[o + 2] = RAMPS.snr[i + 2];
+          img.data[o + 3] = 255;
+        }
+      }
+      octx.putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(off, x0, y0, side, side);
+    }
+
+    const hovered = state.hoverTile === tile.target;
+    ctx.strokeStyle = hovered ? '#ffffff'
+      : (tile.n_detections > 0 ? '#7dd3fc' : '#475569');
+    ctx.lineWidth = hovered ? 2 : 1;
+    ctx.strokeRect(x0 + 0.5, y0 + 0.5, side, side);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = hovered ? '#ffffff' : '#cbd5e1';
+    ctx.font = '10px ui-monospace, Menlo, monospace';
+    ctx.fillText(tile.common || tile.target, cx, y0 + side + 13);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px ui-monospace, Menlo, monospace';
+    ctx.fillText(`${tile.n_detections} det \u00b7 max ${tile.max_snr ?? '--'}\u03c3`,
+                 cx, y0 + side + 24);
+
+    state.tileRects.push({ x: x0, y: y0, w: side, h: side, tile });
+  });
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = '#64748b';
+  ctx.font = '9px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(
+    `${tiles.length} field(s) \u00b7 ${(state.mosaic && state.mosaic.sky_area_deg2) || 0} deg2 surveyed \u00b7 ` +
+    'tiles magnified (a 9\u2032 field is 0.3 px at true scale)', pad, pad - 14);
+  ctx.restore();
+}
+
+async function loadMosaic(refresh) {
+  setText('map-hint', 'building all-sky tiles from every field\u2026');
+  show('map-loader');
+  try {
+    const query = (!STATIC_MODE && refresh) ? '?refresh=1' : '';
+    const resp = await fetch(apiUrl('mosaic') + query);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    state.mosaic = await resp.json();
+    setText('map-hint',
+      `${state.mosaic.n_fields} fields \u00b7 ${state.mosaic.sky_area_deg2} deg2 surveyed`);
+  } catch (e) {
+    setText('map-hint', 'all-sky tiles unavailable: ' + e.message);
+  } finally {
+    hide('map-loader');
+  }
+}
+
+function switchView(view) {
+  state.viewMode = view;
+  document.body.classList.toggle('sky-mode', view === 'sky');
+  document.querySelectorAll('#view-switch .seg').forEach((b) =>
+    b.classList.toggle('active', b.dataset.view === view));
+  if (view === 'sky') {
+    if (!state.mosaic) loadMosaic(false).then(draw);
+    setText('map-hint', 'all-sky view \u00b7 click a tile to open that field');
+  } else if (state.data) {
+    setText('map-hint',
+      `${state.data.common} \u00b7 ${state.data.n_epoch1}+${state.data.n_epoch2} exposures \u00b7 ` +
+      `${state.data.map.fov_arcmin}' field`);
+  }
+  draw();
+}
 
 // ------------------------------------------------------- demo / reset / init
 
@@ -894,6 +1206,14 @@ function attachUiEvents() {
     });
   });
 
+  document.querySelectorAll('#view-switch .seg').forEach((btn) => {
+    btn.addEventListener('click', () => switchView(btn.dataset.view));
+  });
+  const mosaicBtn = $('btn-mosaic');
+  if (mosaicBtn) {
+    mosaicBtn.addEventListener('click', () => loadMosaic(true).then(draw));
+  }
+
   document.querySelectorAll('#object-filter .seg').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#object-filter .seg').forEach((b) => b.classList.remove('active'));
@@ -962,4 +1282,138 @@ async function init() {
 }
 
 init();
+
+
+// ------------------------------------------------------------------ charts
+
+function chartFrame(id, title) {
+  const canvas = $(id);
+  if (!canvas) return null;
+  const w = canvas.width, h = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#fcfdff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#e3e8ef';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    const y = (h - 26) * (i / 4) + 10;
+    ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(w - 8, y); ctx.stroke();
+  }
+  ctx.fillStyle = '#64748b';
+  ctx.font = '9px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, 30, 14);
+  return { ctx, w, h, plotBottom: h - 26, plotTop: 24, plotLeft: 30, plotRight: w - 8 };
+}
+
+function drawHistogram(hist) {
+  const f = chartFrame('chart-hist', 'pixels per \u03c3 bin');
+  if (!f || !hist || !hist.counts || !hist.counts.length) return;
+  const { ctx, plotBottom, plotTop, plotLeft, plotRight } = f;
+  const counts = hist.counts;
+  const max = Math.max(...counts) || 1;
+  const bw = (plotRight - plotLeft) / counts.length;
+  counts.forEach((c, i) => {
+    const x = plotLeft + i * bw;
+    const hgt = (plotBottom - plotTop) * (c / max);
+    const centre = hist.edges[i] + (hist.edges[i + 1] - hist.edges[i]) / 2;
+    ctx.fillStyle = Math.abs(centre) > 5 ? '#d92d20' : '#0f7fb5';
+    ctx.globalAlpha = Math.abs(centre) > 5 ? 0.9 : 0.6;
+    ctx.fillRect(x + 0.5, plotBottom - hgt, Math.max(1, bw - 1), hgt);
+  });
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#8a97a8';
+  ctx.font = '9px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'center';
+  const last = counts.length - 1;
+  ctx.fillText(`${hist.edges[0]}\u03c3`, plotLeft + bw / 2, plotBottom + 13);
+  ctx.fillText('0', plotLeft + (last / 2) * bw + bw / 2, plotBottom + 13);
+  ctx.fillText(`${hist.edges[last]}\u03c3`, plotLeft + last * bw + bw / 2, plotBottom + 13);
+}
+
+function drawBars(id, labels, values, colour, unit) {
+  const f = chartFrame(id, unit || '');
+  if (!f) return;
+  if (!values || !values.length) {
+    f.ctx.fillStyle = '#8a97a8';
+    f.ctx.font = '10px ui-monospace, Menlo, monospace';
+    f.ctx.textAlign = 'center';
+    f.ctx.fillText('no data yet', f.w / 2, f.h / 2);
+    return;
+  }
+  const { ctx, plotBottom, plotTop, plotLeft, plotRight } = f;
+  const max = Math.max(...values, 1e-9);
+  const bw = (plotRight - plotLeft) / values.length;
+  values.forEach((v, i) => {
+    const hgt = (plotBottom - plotTop) * (v / max);
+    const x = plotLeft + i * bw;
+    ctx.fillStyle = colour;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(x + 4, plotBottom - hgt, Math.max(2, bw - 8), hgt);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#475569';
+    ctx.font = '9px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(labels[i]), x + bw / 2, plotBottom + 13);
+    ctx.fillText(Number(v).toFixed(v < 10 ? 2 : 0), x + bw / 2, plotBottom - hgt - 4);
+  });
+}
+
+function drawRecoveryChart(grid) {
+  const f = chartFrame('chart-recovery', 'recovered % vs SNR');
+  if (!f) return;
+  if (!grid || !grid.length) {
+    f.ctx.fillStyle = '#8a97a8';
+    f.ctx.font = '10px ui-monospace, Menlo, monospace';
+    f.ctx.textAlign = 'center';
+    f.ctx.fillText('press \u201cRecovery Grid\u201d', f.w / 2, f.h / 2);
+    return;
+  }
+  const { ctx, plotBottom, plotTop, plotLeft, plotRight } = f;
+  const snrs = [...new Set(grid.map((g) => g.snr))].sort((a, b) => a - b);
+  const mus = [...new Set(grid.map((g) => g.mu))].sort((a, b) => a - b);
+  const colours = ['#0f7fb5', '#0f9d58', '#b7791f', '#d92d20'];
+  mus.forEach((mu, k) => {
+    ctx.strokeStyle = colours[k % colours.length];
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    snrs.forEach((snr, i) => {
+      const cell = grid.find((g) => g.snr === snr && g.mu === mu);
+      const v = cell ? cell.recovery : 0;
+      const x = plotLeft + (plotRight - plotLeft) * (i / Math.max(1, snrs.length - 1));
+      const y = plotBottom - (plotBottom - plotTop) * v;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = colours[k % colours.length];
+    ctx.font = '8.5px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`\u03bc${mu}\u2033`, plotLeft + 2 + k * 34, plotTop + 8);
+  });
+  ctx.fillStyle = '#8a97a8';
+  ctx.font = '9px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'center';
+  snrs.forEach((snr, i) => {
+    const x = plotLeft + (plotRight - plotLeft) * (i / Math.max(1, snrs.length - 1));
+    ctx.fillText(String(snr), x, plotBottom + 13);
+  });
+}
+
+function renderCharts(data) {
+  drawHistogram(data.histogram);
+
+  const labels = [];
+  const sigmas = [];
+  (data.epoch_pairs || []).forEach((p) => {
+    labels.push(p.pair);
+    sigmas.push(p.sigma_a * 1000);
+  });
+  drawBars('chart-noise', labels, sigmas, '#0f7fb5', '\u03c3 \u00d7 10\u207b\u00b3 MJy/sr');
+  drawBars('chart-pairs',
+           (data.epoch_pairs || []).map((p) => p.pair),
+           (data.epoch_pairs || []).map((p) => p.n_detections),
+           '#0f9d58', 'detections per pair');
+  drawRecoveryChart(state.recovery);
+}
 

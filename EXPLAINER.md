@@ -236,7 +236,38 @@ telescope plus pipeline, really?"*.
 
 ---
 
-## 5. A guided tour of the website
+## 5. How the website works (the short version)
+
+Think of the page as a **notice board that gets one big envelope of numbers** and
+paints everything from it.
+
+1. You open the page. Three files arrive: the layout, the colours, and one script.
+2. The script asks the server *"which targets do you have?"* and fills the
+dropdown.
+3. It then asks *"run the pipeline for this target"*. The server does all the
+   heavy work -- stacking the exposures, subtracting the epochs, matching
+   catalogues, counting objects -- and replies with **one JSON document** of about
+a megabyte: three 180x180 arrays (the stacked image, the difference image and the
+significance map), the detection list, the catalogue list, the numbers and the
+provenance table.
+4. The browser turns those arrays into three pictures (one per layer), draws the
+   selected one on a canvas, and overlays the grid, the catalogue crosses and the
+   detection markers.
+5. From then on everything is instant and local: dragging, zooming, switching
+   layers, hovering for popups, redrawing charts. Only four things ask the server
+   again -- changing the target, pressing *Recovery Grid*, pressing *Tiles* and
+   ticking *Live from IRSA*.
+
+The **all-sky view** works the same way: one request returns a tiny thumbnail and
+a few numbers per field, and the browser draws them on an RA/Dec chart. Clicking a
+thumbnail is just a shortcut for "open that field".
+
+That is why the same page works with no server at all (Netlify/Vercel): the JSON
+is pre-computed once and served as plain files.
+
+---
+
+## 5a. A guided tour of the website
 
 The screen has two columns and nothing requires a page reload.
 
@@ -338,7 +369,36 @@ latest data?" you want live. Both produce exactly the same numbers, and live
 rows in the provenance table are labelled `live:<observation id>` with the same
 clickable IRSA link.
 
-### 5.6 The map, and how to play with it
+### 5.6 Hover popups, the all-sky view and the charts
+
+**Hover popups.** Put the pointer on any marker and a card appears with the
+essentials: for a detection, its verdict (KNOWN/CANDIDATE), significance, RA/Dec,
+which epoch pair saw it and which catalogues matched; for a catalogue star, its
+verdict, magnitude, which catalogues know it and whether SPHEREx saw it change.
+The popup follows the pointer and disappears when you move away -- nothing is
+stored, it is read straight out of the JSON already in memory.
+
+**All-sky view.** The `Field / All-sky` switch above the map redraws the same
+canvas as a map of the whole celestial sphere: right ascension runs right to
+left, declination bottom to top, and every field you have data for is placed at
+its true position. Each field is drawn as a magnified thumbnail of its
+significance map (a 9-arcminute field would be a third of a pixel at true scale,
+which is why the caption says the tiles are magnified). Hovering a tile shows that
+field's detection count, epochs and baseline; clicking it opens the field. The
+caption also reports the total sky area covered -- a few hundredths of a square
+degree, which is the honest scale of this demo against SPHEREx's 41,000 square
+degrees.
+
+**Charts.** Four small charts sit above the detections table:
+
+| Chart | What it tells you |
+|---|---|
+| **Significance histogram** | A healthy subtraction is a narrow peak around zero (noise) with a long tail (real sources). Bars beyond 5 sigma are highlighted red -- those are the detections. |
+| **Noise per epoch** | How deep each stack is. More exposures or more bands make a shorter bar. |
+| **Detections per epoch pair** | Which time baseline found the most change (E1->E3 usually beats E1->E2). |
+| **Injection recovery** | The honesty curve: fraction of fake sources recovered vs brightness and speed. Empty until you press *Recovery Grid*. |
+
+### 5.7 The map, and how to play with it
 
 The map is a small interactive canvas, not a static picture.
 

@@ -51,6 +51,28 @@ def load_target(target):
 # ---------------------------------------------------------------------------
 # Provenance, statistics and map overlays
 # ---------------------------------------------------------------------------
+def significance_histogram(S, bins=32):
+    """
+    Histogram of the significance map, in sigma.
+
+    A healthy difference image is a narrow noise peak around zero plus a long
+    tail of real sources; the shape is the quickest way to see whether the
+    subtraction worked.
+    """
+    values = np.asarray(S, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return {"bins": [], "counts": [], "edges": []}
+    lo, hi = -6.0, max(6.0, float(np.percentile(values, 99.9)))
+    counts, edges = np.histogram(np.clip(values, lo, hi), bins=bins,
+                                 range=(lo, hi))
+    return {
+        "edges": [round(float(e), 2) for e in edges],
+        "counts": [int(c) for c in counts],
+        "n_pixels": int(values.size),
+    }
+
+
 def live_exposures(target, meta, size_deg=0.2, epoch_mode="firstlast",
                   max_slots=0, bands=LIVE_BANDS):
     """
@@ -558,6 +580,7 @@ def get_dashboard(target: str = Query("WISE_0855"),
         "stats": target_statistics(meta, triaged, sigma1, sigma2, npix=npix),
         "catalog_overlay": catalog_overlay(meta, wcs, npix=npix),
         "field_objects": build_field_objects(meta, triaged, wcs, npix=npix),
+        "histogram": significance_histogram(S),
         "epoch_pairs": pair_summary,
         "catalog_counts": {k: len(v or []) for k, v in
                            (meta.get("catalogs") or {}).items()},
@@ -603,6 +626,75 @@ def get_recovery(target: str = Query("WISE_0855")):
         grid.append({"snr": snr, "mu": mu, "recovery": float(frac)})
 
     return {"target": target, "grid": grid}
+
+
+MOSAIC_CACHE = {"t": 0.0, "payload": None}
+MOSAIC_TTL = int(os.environ.get("SPHEREX_MOSAIC_TTL", "900"))
+
+
+def _thumbnail(arr, size=48):
+    """Block-average a 180x180 map down to a small square, rounded to 2 dp."""
+    a = np.asarray(arr, dtype=float)
+    a = np.where(np.isfinite(a), a, 0.0)
+    ny, nx = a.shape
+    fy, fx = ny // size, nx // size
+    if fy < 1 or fx < 1:
+        return a[:size, :size].round(2).tolist()
+    trimmed = a[:fy * size, :fx * size]
+    blocks = trimmed.reshape(size, fy, size, fx).mean(axis=(1, 3))
+    return np.round(blocks, 2).tolist()
+
+
+@app.get("/api/mosaic")
+def get_mosaic(thumb: int = Query(48), refresh: int = Query(0)):
+    """
+    One small tile per cached target, for the all-sky view.
+
+    Each tile carries the field centre, size, a down-sampled significance map,
+    the detection split and the headline statistics -- enough to draw an
+    all-sky chart and to decide which field is worth opening.
+    """
+    import time as _time
+
+    if (not refresh and MOSAIC_CACHE["payload"]
+            and (_time.time() - MOSAIC_CACHE["t"]) < MOSAIC_TTL):
+        return MOSAIC_CACHE["payload"]
+
+    tiles = []
+    for entry in list_targets()["targets"]:
+        name = entry["name"]
+        dashboard = get_dashboard(target=name)
+        if not isinstance(dashboard, dict):
+            continue
+        stats = dashboard.get("stats", {})
+        tiles.append({
+            "target": name,
+            "common": dashboard.get("common", name),
+            "ra": dashboard["ra"],
+            "dec": dashboard["dec"],
+            "fov_arcmin": dashboard["map"]["fov_arcmin"],
+            "thumb": _thumbnail(dashboard["zogy_snr"], size=thumb),
+            "thumb_npix": thumb,
+            "n_detections": stats.get("n_detections", 0),
+            "n_known": stats.get("n_known", 0),
+            "n_candidate": stats.get("n_candidate", 0),
+            "max_snr": stats.get("max_snr"),
+            "baseline_days": stats.get("baseline_days"),
+            "sigma1": stats.get("sigma1"),
+            "sigma2": stats.get("sigma2"),
+            "n_exposures": stats.get("n_exposures"),
+            "n_epochs": stats.get("n_epochs"),
+            "n_gaia": stats.get("n_gaia"),
+            "n_vsx": stats.get("n_vsx"),
+            "source": dashboard.get("source", "cache"),
+        })
+
+    payload = {"tiles": tiles, "n_fields": len(tiles),
+               "sky_area_deg2": round(sum(
+                   (t["fov_arcmin"] / 60.0) ** 2 for t in tiles), 6)}
+    MOSAIC_CACHE["t"] = _time.time()
+    MOSAIC_CACHE["payload"] = payload
+    return payload
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

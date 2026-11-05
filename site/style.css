@@ -740,3 +740,43 @@ tbody tr.selected td { background: var(--blue-soft); }
   color: var(--text-soft);
 }
 .toggle-live input:checked + span { color: var(--blue); font-weight: 600; }
+
+/* ------------------------------ diagnostics ------------------------------ */
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.chart {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #fcfdff;
+  padding: 6px 6px 2px;
+}
+.chart canvas { display: block; width: 100%; height: auto; }
+.chart figcaption {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  padding: 4px 2px 5px;
+}
+
+/* all-sky mode ------------------------------------------------------------ */
+
+body.sky-mode #layer-switch { opacity: .35; pointer-events: none; }
+body.sky-mode #canvas-map { cursor: crosshair; }
+
+.sky-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted);
+  padding-top: 6px;
+}

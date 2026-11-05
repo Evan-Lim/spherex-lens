@@ -130,7 +130,17 @@ shapes (live FastAPI or pre-rendered static files):
 * **/02 Command Dashboard** -- four metric cards (detections, unaccounted,
   max SNR, baseline days), the interactive map, the detections table and the
   **image sources & provenance** table.
-* **Interactive map** (`static/app.js`, ~800 lines of vanilla canvas code)
+* **Hover popups** -- hovering any detection or catalogue object opens a card
+  with its verdict, SNR, RA/Dec, magnitude and which catalogues know it; hovering
+  an all-sky tile shows that field's statistics.
+* **All-sky view** -- one extra toggle plots every field on an equirectangular
+  RA/Dec chart (`/api/mosaic`), each tile a down-sampled significance thumbnail
+  with its detection count; click a tile to open that field. Fields are drawn
+  magnified (a 9' field is 0.3 px at true scale) and the caption says so.
+* **Diagnostics charts** -- four live charts: the significance histogram (noise
+  peak vs real sources), noise per epoch, detections per epoch pair, and the
+  injection-recovery curve.
+* **Interactive map** (`static/app.js`, ~1.1k lines of vanilla canvas code)
   * drag to pan, wheel to zoom (0.35x-12x), double-click / `Fit` / `0` to reset,
     `+`/`-` keys, click a marker to select a detection;
   * three layers: **Co-add**, **Difference D**, **Significance S**;
@@ -212,6 +222,35 @@ docker build -t spherex-lens . && docker run -p 8000:8000 spherex-lens   # Rende
 ```
 
 See [Deployment](#deployment) for the full matrix of hosts.
+
+---
+
+## How the page works (one request, end to end)
+
+1. **The browser loads three static files** -- `index.html`, `style.css`,
+   `app.js`. There is no framework and no build step.
+2. **`app.js` asks for `/api/targets`** and rebuilds the dropdown from whatever
+   data the deployment actually ships (so a static build with only some fields
+   still works).
+3. **`runPipeline()` fetches `/api/dashboard?target=...`** (or the pre-rendered
+   `api/dashboard-<target>.json` in static mode). On the server that handler
+   co-adds every epoch, runs ZOGY on each consecutive pair, triages the
+   detections against the whole catalogue, computes the statistics, the
+   significance histogram and the catalogue object list, and returns **one JSON
+   document** (~1 MB).
+4. **The renderer paints from that one object**: `image` / `zogy_image` /
+   `zogy_snr` are turned into three offscreen canvases (one per layer), then the
+   visible one is drawn with the current pan/zoom transform, followed by the
+   grid, the catalogue crosses and the detection markers.
+5. **Every interaction is local** -- pan, zoom, layer switch, overlay toggles,
+   hover popups, chart redraws -- except three actions that fetch: changing the
+   target, pressing *Recovery Grid*, and *Live from IRSA*.
+6. **The all-sky view** fetches `/api/mosaic` once: a 48x48 thumbnail plus
+   statistics per field, drawn on an equirectangular RA/Dec grid. Clicking a tile
+   is just a shortcut for "select that target and run the pipeline".
+
+Nothing is computed in the browser except pixels-to-colours and hit testing, so
+the static build (Netlify/Vercel) and the live server behave identically.
 
 ---
 
@@ -500,6 +539,7 @@ Two honest caveats, both visible in the figures:
 | `GET /api/targets` | Targets present in `data_cache/` |
 | `GET /api/dashboard?target=WISE_0855` | Runs stages 2-5 and returns `image`, `zogy_image`, `zogy_snr`, `sigma1`, `sigma2`, triaged `detections`, and `spectrum` (102 wavelengths, flux, classifier indices + label, plus the aperture flux at the target position) |
 | `GET /api/recovery?target=WISE_0855` | Injection-recovery grid (`snr`, `mu`, `recovery`) |
+| `GET /api/mosaic` | One 48x48 significance thumbnail + statistics per cached field, for the all-sky view (cached in RAM for 15 min) |
 | `GET /` | Static dashboard (`static/index.html`) |
 
 The `/api/dashboard` response carries 180 x 180 nested arrays for `image`,

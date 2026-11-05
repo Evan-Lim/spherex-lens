@@ -140,6 +140,10 @@
         </div>
 
         <div class="map-toolbar">
+          <div class="segmented" id="view-switch">
+            <button class="seg active" data-view="field">Field</button>
+            <button class="seg" data-view="sky">All&#8209;sky</button>
+          </div>
           <div class="segmented" id="layer-switch">
             <button class="seg" data-layer="image">Co-add</button>
             <button class="seg" data-layer="zogy_image">Difference&nbsp;D</button>
@@ -151,6 +155,7 @@
             <label class="toggle"><input type="checkbox" id="tog-det" checked><span>Detections</span></label>
           </div>
           <div class="zoom-group">
+            <button id="btn-mosaic" title="Rebuild the all-sky tiles">&#8635; Tiles</button>
             <button id="zoom-out" title="Zoom out">&minus;</button>
             <span id="zoom-label">1.0&times;</span>
             <button id="zoom-in" title="Zoom in">+</button>
@@ -172,6 +177,28 @@
           <span class="legend-item"><i class="sw sw-dipole"></i> dipole (mover)</span>
           <span class="legend-item"><i class="sw sw-monopole"></i> monopole (variable)</span>
           <span class="legend-item hint-inline">drag to pan &middot; wheel to zoom &middot; click a marker</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Diagnostics <span class="hint-inline">signal, noise and completeness</span></div>
+        <div class="chart-grid">
+          <figure class="chart">
+            <canvas id="chart-hist" width="380" height="150"></canvas>
+            <figcaption>Significance histogram &middot; noise peak vs real sources</figcaption>
+          </figure>
+          <figure class="chart">
+            <canvas id="chart-noise" width="380" height="150"></canvas>
+            <figcaption>Noise per epoch (&sigma;, MJy/sr)</figcaption>
+          </figure>
+          <figure class="chart">
+            <canvas id="chart-pairs" width="380" height="150"></canvas>
+            <figcaption>Detections per epoch pair</figcaption>
+          </figure>
+          <figure class="chart">
+            <canvas id="chart-recovery" width="380" height="150"></canvas>
+            <figcaption>Injection recovery (run Recovery Grid)</figcaption>
+          </figure>
         </div>
       </div>
 

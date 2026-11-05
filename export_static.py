@@ -62,6 +62,17 @@ def build(outdir="site", targets=None, with_recovery=True, with_figures=True):
     api_dir = os.path.join(outdir, "api")
     os.makedirs(api_dir, exist_ok=True)
 
+    # Copy the frontend and flip it into static mode.
+    for fname in ("index.html", "style.css", "app.js"):
+        shutil.copy(os.path.join("static", fname), os.path.join(outdir, fname))
+    index_path = os.path.join(outdir, "index.html")
+    with open(index_path) as f:
+        html = f.read()
+    html = html.replace("<body>", '<body data-mode="static" data-api-dir="api">', 1)
+    with open(index_path, "w") as f:
+        f.write(html)
+
+
     written = []
     for name in targets:
         print(f" {name}")
@@ -85,21 +96,21 @@ def build(outdir="site", targets=None, with_recovery=True, with_figures=True):
             except Exception as e:
                 print(f"   recovery skipped: {e}")
 
+    # All-sky tiles (one small thumbnail per field) for the sky view.
+    try:
+        mosaic = portal.get_mosaic(thumb=48, refresh=0)
+        path = os.path.join(api_dir, "mosaic.json")
+        with open(path, "w") as f:
+            json.dump(mosaic, f)
+        written.append(path)
+    except Exception as e:
+        print(f"   mosaic skipped: {e}")
+
     # The target index lists only what was actually rendered.
     available = [t for t in portal.list_targets()["targets"] if t["name"] in targets]
     with open(os.path.join(api_dir, "targets.json"), "w") as f:
         json.dump({"targets": available}, f, indent=2)
     written.append(os.path.join(api_dir, "targets.json"))
-
-    # Copy the frontend and flip it into static mode.
-    for fname in ("index.html", "style.css", "app.js"):
-        shutil.copy(os.path.join("static", fname), os.path.join(outdir, fname))
-    index_path = os.path.join(outdir, "index.html")
-    with open(index_path) as f:
-        html = f.read()
-    html = html.replace("<body>", '<body data-mode="static" data-api-dir="api">', 1)
-    with open(index_path, "w") as f:
-        f.write(html)
 
     if with_figures:
         src = "figures_real"
