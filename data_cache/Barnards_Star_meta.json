@@ -7,18 +7,18 @@
     "common": "Barnard's Star"
   },
   "paths": [
-    "data_cache/level2_2025W35_2A_0611_3D1_spx_l2b-v20-2025-271_cut.fits",
-    "data_cache/level2_2025W35_2A_0221_1D2_spx_l2b-v20-2025-270_cut.fits",
-    "data_cache/level2_2025W34_2B_0030_4D3_spx_l2b-v20-2025-269_cut.fits",
-    "data_cache/level2_2025W35_2A_0611_3D4_spx_l2b-v20-2025-271_cut.fits",
-    "data_cache/level2_2025W35_2A_0221_1D5_spx_l2b-v20-2025-271_cut.fits",
-    "data_cache/level2_2025W34_2B_0030_4D6_spx_l2b-v20-2025-267_cut.fits",
-    "data_cache/level2_2026W11_1A_0539_1D1_spx_l2b-v24-2026-094_cut.fits",
-    "data_cache/level2_2026W12_1A_0311_1D2_spx_l2b-v24-2026-082_cut.fits",
-    "data_cache/level2_2026W13_1A_0549_1D3_spx_l2b-v24-2026-088_cut.fits",
-    "data_cache/level2_2026W11_1A_0539_1D4_spx_l2b-v24-2026-094_cut.fits",
-    "data_cache/level2_2026W12_1A_0311_1D5_spx_l2b-v24-2026-082_cut.fits",
-    "data_cache/level2_2026W13_1A_0549_1D6_spx_l2b-v24-2026-088_cut.fits"
+    "data_cache\\level2_2025W35_2A_0611_3D1_spx_l2b-v20-2025-271_cut.fits",
+    "data_cache\\level2_2025W35_2A_0221_1D2_spx_l2b-v20-2025-270_cut.fits",
+    "data_cache\\level2_2025W34_2B_0030_4D3_spx_l2b-v20-2025-269_cut.fits",
+    "data_cache\\level2_2025W35_2A_0611_3D4_spx_l2b-v20-2025-271_cut.fits",
+    "data_cache\\level2_2025W35_2A_0221_1D5_spx_l2b-v20-2025-271_cut.fits",
+    "data_cache\\level2_2025W34_2B_0030_4D6_spx_l2b-v20-2025-267_cut.fits",
+    "data_cache\\level2_2026W11_1A_0539_1D1_spx_l2b-v24-2026-094_cut.fits",
+    "data_cache\\level2_2026W12_1A_0311_1D2_spx_l2b-v24-2026-082_cut.fits",
+    "data_cache\\level2_2026W13_1A_0549_1D3_spx_l2b-v24-2026-088_cut.fits",
+    "data_cache\\level2_2026W11_1A_0539_1D4_spx_l2b-v24-2026-094_cut.fits",
+    "data_cache\\level2_2026W12_1A_0311_1D5_spx_l2b-v24-2026-082_cut.fits",
+    "data_cache\\level2_2026W13_1A_0549_1D6_spx_l2b-v24-2026-088_cut.fits"
   ],
   "epochs": [
     1,
@@ -36,7 +36,7 @@
   ],
   "sources": [
     {
-      "path": "data_cache/level2_2025W35_2A_0611_3D1_spx_l2b-v20-2025-271_cut.fits",
+      "path": "data_cache\\level2_2025W35_2A_0611_3D1_spx_l2b-v20-2025-271_cut.fits",
       "file": "level2_2025W35_2A_0611_3D1_spx_l2b-v20-2025-271_cut.fits",
       "epoch": 1,
       "band": "SPHEREx-D1",
@@ -49,7 +49,7 @@
       "bytes": 5279040
     },
     {
-      "path": "data_cache/level2_2025W35_2A_0221_1D2_spx_l2b-v20-2025-270_cut.fits",
+      "path": "data_cache\\level2_2025W35_2A_0221_1D2_spx_l2b-v20-2025-270_cut.fits",
       "file": "level2_2025W35_2A_0221_1D2_spx_l2b-v20-2025-270_cut.fits",
       "epoch": 1,
       "band": "SPHEREx-D2",
@@ -62,7 +62,7 @@
       "bytes": 5279040
     },
     {
-      "path": "data_cache/level2_2025W34_2B_0030_4D3_spx_l2b-v20-2025-269_cut.fits",
+      "path": "data_cache\\level2_2025W34_2B_0030_4D3_spx_l2b-v20-2025-269_cut.fits",
       "file": "level2_2025W34_2B_0030_4D3_spx_l2b-v20-2025-269_cut.fits",
       "epoch": 1,
       "band": "SPHEREx-D3",
@@ -75,7 +75,7 @@
       "bytes": 5279040
     },
     {
-      "path": "data_cache/level2_2025W35_2A_0611_3D4_spx_l2b-v20-2025-271_cut.fits",
+      "path": "data_cache\\level2_2025W35_2A_0611_3D4_spx_l2b-v20-2025-271_cut.fits",
       "file": "level2_2025W35_2A_0611_3D4_spx_l2b-v20-2025-271_cut.fits",
       "epoch": 1,
       "band": "SPHEREx-D4",
@@ -88,7 +88,7 @@
       "bytes": 5267520
     },
     {
-      "path": "data_cache/level2_2025W35_2A_0221_1D5_spx_l2b-v20-2025-271_cut.fits",
+      "path": "data_cache\\level2_2025W35_2A_0221_1D5_spx_l2b-v20-2025-271_cut.fits",
       "file": "level2_2025W35_2A_0221_1D5_spx_l2b-v20-2025-271_cut.fits",
       "epoch": 1,
       "band": "SPHEREx-D5",
@@ -101,7 +101,7 @@
       "bytes": 5279040
     },
     {
-      "path": "data_cache/level2_2025W34_2B_0030_4D6_spx_l2b-v20-2025-267_cut.fits",
+      "path": "data_cache\\level2_2025W34_2B_0030_4D6_spx_l2b-v20-2025-267_cut.fits",
       "file": "level2_2025W34_2B_0030_4D6_spx_l2b-v20-2025-267_cut.fits",
       "epoch": 1,
       "band": "SPHEREx-D6",
@@ -114,7 +114,7 @@
       "bytes": 5279040
     },
     {
-      "path": "data_cache/level2_2026W11_1A_0539_1D1_spx_l2b-v24-2026-094_cut.fits",
+      "path": "data_cache\\level2_2026W11_1A_0539_1D1_spx_l2b-v24-2026-094_cut.fits",
       "file": "level2_2026W11_1A_0539_1D1_spx_l2b-v24-2026-094_cut.fits",
       "epoch": 2,
       "band": "SPHEREx-D1",
@@ -127,7 +127,7 @@
       "bytes": 5281920
     },
     {
-      "path": "data_cache/level2_2026W12_1A_0311_1D2_spx_l2b-v24-2026-082_cut.fits",
+      "path": "data_cache\\level2_2026W12_1A_0311_1D2_spx_l2b-v24-2026-082_cut.fits",
       "file": "level2_2026W12_1A_0311_1D2_spx_l2b-v24-2026-082_cut.fits",
       "epoch": 2,
       "band": "SPHEREx-D2",
@@ -140,7 +140,7 @@
       "bytes": 5281920
     },
     {
-      "path": "data_cache/level2_2026W13_1A_0549_1D3_spx_l2b-v24-2026-088_cut.fits",
+      "path": "data_cache\\level2_2026W13_1A_0549_1D3_spx_l2b-v24-2026-088_cut.fits",
       "file": "level2_2026W13_1A_0549_1D3_spx_l2b-v24-2026-088_cut.fits",
       "epoch": 2,
       "band": "SPHEREx-D3",
@@ -153,7 +153,7 @@
       "bytes": 5281920
     },
     {
-      "path": "data_cache/level2_2026W11_1A_0539_1D4_spx_l2b-v24-2026-094_cut.fits",
+      "path": "data_cache\\level2_2026W11_1A_0539_1D4_spx_l2b-v24-2026-094_cut.fits",
       "file": "level2_2026W11_1A_0539_1D4_spx_l2b-v24-2026-094_cut.fits",
       "epoch": 2,
       "band": "SPHEREx-D4",
@@ -166,7 +166,7 @@
       "bytes": 5281920
     },
     {
-      "path": "data_cache/level2_2026W12_1A_0311_1D5_spx_l2b-v24-2026-082_cut.fits",
+      "path": "data_cache\\level2_2026W12_1A_0311_1D5_spx_l2b-v24-2026-082_cut.fits",
       "file": "level2_2026W12_1A_0311_1D5_spx_l2b-v24-2026-082_cut.fits",
       "epoch": 2,
       "band": "SPHEREx-D5",
@@ -179,7 +179,7 @@
       "bytes": 5281920
     },
     {
-      "path": "data_cache/level2_2026W13_1A_0549_1D6_spx_l2b-v24-2026-088_cut.fits",
+      "path": "data_cache\\level2_2026W13_1A_0549_1D6_spx_l2b-v24-2026-088_cut.fits",
       "file": "level2_2026W13_1A_0549_1D6_spx_l2b-v24-2026-088_cut.fits",
       "epoch": 2,
       "band": "SPHEREx-D6",
@@ -35196,7 +35196,290 @@
       }
     ],
     "wise": [],
-    "vsx": []
+    "vsx": [
+      {
+        "ra": 269.222412109375,
+        "dec": 4.594779968261719,
+        "name": "Gaia DR3 4472809109905874688",
+        "type": "E"
+      },
+      {
+        "ra": 269.2645568847656,
+        "dec": 4.662129878997803,
+        "name": "Gaia DR3 4472811446368421376",
+        "type": "ROT"
+      },
+      {
+        "ra": 269.2733459472656,
+        "dec": 4.725150108337402,
+        "name": "Gaia DR3 4472812653258004224",
+        "type": "E"
+      },
+      {
+        "ra": 269.2876281738281,
+        "dec": 4.724219799041748,
+        "name": "ZTF J175709.02+044327.1",
+        "type": "HADS"
+      },
+      {
+        "ra": 269.3063659667969,
+        "dec": 4.492569923400879,
+        "name": "Gaia DR3 4472804544359317760",
+        "type": "ROT"
+      },
+      {
+        "ra": 269.3111572265625,
+        "dec": 4.656169891357422,
+        "name": "Gaia DR3 4472811244508710912",
+        "type": "DSCT|GDOR|SXPHE"
+      },
+      {
+        "ra": 269.3169250488281,
+        "dec": 4.660920143127441,
+        "name": "Gaia DR3 4472811244508710656",
+        "type": "ROT"
+      },
+      {
+        "ra": 269.321533203125,
+        "dec": 4.684299945831299,
+        "name": "Gaia DR3 4472811721246437120",
+        "type": "E"
+      },
+      {
+        "ra": 269.32879638671875,
+        "dec": 4.759920120239258,
+        "name": "ASAS J175719+0445.6",
+        "type": "MISC"
+      },
+      {
+        "ra": 269.332763671875,
+        "dec": 4.864530086517334,
+        "name": "Gaia DR3 4472884632612126976",
+        "type": "E"
+      },
+      {
+        "ra": 269.3725891113281,
+        "dec": 4.5617499351501465,
+        "name": "Gaia DR3 4472805227255283840",
+        "type": "RS"
+      },
+      {
+        "ra": 269.37823486328125,
+        "dec": 4.465459823608398,
+        "name": "ASASSN-V J175730.78+042755.4",
+        "type": "EA"
+      },
+      {
+        "ra": 269.3809509277344,
+        "dec": 4.889679908752441,
+        "name": "Gaia DR3 4472886183098847104",
+        "type": "E"
+      },
+      {
+        "ra": 269.3920593261719,
+        "dec": 4.762569904327393,
+        "name": "Gaia DR3 4472835743002904704",
+        "type": "E"
+      },
+      {
+        "ra": 269.3985595703125,
+        "dec": 4.512849807739258,
+        "name": "Gaia DR3 4472793166986885888",
+        "type": "E"
+      },
+      {
+        "ra": 269.3991394042969,
+        "dec": 4.775519847869873,
+        "name": "Gaia DR3 4472836189679503744",
+        "type": "S"
+      },
+      {
+        "ra": 269.4041442871094,
+        "dec": 4.610899925231934,
+        "name": "Gaia DR3 4472807151400857472",
+        "type": "E"
+      },
+      {
+        "ra": 269.40631103515625,
+        "dec": 4.876699924468994,
+        "name": "Gaia DR3 4472886011297415296",
+        "type": "E"
+      },
+      {
+        "ra": 269.407470703125,
+        "dec": 4.854579925537109,
+        "name": "V2033 Oph",
+        "type": "RRAB"
+      },
+      {
+        "ra": 269.41778564453125,
+        "dec": 4.688179969787598,
+        "name": "Gaia DR3 4472832066512812544",
+        "type": "S"
+      },
+      {
+        "ra": 269.41888427734375,
+        "dec": 4.847609996795654,
+        "name": "V3214 Oph",
+        "type": "EB"
+      },
+      {
+        "ra": 269.42510986328125,
+        "dec": 4.663949966430664,
+        "name": "Gaia DR3 4472807774175848960",
+        "type": "RS"
+      },
+      {
+        "ra": 269.42633056640625,
+        "dec": 4.652190208435059,
+        "name": "V3215 Oph",
+        "type": "EW"
+      },
+      {
+        "ra": 269.42669677734375,
+        "dec": 4.504779815673828,
+        "name": "Gaia DR3 4472792381012293632",
+        "type": "DSCT|GDOR|SXPHE"
+      },
+      {
+        "ra": 269.4394836425781,
+        "dec": 4.891479969024658,
+        "name": "Gaia DR3 4472839488214066688",
+        "type": "E"
+      },
+      {
+        "ra": 269.4479675292969,
+        "dec": 4.574100017547607,
+        "name": "Gaia DR3 4472795061071896448",
+        "type": "YSO"
+      },
+      {
+        "ra": 269.4503479003906,
+        "dec": 4.6121602058410645,
+        "name": "Gaia DR3 4472807396218715648",
+        "type": "E"
+      },
+      {
+        "ra": 269.45208740234375,
+        "dec": 4.693359851837158,
+        "name": "V2500 Oph",
+        "type": "BY"
+      },
+      {
+        "ra": 269.454833984375,
+        "dec": 4.85221004486084,
+        "name": "ASASSN-V J175749.16+045108.0",
+        "type": "SRS"
+      },
+      {
+        "ra": 269.455322265625,
+        "dec": 4.60506010055542,
+        "name": "PS1-3PI J175749.27+043618.2",
+        "type": "RRAB"
+      },
+      {
+        "ra": 269.4591369628906,
+        "dec": 4.918149948120117,
+        "name": "Gaia DR3 4472839625653024256",
+        "type": "RS"
+      },
+      {
+        "ra": 269.47918701171875,
+        "dec": 4.8349199295043945,
+        "name": "PS1-3PI J175755.00+045005.7",
+        "type": "RRAB"
+      },
+      {
+        "ra": 269.491455078125,
+        "dec": 4.594220161437988,
+        "name": "ASASSN-21eq",
+        "type": "UG:"
+      },
+      {
+        "ra": 269.4918212890625,
+        "dec": 4.459060192108154,
+        "name": "DDE 202",
+        "type": "NL"
+      },
+      {
+        "ra": 269.5013427734375,
+        "dec": 4.818309783935547,
+        "name": "BMAM-V627",
+        "type": "UG:"
+      },
+      {
+        "ra": 269.5084533691406,
+        "dec": 4.816959857940674,
+        "name": "ZTF J175802.02+044901.0",
+        "type": "RS"
+      },
+      {
+        "ra": 269.5201721191406,
+        "dec": 4.925930023193359,
+        "name": "Gaia DR3 4472845290711907712",
+        "type": "E"
+      },
+      {
+        "ra": 269.52777099609375,
+        "dec": 4.520130157470703,
+        "name": "Gaia DR3 4472791109702917632",
+        "type": "E"
+      },
+      {
+        "ra": 269.53802490234375,
+        "dec": 4.657670021057129,
+        "name": "V0391 Oph",
+        "type": "EA/SD"
+      },
+      {
+        "ra": 269.54345703125,
+        "dec": 4.717949867248535,
+        "name": "Gaia DR3 4472831688553739264",
+        "type": "S"
+      },
+      {
+        "ra": 269.5447082519531,
+        "dec": 4.647659778594971,
+        "name": "Gaia DR3 4472819422127132928",
+        "type": "RS"
+      },
+      {
+        "ra": 269.5572204589844,
+        "dec": 4.690310001373291,
+        "name": "Gaia DR3 4472819868803735808",
+        "type": "RS"
+      },
+      {
+        "ra": 269.59002685546875,
+        "dec": 4.602779865264893,
+        "name": "ASAS J175822+0436.2",
+        "type": "MISC"
+      },
+      {
+        "ra": 269.6253662109375,
+        "dec": 4.672130107879639,
+        "name": "Gaia DR3 4472820276832853504",
+        "type": "E"
+      },
+      {
+        "ra": 269.62884521484375,
+        "dec": 4.749070167541504,
+        "name": "ZTF J175830.92+044456.6",
+        "type": "RRC"
+      },
+      {
+        "ra": 269.6459045410156,
+        "dec": 4.567920207977295,
+        "name": "Gaia DR3 4472814951061257472",
+        "type": "E"
+      },
+      {
+        "ra": 269.6550598144531,
+        "dec": 4.646890163421631,
+        "name": "Gaia DR3 4472819933223707904",
+        "type": "E"
+      }
+    ]
   },
   "collection": "spherex_qr2",
   "cutout_size_deg": 0.2,
