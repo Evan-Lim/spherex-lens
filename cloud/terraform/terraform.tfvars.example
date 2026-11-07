@@ -1,0 +1,3 @@
+project_id     = "your-new-google-cloud-project-id"
+region         = "us-central1"
+netlify_origin = "https://your-site.netlify.app"

@@ -96,27 +96,24 @@ sky.
 What happens when you subtract two epochs of a nebula? Almost every "difference"
 turns out to be a star that is already in the catalogue, because what changes
 between SPHEREx passes in a crowded field is mostly the PSF and the detector,
-not the sky. The numbers, straight from the shipped data: the Crab Nebula gives
-10 detections and all 10 are `KNOWN`; M45 gives 6, all `KNOWN`; Sgr A* gives 7,
-all `KNOWN`. That is the triage doing exactly its job -- a difference image is
-not a discovery until you have checked whether something was already there.
+not the sky. In the current local export, the Crab Nebula gives 7 detections,
+all `KNOWN`; M45 gives 6 (4 `KNOWN`, 2 `CANDIDATE`). Sgr A* has no comparable
+difference map in the current cache because its two epochs use different
+detector bands. A difference image is not a discovery until you have checked
+whether something was already there.
 
-What works *better* than expected: the Ring Nebula gives one genuine unknown
-(1 `KNOWN`, 1 `CANDIDATE` at 23.8 sigma), and so does the quasar 3C 273 (3 known,
-1 unknown, 24.3 sigma), the Sombrero (37.6 sigma) and M31 (one unknown). Nebulae
-and galaxies are not point sources, so their "changes" are mostly artefacts of the
-PSF -- which is precisely why the catalogue check exists.
+The current export has 18 field entries; 16 have comparable difference maps.
+Betelgeuse is visible but unavailable because its checked-in local metadata has
+only one epoch. A temporary ingest validated eight cutouts across two epochs,
+but those were intentionally not merged into the existing user cache. M42 has
+no detected changes in this snapshot; TRAPPIST-1 has 10 (9 `KNOWN`, 1
+`CANDIDATE`). These counts can change when the local data cache is deliberately
+refreshed and the static site regenerated.
 
-Three fields produce nothing usable, and that is also honest. M42 is smooth
-glowing gas with no compact source that changes between the two epochs.
-TRAPPIST-1 only has 2 usable cutouts (one band, two epochs) because the archive
-kept timing out on that position while this was built. Betelgeuse is so bright
-that the detector saturates and almost every pixel gets flagged, leaving nothing
-valid to weight -- so the page reports *"noise estimate degenerate"* instead of
-a nonsense number. And the Large Magellanic Cloud was tried and dropped: at
-Dec -69.8 every QR2 image in a 9' box belongs to the same visit, so there is no
-second epoch to subtract. With 12-18 cutouts the single-star brief targets are
-where `CANDIDATE` verdicts actually mean something.
+The Large Magellanic Cloud was also tried and dropped: at Dec -69.8 every QR2
+image in a 9' box belongs to the same visit, so there is no second epoch to
+subtract. These are archive-coverage constraints, not evidence that the object
+is constant.
 
 
 ---
@@ -169,10 +166,18 @@ It keeps only exposures where the target sits comfortably inside the picture
 last epoch -- because a difference between two epochs far apart in time is the
 most sensitive way to spot movement.
 
-Finally it looks up the same patch of sky in three catalogues: **Gaia DR3**
-(1.8 billion star positions and motions), **AAVSO VSX** (variable stars), and --
-when the archive cooperates -- **AllWISE** (infrared sources). This is the
-"phone book" that later decides whether a detection is already known.
+Finally it looks up the same 15' patch of sky in three catalogues: **Gaia DR3**
+(1.8 billion star positions, motions, parallaxes and variability flags) and
+**AllWISE** (infrared sources with W1-W4 photometry and their own motions), both
+from IRSA's TAP service, plus **AAVSO VSX** (variable stars with type, period
+and amplitude) from VizieR. Every cone is complete -- even the ~20,000 Gaia
+stars around Sgr A* -- and sorted brightest-first. This is the "phone book"
+that later decides whether a detection is already known.
+
+Fast-moving targets (Barnard's Star, Proxima, epsilon Indi B, WISE 0855,
+TRAPPIST-1, Sirius) carry their proper motion, and the cutouts are centred on
+where the star *is* at the SPHEREx epochs: Barnard's Star alone has moved 4.4'
+since J2000, almost half the 9' map.
 
 *Output:* FITS files in `data_cache/` plus one JSON file per target listing the
 files, their epochs, their archive URLs, and the catalogue entries.
@@ -190,6 +195,17 @@ pixels, uncorrected phantom signal, unreliable non-linearity corrections,
 persistent charge, and pixels flagged as outliers. Two flags are *not* masked:
 "full sample available" (information only) and "mapped to a known source" (that
 is real light, not a defect).
+
+**Levelling and matched masks.** Each exposure's own sky level (a
+sigma-clipped median) is subtracted first, because the detectors see very
+different amounts of zodiacal glow (D4 at ~3 microns far more than D1 at ~1
+micron). Then the masks are *matched* across epochs: at each pixel, a band is
+used only if it is clean in **every** epoch. Otherwise a band masked in just
+one epoch drops out of that epoch's average alone -- and since no star is
+equally bright in every band, the stack fakes a change exactly there. (Found on
+TRAPPIST-1, where two masked patches in a single 2026 exposure were reported
+as new sources.) The cost is a little noise where bands are dropped; the
+detection says so ("2 of 6 bands dropped here").
 
 **Stacking.** Real exposures are not perfectly aligned: the telescope wobbles,
 the sky rotates. Each exposure is therefore **reprojected** -- every output pixel
@@ -236,12 +252,42 @@ an instrument.
 
 ### Step 4 -- Triage: is it news? (`step4_triage.py`)
 
-For every detection, the code converts the pixel position to RA/Dec and looks for
-the nearest entry in each catalogue. If something is within **30 arcseconds**
-(five SPHEREx pixels -- generous enough for a moving star's shift between
-epochs), the verdict is **KNOWN** and the match distance is reported. If nothing
-is there, the verdict is **CANDIDATE**: not a discovery, but a *permission to
-look*. A match closer than 5" raises the verdict to `high` confidence.
+For every detection, the code converts the pixel position to RA/Dec (through the
+map's real WCS) and looks for a catalogue entry nearby. Three things make the
+match honest:
+
+* **Catalogues are moved to the detection's epoch.** Gaia positions are for
+  2016.0 and AllWISE for ~2010.5; every star with a measured motion is
+  propagated to the date of the epoch pair before matching. Without this,
+  Barnard's Star (10.4"/yr) would sit ~100" from its own detection.
+* **The match radius depends on brightness.** 10" for faint sources (G >= 16),
+  rising to 30" at G = 9 and up to 120" for the brightest stars, whose wings
+  spread a change over a wide patch. A flat 30" was far too generous: with
+  ~2,000 Gaia stars in a field, a random 30" circle holds two of them.
+* **Every match reports `p_chance`,** the probability that a catalogue source
+  that bright lands that close by coincidence; above 0.3 the reason list says
+  so and confidence drops to `low`.
+
+The answer is still **KNOWN** or **CANDIDATE**, but every detection now also
+gets a **category** that says *why* it changed, and whether that is news:
+
+| Category | Meaning | Worth a look? |
+|---|---|---|
+| `CANDIDATE` | in no catalogue | yes |
+| `KNOWN_STATIC_CHANGED` | catalogued as neither variable nor moving -- yet it changed | **yes** (the most interesting KNOWN) |
+| `KNOWN_VARIABLE` | a VSX variable, a Gaia `VARIABLE`, or already variable in NEOWISE | only if the change exceeds the catalogued amplitude |
+| `KNOWN_MOVER` | a dipole on a star whose catalogued motion predicts it | only if the motion check disagrees |
+| `BRIGHT_STAR_ARTEFACT` | inside the mask of a star bright enough to saturate SPHEREx | no |
+| `MASK_ARTEFACT` | no catalogue explains it, and no detector band is unmasked in every epoch at that spot | no |
+
+Items marked "yes" carry a star (&#9733;) in the dashboard. Each detection also
+lists its **reasons** in plain words, plus whatever the catalogues know: the VSX
+type, period, amplitude and an AAVSO link; the Gaia distance and absolute
+magnitude; the AllWISE W1-W2 colour class (stellar / red / AGN-like or cool
+brown dwarf / late-T-Y dwarf); for a dipole, the predicted vs. measured shift;
+and, when step 7 has run, the NEOWISE history at that spot. AllWISE entries
+that are probably artefacts (`cc_flags` D/P/H/O, or no detection in W1 and W2)
+are never used as a match.
 
 ### Step 5 -- Spectrum and colour (`step5_spectrum.py`)
 
@@ -273,6 +319,32 @@ it gets back. Doing that across a grid of brightness x speed produces a
 recovers almost nothing. That curve is the honest answer to *"how good is this
 telescope plus pipeline, really?"*.
 
+### Step 7 -- Look back in time with WISE (`step7_neowise.py`, optional)
+
+SPHEREx only has a year of data, but NASA's WISE/NEOWISE telescope photographed
+the whole sky every six months from 2010 to 2024 at 3.4 and 4.6 microns -- the
+same wavelengths SPHEREx covers at its red end. Step 7 asks IRSA for every WISE
+exposure at the target and at each detection (one uploaded table per target,
+so it costs one query, not one per position), throws out bad frames, groups
+the exposures into visits and answers three questions:
+
+* **Did it already vary?** Amplitude, scatter, reduced chi-squared and a linear
+  trend per band. "Variable" means at least 4 visits, chi-squared >= 10 *and*
+  an amplitude >= 0.1 mag, in W1 or W2.
+* **Is it moving?** A straight-line fit to the visit positions gives a proper
+  motion. For WISE 0855 it returns 8.15"/yr from 23 visits -- the same answer
+  as the discovery papers -- and for Barnard's Star and epsilon Indi B it
+  agrees with Gaia to within 1 %.
+* **What did the target do?** The dashboard draws the target's 2010-2024
+  light curve with the SPHEREx epochs marked.
+
+A detection that sits on a fast catalogued star is followed along that star's
+track, not in a fixed circle -- otherwise the star would just drift out of the
+circle and look as if it had faded.
+
+The dashboard reads the result (`data_cache/<Target>_neowise.json`) when it
+exists; without it everything else still works.
+
 
 ---
 
@@ -302,7 +374,7 @@ The **all-sky view** works the same way: one request returns a tiny thumbnail an
 a few numbers per field, and the browser draws them on an RA/Dec chart. Clicking a
 thumbnail is just a shortcut for "open that field".
 
-That is why the same page works with no server at all (Netlify/Vercel): the JSON
+That is why the same page works with no server at all (Netlify): the JSON
 is pre-computed once and served as plain files.
 
 **If you want it live on Netlify.** Netlify cannot run Python -- its functions are
@@ -347,11 +419,13 @@ The screen has two columns and nothing requires a page reload.
 * **RA / Dec / exposures**: the sky address (hours-minutes-seconds and
   degrees-arcminutes-arcseconds) and how many exposures were stacked per epoch.
 * **Actions**:
-  * `Run Pipeline` -- recompute everything for the selected target.
-  * `Recovery Grid` -- run the injection-recovery test (24 cells) and print the
-    table under "Recovery summary".
-  * `Copy Share Link` -- copy a URL with `?target=...` so you can send someone
-    straight to the same field.
+  * `Run Pipeline` -- request the selected target again, using local cutouts or
+    on-demand IRSA cutouts according to the live-mode checkbox.
+  * `Recovery Grid` -- run the injection-recovery test on a server, or load its
+    saved result on a static deployment. It reports an error if that target
+    lacks a comparable epoch pair.
+  * `Copy Share Link` -- copy a URL with the target and current live-mode choice.
+    If browser clipboard access is blocked, the URL is shown for manual copying.
 * **Triage Verdict** -- for the *selected* detection: verdict badge, which
   catalogue matched and how far away it was, RA/Dec, significance, kind (dipole
   or monopole) and confidence.
@@ -362,6 +436,12 @@ The screen has two columns and nothing requires a page reload.
   minute per new field because every cutout has to be cut out of a 70 MB image at
   the archive.
 * **Pipeline statistics** -- explained in section 6.
+
+The **Target history** panel can show archival AllWISE and NEOWISE measurements.
+These are historical photometry, not a live SPHEREx stream or a NEOWISE marker
+on the all-sky map. The map shows SPHEREx field coverage and difference-image
+significance; a field without two epochs sharing a detector band is retained
+as an unavailable tile rather than silently omitted.
 
 ### 5.3 Right column (/02) -- Command Dashboard
 
@@ -421,25 +501,27 @@ is in Gaia, VSX or AllWISE.
 > on the page runs from pre-computed JSON and needs no server at all.
 
 
-There are two ways this app gets its pictures, and the checkbox **"Live from
-IRSA (no cache, no download)"** switches between them:
+There are two ways this app gets its pictures, and the checkbox **"Fetch from
+IRSA (no local reuse)"** switches between them:
 
 * **Cache mode (default).** The cutouts were downloaded once into
-  `data_cache/` and are re-read from your disk. Fast (about one second),
-  works offline, but takes ~200 MB of storage.
+  `data_cache/` and are re-read from your disk. It works offline; disk use
+  depends on how many detector/epoch cutouts have been ingested.
 * **Live mode.** The app asks IRSA for each cutout, reads the FITS file
   *straight out of the network response in memory*, and runs the pipeline on
-  it. Nothing is ever written to disk. The first request for a target takes
+  it. Nothing is written to disk. The first request for a target takes
   roughly half a minute to a minute and a half (it fetches several 5 MB files
-  in parallel); after that the answer is held in RAM for half an hour, so
-  pressing the button again takes about a second.
+  in parallel); every subsequent run also queries IRSA and fetches its cutouts
+  again. The page does not continuously synchronize with IRSA.
 
 Why not always live? Because IRSA is a shared public archive: it takes about a
 minute to cut one file out of a 70 MB image, and it throttles clients that ask
-for too much too fast. For a demo you want the cache; for "is this still the
-latest data?" you want live. Both produce exactly the same numbers, and live
-rows in the provenance table are labelled `live:<observation id>` with the same
-clickable IRSA link.
+for too much too fast. A fresh request and full pipeline cannot reliably finish
+within 200 ms: remote network latency, multi-megabyte cutouts, and processing
+already exceed that budget. Live rows in the provenance table are labelled
+`live:<observation id>` with the same clickable IRSA link. HTTP/browser caches
+and local SIA2/cutout caches are bypassed for these requests; IRSA's own update
+cadence and availability remain outside this app's control.
 
 ### 5.6 Hover popups, the all-sky view and the charts
 
@@ -459,7 +541,11 @@ which is why the caption says the tiles are magnified). Hovering a tile shows th
 field's detection count, epochs and baseline; clicking it opens the field. The
 caption also reports the total sky area covered -- a few hundredths of a square
 degree, which is the honest scale of this demo against SPHEREx's 41,000 square
-degrees.
+degrees. These all-sky thumbnails are derived from the local cache, not fresh
+IRSA downloads. When live mode is enabled, cached tiles are hidden instead of
+being presented as live; select a field to request its data from IRSA. Fetching
+and processing enough cutouts for a fresh all-sky map cannot be guaranteed to
+finish in 200 ms.
 
 **Charts.** Four small charts sit above the detections table:
 
@@ -569,9 +655,13 @@ Gaia DR3 300 / VSX 47 entries cross-matched`.
   "spectrum" is four aperture measurements, so the 102-band classifier is *not*
   run on real data -- the API returns `classification: null` rather than making
   something up. The synthetic demo cache is what exercises the classifier.
-* **AllWISE is empty in this deployment.** IRSA's TAP copy of the AllWISE table
-  was not queryable and the VizieR mirrors were unreachable, so KNOWN verdicts
-  rest on Gaia DR3 + VSX.
+* **The catalogue checks are heuristics.** The brightness-dependent radii, the
+  bright-star mask, the AllWISE motion threshold and the NEOWISE "variable" rule
+  are tuned constants (`catalog_tools.py`, `step7_neowise.is_variable`), not
+  fitted models. A `p_chance` of 0.2 still means one in five such matches is a
+  coincidence.
+* **NEOWISE ended in August 2024 and SPHEREx started in 2025**, so the infrared
+  history says what an object did *before* SPHEREx, never at the same time.
 * **Eight months is short.** A star moving 10"/year shifts 6-7". The dipole
   machinery can recover that, but the injection-recovery curves show that
   anything slower than about 5"/year at SNR 5-10 is largely missed.
@@ -648,22 +738,27 @@ In principle this is the right *technique* (subtract two epochs, look for a movi
 dot). In practice a 9' field, two bands and two epochs is a toy version: real
 searches use many fields, many epochs and much deeper images.
 
-**Are there really only five pictures?**
-No -- five is just how many fields are **cached**. SPHEREx photographs the whole
-sky (about 41,253 square degrees); a 9-arcminute field is 0.0225 square degrees,
-so the sky is roughly 1.8 million fields of this size. This app ships five of
-them, and can pull in any other one: tick *Live from IRSA* or type an RA/Dec in
-*Open any field*, and the cutouts for that position are fetched and analysed on
-the spot. A field added that way lives in the server's memory only -- it does not
-survive a restart unless you also download it with `step1_ingest.py`.
+**Are there really only a few fields?**
+No -- the dropdown and all-sky map list the fields registered in the current
+cache or static export (this project currently has 18 preset fields). SPHEREx
+photographs the whole sky (about 41,253 square degrees); a 9-arcminute field is
+0.0225 square degrees, so the sky is roughly 1.8 million fields of this size.
+With a backend, any other position can be fetched on demand using *Open any
+field*. A field added that way lives in the server's memory only; it does not
+survive a restart unless you ingest it with `step1_ingest.py`.
 
 **Can it work without downloading anything?**
-Yes -- tick *Live from IRSA*. The cutouts are fetched and parsed in memory and nothing is saved. The cost is time: the first look at a target is dominated by IRSA's cutout service (tens of seconds), after which the result is cached in RAM for 30 minutes.
+Yes -- tick *Fetch from IRSA*. The cutouts are fetched and parsed in memory and
+nothing is saved to disk. Each run queries SIA2 and fetches its cutouts again.
+The first look is dominated by IRSA's cutout service (tens of seconds or
+longer). This is on-demand access, not a continuous stream.
 
 **How long does a page take to load?**
-The FastAPI version runs the whole pipeline per request: a few seconds for four
-cutouts. The static version loads pre-computed JSON (about 0.6 MB per target), so
-it is instant.
+The FastAPI version runs the whole pipeline per request; runtime depends on the
+number and size of cutouts. The static version loads pre-computed JSON (several
+megabytes per target in the current export), so it avoids running the science
+pipeline in the browser or on the static host. It is still a network download,
+not literally instant.
 
 **Can I add my own target?**
 Yes -- put cutouts in `data_cache/`, write a `<Target>_meta.json` with `paths`,
@@ -690,8 +785,8 @@ the pipeline on the actual files. Where something did not work (AllWISE, the
   (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the
   California Institute of Technology, and is funded by the National Aeronautics
   and Space Administration."*
-* Gaia DR3: ESA/Gaia/DPAC, via VizieR / IRSA TAP.
-* AAVSO VSX: the American Association of Variable Star Observers.
+* Gaia DR3: ESA/Gaia/DPAC, via IRSA TAP (VizieR as fallback).
+* AllWISE and NEOWISE: NASA/JPL-Caltech/UCLA, via IRSA TAP.
+* AAVSO VSX: the American Association of Variable Star Observers, via VizieR.
 * Method: Zackay, Ofek & Gal-Yam 2016, *Proper Image Subtraction*, ApJ 830, 27.
 * Everything else (pipeline, dashboard, documentation) is in this repository.
-

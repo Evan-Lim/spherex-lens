@@ -20,7 +20,8 @@ def inject_point_source(img, psf_sigma_px, amplitude, cx, cy):
 
 
 def run_injection_recovery(img1, img2, noise1, noise2, psf_sigma_px,
-                           snr_grid, mu_grid, n_trials=20, seed=42):
+                           snr_grid, mu_grid, n_trials=20, seed=42,
+                           progress=None):
     """
     For each (snr, mu) pair, inject n_trials synthetic sources at random
     positions and count how many are recovered at >5 sigma.
@@ -30,6 +31,8 @@ def run_injection_recovery(img1, img2, noise1, noise2, psf_sigma_px,
 
     ny, nx = img1.shape
     margin = 30
+    total_cells = len(snr_grid) * len(mu_grid)
+    completed_cells = 0
 
     for snr in snr_grid:
         for mu in mu_grid:
@@ -59,6 +62,16 @@ def run_injection_recovery(img1, img2, noise1, noise2, psf_sigma_px,
                     recovered += 1
 
             results[(snr, mu)] = recovered / float(n_trials)
+            completed_cells += 1
+            if progress:
+                progress({
+                    "completed": completed_cells,
+                    "total": total_cells,
+                    "snr": float(snr),
+                    "mu": float(mu),
+                    "recovered": recovered,
+                    "trials": n_trials,
+                })
 
     return results
 

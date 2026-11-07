@@ -148,9 +148,34 @@ def reproject_to_target(image, wcs_in, wcs_out, npix):
     return _bilinear_sample(image, xs, ys)
 
 
-def coadd_detector(fits_paths, target_wcs, npix=180):
+def sky_level(img, valid, n_iter=3, clip=3.0):
     """
-    Inverse-variance co-add of a list of FITS files.
+    Sigma-clipped median of an exposure's valid pixels: its sky level.
+
+    A single constant per exposure (not a background mesh), so extended
+    targets -- M31, the Orion nebula -- keep their structure.
+    """
+    vals = img[valid]
+    vals = vals[np.isfinite(vals)]
+    if vals.size < 50:
+        return 0.0
+    for _ in range(n_iter):
+        med = np.median(vals)
+        mad = 1.4826 * np.median(np.abs(vals - med))
+        if mad <= 0:
+            break
+        vals = vals[np.abs(vals - med) < clip * mad]
+    return float(np.median(vals))
+
+
+def coadd_detector(fits_paths, target_wcs, npix=180, subtract_sky=True):
+    """
+    Inverse-variance co-add of a list of FITS files (one epoch, no mask
+    matching -- the dashboard uses coadd_matched for epoch comparisons).
+
+    subtract_sky -- remove each exposure's own sky level first: exposures from
+        different detectors (D1 at ~1 um, D4 at ~3 um) sit at very different
+        zodiacal levels.
 
     Returns (coadded_image, noise_sigma).
     """
@@ -165,6 +190,8 @@ def coadd_detector(fits_paths, target_wcs, npix=180):
             continue
 
         valid = ((flags & BAD_BITS) == 0) & np.isfinite(img) & (var > 0)
+        if subtract_sky:
+            img = img - sky_level(img, valid)
         img_masked = np.where(valid, img, np.nan)
         var_masked = np.where(valid, var, LARGE_VAR)
 
@@ -182,6 +209,75 @@ def coadd_detector(fits_paths, target_wcs, npix=180):
     coadd = numerator / np.maximum(denominator, 1e-12)
     coadd_var = 1.0 / np.maximum(denominator, 1e-12)
     return coadd, np.sqrt(coadd_var)
+
+
+def coadd_matched(groups, target_wcs, npix=180, subtract_sky=True):
+    """
+    Co-add several epochs with *matched* masks.
+
+    groups -- {epoch: [(source, band), ...]}; source is a path or FITS bytes.
+
+    At each pixel a band contributes only if it is valid (inside the footprint
+    and not FLAGS-masked) in EVERY epoch. Otherwise a band masked in just one
+    epoch drops out of that epoch's average only, and because a star is not
+    equally bright in every band, the co-add fakes a change exactly there
+    (seen on TRAPPIST-1: two "new sources" on pixels masked in one 2026 frame).
+
+    Returns (stacks, noise_maps, excluded, n_bands):
+        stacks[e], noise_maps[e] -- co-add and 1-sigma map per epoch
+        excluded -- per pixel, how many bands were dropped by the matching
+        n_bands  -- number of distinct bands
+    """
+    reproj = {e: [] for e in groups}
+    for e, items in groups.items():
+        for source, band in items:
+            try:
+                img, flags, var, wcs = load_exposure(source)
+            except Exception as exc:
+                print(f" Skipping {source if isinstance(source, str) else band}: {exc}")
+                continue
+            valid = ((flags & BAD_BITS) == 0) & np.isfinite(img) & (var > 0)
+            if subtract_sky:
+                img = img - sky_level(img, valid)
+            try:
+                img_r = reproject_to_target(np.where(valid, img, np.nan), wcs, target_wcs, npix)
+                var_r = reproject_to_target(np.where(valid, var, LARGE_VAR), wcs, target_wcs, npix)
+            except Exception as exc:
+                print(f" Reprojection failed for {band}: {exc}")
+                continue
+            ok = np.isfinite(img_r) & np.isfinite(var_r) & (var_r < 1e6)
+            reproj[e].append((band, img_r, var_r, ok))
+
+    bands = sorted({b for items in reproj.values() for b, *_ in items})
+    common = {}
+    for b in bands:
+        m = np.ones((npix, npix), dtype=bool)
+        for e in reproj:
+            in_e = [ok for bb, _, _, ok in reproj[e] if bb == b]
+            m &= np.logical_or.reduce(in_e) if in_e else False
+        common[b] = m
+
+    covered = np.zeros((npix, npix), dtype=np.int16)
+    for b in bands:
+        any_cov = np.zeros((npix, npix), dtype=bool)
+        for e in reproj:
+            for bb, img_r, var_r, ok in reproj[e]:
+                if bb == b:
+                    any_cov |= np.isfinite(var_r)
+        covered += (any_cov & ~common[b]).astype(np.int16)
+
+    stacks, noise_maps = {}, {}
+    for e, items in reproj.items():
+        num = np.zeros((npix, npix))
+        den = np.zeros((npix, npix))
+        for b, img_r, var_r, ok in items:
+            use = ok & common[b]
+            w = np.where(use, 1.0 / np.maximum(var_r, 1e-12), 0.0)
+            num += np.where(use, img_r, 0.0) * w
+            den += w
+        stacks[e] = num / np.maximum(den, 1e-12)
+        noise_maps[e] = np.sqrt(1.0 / np.maximum(den, 1e-12))
+    return stacks, noise_maps, covered, len(bands)
 
 
 if __name__ == "__main__":

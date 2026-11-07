@@ -22,3 +22,10 @@ data_cache/*.fits
 data_cache/*.fits.gz
 data_cache_demo/*.fits
 data_cache_demo/*.fits.gz
+
+# Local Google Cloud/Terraform state and project-specific values.
+cloud/terraform/.terraform/
+cloud/terraform/terraform.tfstate
+cloud/terraform/terraform.tfstate.*
+cloud/terraform/terraform.tfvars
+cloud/terraform/crash.log

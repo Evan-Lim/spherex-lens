@@ -36,7 +36,7 @@
       <div class="panel-head">
         <div>
           <h1>Target Control</h1>
-          <p class="panel-sub">five mandatory objects &middot; live NASA archive</p>
+          <p class="panel-sub">18 registered fields &middot; live SPHEREx archive</p>
         </div>
         <span class="panel-index">/01</span>
       </div>
@@ -68,9 +68,16 @@
         <button id="btn-export" class="btn btn-secondary">Copy Share Link</button>
         <label class="toggle toggle-live" id="toggle-live-wrap">
           <input type="checkbox" id="tog-live">
-          <span id="tog-live-label">Live from IRSA (no cache, no download)</span>
+          <span id="tog-live-label">Fetch all 18 from IRSA</span>
         </label>
-        <div class="hint-inline" id="live-hint"></div>
+        <details class="source-help">
+          <summary>About fresh IRSA data</summary>
+          <p class="hint-inline" id="live-hint"></p>
+        </details>
+        <div class="action-feedback">
+          <span id="action-message" role="status" aria-live="polite" aria-atomic="true"></span>
+          <span id="action-time" aria-hidden="true"></span>
+        </div>
         <div class="field-add">
           <div class="section-label" style="margin:8px 0 5px">Open any field</div>
           <div class="field-add-row">
@@ -101,7 +108,10 @@
         <div class="stat-row"><span>Noise &sigma;<sub>1</sub></span><b id="stat-sigma">--</b></div>
         <div class="stat-row"><span>5&sigma; depth</span><b id="stat-depth">--</b></div>
         <div class="stat-row"><span>Field / pixel</span><b id="stat-fov">--</b></div>
-        <div class="stat-row"><span>Gaia &middot; VSX</span><b id="stat-cats">--</b></div>
+        <div class="stat-row"><span>Gaia &middot; WISE &middot; VSX</span><b id="stat-cats">--</b></div>
+        <div class="stat-row" title="Gaia stars centroided in the co-add, at the SPHEREx epoch"><span>Astrometry vs Gaia</span><b id="stat-astrometry">--</b></div>
+        <div class="stat-row" title="catalogued stars that should have moved at least one map pixel"><span>Expected movers</span><b id="stat-movers">--</b></div>
+        <div class="stat-row" title="CANDIDATE, STATIC CHANGED, or a known source behaving unexpectedly"><span>Worth a look &#9733;</span><b id="stat-priority">--</b></div>
         <div class="stat-row"><span>Dipoles &middot; mono</span><b id="stat-kinds">--</b></div>
         <div class="stat-row"><span>Detections</span><b id="stat-detect">0</b></div>
         <div class="stat-row"><span>Unknown</span><b id="stat-unknown">0</b></div>
@@ -110,7 +120,8 @@
 
       <div class="section section-last">
         <div class="section-label">Recovery summary</div>
-        <div id="recovery-out" class="mono-box">injection-recovery not run yet</div>
+        <div id="recovery-out" class="mono-box" role="status"
+             aria-live="polite" aria-atomic="true">injection-recovery not run yet</div>
       </div>
     </section>
 
@@ -181,6 +192,52 @@
           </div>
         </div>
 
+        <section class="cloud-refresh-panel" aria-label="Cloud snapshot refresh" hidden>
+          <div class="cloud-refresh-summary">
+            <h2>Cloud snapshot
+              <span id="cloud-freshness" class="freshness-badge" data-state="unknown">checking</span>
+            </h2>
+            <p id="cloud-snapshot-time">Checking the published snapshot…</p>
+            <p id="cloud-next-refresh" class="cloud-refresh-policy"></p>
+            <details class="cloud-refresh-details">
+              <summary>Refresh scope and supporting data</summary>
+              <p>Fetching fresh IRSA checks all 18 registered fields. Changed fields are reprocessed, then the new Cloud snapshot is published. Catalogs follow a 7-day cadence; NEOWISE/AllWISE history updates when detections change or history is missing.</p>
+              <p id="cloud-support-freshness"></p>
+            </details>
+          </div>
+          <form id="cloud-refresh-form" class="cloud-refresh-form" hidden>
+            <label for="cloud-refresh-token">Operator token
+              <input id="cloud-refresh-token" class="control-input" type="password"
+                     autocomplete="new-password" autocapitalize="off"
+                     spellcheck="false" required>
+            </label>
+            <button id="btn-cloud-refresh" class="btn btn-secondary" type="submit">
+              Fetch all 18 from IRSA
+            </button>
+          </form>
+          <p id="cloud-refresh-status" class="cloud-refresh-status"
+             role="status" aria-live="polite" aria-atomic="true">
+            Checking refresh status…
+          </p>
+          <div id="cloud-refresh-progress" class="refresh-progress" hidden
+               role="progressbar" aria-label="Fields checked in this refresh"
+               aria-valuemin="0" aria-valuemax="18" aria-valuenow="0">
+            <span class="refresh-progress-bar"></span>
+          </div>
+          <div id="cloud-field-board" class="field-board" hidden>
+            <p class="field-board-caption" id="cloud-field-caption">Per-field result</p>
+            <ol id="cloud-field-grid" class="field-grid" aria-labelledby="cloud-field-caption"></ol>
+            <ul class="field-legend" aria-label="Legend">
+              <li data-state="checking">checking</li>
+              <li data-state="updated">updated</li>
+              <li data-state="unchanged">unchanged</li>
+              <li data-state="retained">kept previous</li>
+              <li data-state="failed">failed</li>
+              <li data-state="queued">queued</li>
+            </ul>
+          </div>
+        </section>
+
         <div class="map-wrap">
           <canvas id="canvas-map"></canvas>
           <div class="map-readout mono" id="map-readout">RA --&middot;--- &nbsp; Dec --&middot;--- &nbsp; --</div>
@@ -192,6 +249,8 @@
         <div class="legend">
           <span class="legend-item"><i class="sw sw-gaia"></i> Gaia DR3</span>
           <span class="legend-item"><i class="sw sw-vsx"></i> VSX</span>
+          <span class="legend-item"><i class="sw sw-wise"></i> AllWISE</span>
+          <span class="legend-item"><i class="sw sw-target"></i> target / expected mover</span>
           <span class="legend-item"><i class="sw sw-dipole"></i> dipole (mover)</span>
           <span class="legend-item"><i class="sw sw-monopole"></i> monopole (variable)</span>
           <span class="legend-item hint-inline">drag to pan &middot; wheel to zoom &middot; click a marker</span>
@@ -217,6 +276,35 @@
             <canvas id="chart-recovery" width="380" height="150"></canvas>
             <figcaption>Injection recovery (run Recovery Grid)</figcaption>
           </figure>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Target history <span class="hint-inline">Gaia + AllWISE + SPHEREx SED &middot; NEOWISE 2010&ndash;2024</span></div>
+        <div class="chart-grid">
+          <figure class="chart">
+            <canvas id="chart-sed" width="380" height="150"></canvas>
+            <figcaption>Spectral energy distribution of the target</figcaption>
+          </figure>
+          <figure class="chart">
+            <canvas id="chart-neowise" width="380" height="150"></canvas>
+            <figcaption>Infrared light curve (AllWISE + NEOWISE visits)</figcaption>
+          </figure>
+        </div>
+        <div id="history-out" class="mono-box" style="white-space:pre-line;margin-top:8px">run the pipeline to load</div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Expected movers <span class="hint-inline">catalogued motion &ge; 1 map pixel between first and last epoch</span></div>
+        <div class="table-wrap">
+          <table class="movers-table">
+            <thead>
+              <tr><th>Object</th><th>&mu; (&Prime;/yr)</th><th>Shift (&Prime;)</th><th>Mag</th><th>SPHEREx saw it</th><th>RA, Dec (now)</th></tr>
+            </thead>
+            <tbody id="movers-body">
+              <tr><td colspan="6" class="empty">Run the pipeline to list expected movers</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -296,7 +384,7 @@
   </main>
 
   <footer class="footer">
-    <span>SPHEREx Level-2 quick release &middot; IRSA/IPAC (Caltech) &middot; Gaia DR3 &amp; AAVSO VSX via VizieR / IRSA TAP</span>
+    <span>SPHEREx Level-2 quick release &middot; IRSA/IPAC (Caltech) &middot; Gaia DR3, AllWISE &amp; NEOWISE via IRSA TAP &middot; AAVSO VSX via VizieR</span>
     <span class="mono" id="footer-status">idle</span>
   </footer>
 

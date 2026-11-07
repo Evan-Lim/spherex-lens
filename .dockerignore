@@ -8,4 +8,10 @@ venv
 notebooks
 site
 *.log
+*.fits
+*.fits.gz
+cloud/terraform/.terraform
+cloud/terraform/terraform.tfstate
+cloud/terraform/terraform.tfstate.*
+cloud/terraform/terraform.tfvars
 .DS_Store

@@ -9,47 +9,461 @@ Then open http://localhost:8000 in your browser.
 
 import os
 import json
+import re
+import hmac
+import asyncio
+import contextvars
+import logging
+import threading
+import time
+from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 import numpy as np
-from fastapi import FastAPI, Query
+import requests
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-from step2_coadd import coadd_detector, make_target_wcs
+from step2_coadd import coadd_detector, coadd_matched, make_target_wcs
 from step3_zogy import zogy, find_detections
-from step4_triage import triage
+from step4_triage import triage, PSF_FWHM_ARCSEC
 from step5_spectrum import extract_spectrum_from_cutout, three_index_classifier
 from step6_injection import run_injection_recovery
-from live_ingest import live_cutouts, describe_live_cutouts
+from live_ingest import (live_cutouts, describe_live_cutouts,
+                         LIVE_DEADLINE_SECONDS)
+from step1_ingest import query_sia2, source_fingerprint, target_coordinates
+from catalog_tools import (propagate_catalogs, harmonise_motions, target_position, source_pm,
+                           propagate, sep_arcsec, mjd_to_year, decode_vsx_type,
+                           aavso_url, gaia_distance, wise_colour_class,
+                           wise_reliable, mag_to_mjy, surface_sum_to_mjy,
+                           robust_std, CATALOG_EPOCH_MJD, GAIA_DR3_EPOCH_MJD,
+                           ALLWISE_EPOCH_MJD)
+from snapshot_store import SnapshotStore
 
 app = FastAPI(title="SPHEREx Discovery Portal API")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+# B9: Gzip responses larger than 1 KB.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+CORS_ORIGINS = tuple(
+    origin.strip().rstrip("/")
+    for origin in os.environ.get("SPHEREX_CORS_ORIGINS", "").split(",")
+    if origin.strip()
 )
+if CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(CORS_ORIGINS),
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
+
+def _client_key(request):
+    """Rate-limit key for the visitor, not for the proxy in front of us.
+
+    On Cloud Run the TCP peer is Google's front end, and behind the Netlify
+    rewrite it is a Netlify edge node, so ``request.client.host`` would put
+    every visitor in one shared bucket.  Netlify sets
+    ``x-nf-client-connection-ip`` to the real visitor; Cloud Run appends the
+    address it accepted the connection from as the last X-Forwarded-For hop.
+    The limiter only damps abuse -- the expensive paths also have hard
+    concurrency guards -- so a forged header can at worst evade the limit.
+    """
+    netlify_ip = request.headers.get("x-nf-client-connection-ip", "").strip()
+    if netlify_ip:
+        return netlify_ip
+    forwarded = request.headers.get("x-forwarded-for", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    if hops:
+        return hops[-1]
+    return get_remote_address(request)
+
+
+# N6: per-visitor rate limiting (in-memory, per instance).
+# Live pipeline endpoints are most expensive; snapshot reads are cheap.
+_limiter = Limiter(key_func=_client_key, default_limits=[])
+app.state.limiter = _limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _rate_limited_route(method, path, limit):
+    """Register ``func`` as a rate-limited route but return it unwrapped.
+
+    slowapi's wrapper insists on a real starlette Request, so internal callers
+    -- the SSE progress streams, the Cloud Run refresh worker and the tests --
+    must call the undecorated pipeline function.  Only the HTTP route counts
+    against the limit.
+    """
+    def register(func):
+        getattr(app, method)(path)(_limiter.limit(limit)(func))
+        return func
+    return register
 
 CACHE = os.environ.get("SPHEREX_CACHE", "data_cache")
+TARGET_NAME = re.compile(r"[A-Za-z0-9_]{1,80}\Z")
 
-# Live mode keeps fetched cutouts in RAM only (no disk), with a small TTL cache
-# so a second request for the same target is instant.
-LIVE_TTL_SECONDS = int(os.environ.get("SPHEREX_LIVE_TTL", "1800"))
 LIVE_BANDS = tuple(os.environ.get(
     "SPHEREX_LIVE_BANDS", "SPHEREx-D1,SPHEREx-D4").split(","))
-LIVE_CACHE = {}          # key -> (timestamp, cutouts, provenance)
 FIELD_REGISTRY = {}      # name -> meta dict for fields added at runtime
 FIELD_DASH_CACHE = {}    # name -> dashboard payload for those fields
+FIELD_REQUEST_LIMIT = threading.BoundedSemaphore(
+    int(os.environ.get("SPHEREX_FIELD_REQUEST_CONCURRENCY", "2")))
+MAX_CUSTOM_FIELDS = int(os.environ.get("SPHEREX_MAX_CUSTOM_FIELDS", "8"))
+# There is no local data cache: every registered field is read from the
+# published Cloud snapshot.  The defaults point at the production bucket so a
+# plain `uvicorn app:app` works; Cloud Run and tests override them via env.
+from snapshot_store import DEFAULT_GCP_PROJECT
+SNAPSHOT_BUCKET = (os.environ.get("SPHEREX_SNAPSHOT_BUCKET")
+                   or f"{DEFAULT_GCP_PROJECT}-spherex-snapshots")
+_SNAPSHOT_STORE = None
+_PROGRESS_CALLBACK = contextvars.ContextVar("progress_callback", default=None)
+
+
+def _same_position(ra1, dec1, ra2, dec2, tolerance_arcsec=1.0):
+    """True when two positions agree to within ``tolerance_arcsec``.
+
+    Guards reuse of an IRSA listing: it is only handed on for the position
+    it was queried at.
+    """
+    cosd = np.cos(np.radians(dec2))
+    dra = (ra1 - ra2 + 180.0) % 360.0 - 180.0      # wrap across RA 0/360
+    return bool(np.hypot(dra * cosd, dec1 - dec2) * 3600.0 < tolerance_arcsec)
+
+
+def _is_registered_field(target):
+    try:
+        from step1_ingest import TARGETS
+    except Exception:
+        return False
+    return target in TARGETS
+
+
+def _check_irsa_listing(store, entry, target):
+    """Ask IRSA which SPHEREx products exist for a registered field right now.
+
+    Returns ((ra, dec, rows), irsa_check, unchanged_dashboard).  The third
+    value is the published dashboard when IRSA lists exactly the products
+    the snapshot processed (same fingerprint as the 12-hour job computes);
+    otherwise None and the caller runs the full fresh fetch with ``rows``.
+    """
+    ra, dec = target_coordinates(target)
+    _emit_progress("irsa_query", "Asking IRSA which SPHEREx images exist now")
+    rows = query_sia2(ra, dec, radius_deg=0.1, use_cache=False)
+    fingerprint = source_fingerprint(rows, ra, dec)
+    published_fingerprint = (entry or {}).get("source_fingerprint")
+    irsa_check = {
+        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "irsa_rows": len(rows),
+        "new_since_snapshot": (None if not published_fingerprint
+                               else published_fingerprint != fingerprint),
+        "reused_snapshot": False,
+    }
+    unchanged = None
+    if (irsa_check["new_since_snapshot"] is False and store is not None
+            and entry.get("dashboard") and entry.get("last_check") != "failed"):
+        published = store.read_json(entry["dashboard"])
+        if published:
+            irsa_check.update(
+                reused_snapshot=True,
+                snapshot_processed_at=(entry.get("last_updated_at")
+                                       or published.get("generated_at")))
+            unchanged = {**published, "irsa_check": irsa_check}
+            _emit_progress(
+                "complete",
+                f"IRSA lists the same {len(rows)} images the snapshot processed; "
+                "showing that result")
+    if unchanged is None:
+        _emit_progress(
+            "irsa_query",
+            f"IRSA returned {len(rows)} images"
+            + (" including new ones since the snapshot"
+               if irsa_check["new_since_snapshot"] else "")
+            + "; fetching cutouts")
+    return (ra, dec, rows), irsa_check, unchanged
+_LOGGER = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _lifespan(application):
+    # Check the snapshot connection once so a missing Google login shows up
+    # as one clear message at startup instead of a 500 on every request.
+    # The server still starts: the page itself and live IRSA requests do not
+    # need the bucket.
+    try:
+        store = await asyncio.to_thread(_snapshot_store)
+        if store is not None:
+            # Also starts the background warm-up of all 18 fields.
+            pointer, _ = await asyncio.to_thread(_published_state, store)
+            _LOGGER.warning(
+                "Reading Cloud snapshot gs://%s (published %s)",
+                SNAPSHOT_BUCKET, (pointer or {}).get("published_at", "never"))
+    except Exception as error:
+        _LOGGER.error(
+            "Cannot read Cloud snapshot gs://%s: %s: %s. Run "
+            "'gcloud auth application-default login' once on this machine, or "
+            "set GOOGLE_APPLICATION_CREDENTIALS.",
+            SNAPSHOT_BUCKET, type(error).__name__, str(error)[:200])
+    yield
+
+app.router.lifespan_context = _lifespan
+
+# B9: Brief in-process cache for the current pointer + manifest.  Each
+# snapshot read was making two sequential GCS calls (current.json → manifest).
+# 10 seconds is enough to collapse a burst of concurrent requests while
+# staying fresh for status polling.
+_MANIFEST_CACHE: dict = {"t": 0.0, "pointer": None, "manifest": None}
+
+
+def _emit_progress(stage, message, **details):
+    callback = _PROGRESS_CALLBACK.get()
+    if callback:
+        callback({"stage": stage, "message": message, **details})
+
+
+def _sse_event(event, payload):
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"),
+                      allow_nan=False)
+    return f"event: {event}\ndata: {data}\n\n"
+
+
+def _progress_stream(operation, initial_message):
+    async def events():
+        loop = asyncio.get_running_loop()
+        queue = asyncio.Queue()
+        started = time.monotonic()
+
+        def publish(payload):
+            payload = dict(payload)
+            payload["elapsed_seconds"] = round(time.monotonic() - started, 1)
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    queue.put(("progress", payload)), loop).result()
+            except RuntimeError:
+                _LOGGER.debug("Progress stream closed before pipeline completion")
+
+        token = _PROGRESS_CALLBACK.set(publish)
+
+        async def execute():
+            try:
+                result = await asyncio.to_thread(operation)
+                if isinstance(result, JSONResponse):
+                    status = result.status_code
+                    try:
+                        payload = json.loads(result.body.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        payload = {"error": "The pipeline returned an invalid response."}
+                else:
+                    status = 200
+                    payload = result
+            except HTTPException as error:
+                status = error.status_code
+                payload = {"error": str(error.detail)}
+            except Exception:
+                _LOGGER.exception("Live progress request failed unexpectedly")
+                status = 500
+                payload = {"error": "The live pipeline failed unexpectedly."}
+            await queue.put(("result", {"status": status, "data": payload}))
+
+        task = asyncio.create_task(execute())
+        try:
+            yield _sse_event("progress", {
+                "stage": "starting",
+                "message": initial_message,
+                "elapsed_seconds": 0.0,
+            })
+            while True:
+                try:
+                    event, payload = await asyncio.wait_for(queue.get(), timeout=15)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                if event == "result":
+                    payload["elapsed_seconds"] = round(time.monotonic() - started, 1)
+                    yield _sse_event(event, payload)
+                    break
+                yield _sse_event(event, payload)
+            await task
+        finally:
+            _PROGRESS_CALLBACK.reset(token)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _snapshot_store():
+    global _SNAPSHOT_STORE
+    if (not SNAPSHOT_BUCKET
+            or os.environ.get("SPHEREX_SNAPSHOT_READS", "true").lower()
+            in {"0", "false", "no"}):
+        return None
+    if _SNAPSHOT_STORE is None:
+        _SNAPSHOT_STORE = SnapshotStore(SNAPSHOT_BUCKET)
+    return _SNAPSHOT_STORE
+
+
+def _published_manifest(store):
+    _, manifest = _published_state(store)
+    return manifest
+
+
+def _published_state(store):
+    # B9: serve from the 10-second RAM cache to avoid two GCS round-trips
+    # on every snapshot read request.
+    now = time.monotonic()
+    if (now - _MANIFEST_CACHE["t"] < 10.0
+            and _MANIFEST_CACHE["pointer"] is not None):
+        pointer = _MANIFEST_CACHE["pointer"]
+        manifest = _MANIFEST_CACHE["manifest"]
+        if manifest:
+            return pointer, manifest
+    pointer, _ = store.read_current()
+    if not pointer:
+        raise HTTPException(
+            status_code=503,
+            detail="No published snapshot is available yet.")
+    manifest = store.read_manifest(pointer)
+    if not manifest:
+        raise HTTPException(
+            status_code=503,
+            detail="The published snapshot manifest is unavailable.")
+    _MANIFEST_CACHE.update({"t": now, "pointer": pointer, "manifest": manifest})
+    _warm_snapshot_cache(store, pointer, manifest)
+    return pointer, manifest
+
+
+_WARMED_MANIFESTS = set()
+_WARM_LOCK = threading.Lock()
+
+
+def _warm_snapshot_cache(store, pointer, manifest):
+    """Read every object of a newly seen snapshot into memory, in the background.
+
+    The objects are immutable, so this only moves the first GCS read off the
+    visitor's click; it never changes what is served.
+    """
+    if os.environ.get("SPHEREX_SNAPSHOT_WARM", "true").lower() in {"0", "false", "no"}:
+        return
+    manifest_name = (pointer or {}).get("manifest")
+    with _WARM_LOCK:
+        if not manifest_name or manifest_name in _WARMED_MANIFESTS:
+            return
+        _WARMED_MANIFESTS.add(manifest_name)
+    names = [manifest.get("mosaic"), manifest.get("targets_object")]
+    for entry in (manifest.get("targets") or {}).values():
+        names += [entry.get(key) for key in
+                  ("dashboard", "recovery", "neowise_object", "meta_object")]
+
+    def read(name):
+        try:
+            store.read_bytes(name)
+            return True
+        except Exception as error:          # a later request retries the read
+            _LOGGER.debug("Snapshot warm-up skipped %s: %s", name, error)
+            return False
+
+    def warm():
+        import concurrent.futures
+        started = time.monotonic()
+        # Dashboards first: they are what a visitor clicks.
+        ordered = sorted(filter(None, names),
+                         key=lambda name: not name.startswith("snapshots/"))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            loaded = sum(pool.map(read, ordered))
+        _LOGGER.warning("Snapshot cache warmed: %d objects in %.1f s",
+                        loaded, time.monotonic() - started)
+
+    threading.Thread(target=warm, name="snapshot-warm", daemon=True).start()
+
+
+def _optional_published_manifest(store):
+    # B9: same cache path for optional reads (live requests).
+    now = time.monotonic()
+    if (now - _MANIFEST_CACHE["t"] < 10.0
+            and _MANIFEST_CACHE["pointer"] is not None):
+        return _MANIFEST_CACHE["manifest"]
+    pointer, _ = store.read_current()
+    manifest = store.read_manifest(pointer) if pointer else None
+    if pointer:
+        _MANIFEST_CACHE.update({"t": now, "pointer": pointer, "manifest": manifest})
+        if manifest:
+            _warm_snapshot_cache(store, pointer, manifest)
+    return manifest
+
+
+def _published_json(store, object_name, description):
+    payload = store.read_json(object_name) if object_name else None
+    if payload is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"The published {description} is unavailable.")
+    return payload
+
+@app.middleware("http")
+async def disable_live_response_caching(request: Request, call_next):
+    response = await call_next(request)
+    is_live_pipeline = (
+        request.url.path in {
+            "/api/dashboard", "/api/recovery",
+            "/api/dashboard/stream", "/api/recovery/stream",
+            "/api/field/stream",
+        }
+        and request.query_params.get("source", "").lower() == "live"
+    ) or request.url.path in {
+        "/api/dashboard/stream", "/api/recovery/stream", "/api/field/stream",
+        "/api/mosaic/tile/stream",
+    }
+    is_live_mosaic = (
+        request.url.path == "/api/mosaic"
+        and request.query_params.get("source", "").lower() == "live"
+    )
+    is_snapshot_read = (
+        bool(SNAPSHOT_BUCKET)
+        and request.url.path in {
+            "/api/targets", "/api/status", "/api/refresh-status",
+            "/api/dashboard",
+            "/api/recovery", "/api/mosaic"
+        }
+        and request.query_params.get("source", "").lower() != "live"
+    )
+    if (is_live_pipeline or is_live_mosaic or is_snapshot_read
+            or request.url.path in {
+                "/api/field", "/api/field/stream", "/api/refresh",
+                "/api/refresh-status",
+            }):
+        response.headers["Cache-Control"] = "no-store, no-cache, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def load_target(target):
+    if not isinstance(target, str) or not TARGET_NAME.fullmatch(target):
+        return None
     if target in FIELD_REGISTRY:
         return FIELD_REGISTRY[target]
     meta_path = os.path.join(CACHE, f"{target}_meta.json")
     if not os.path.exists(meta_path):
         return None
     with open(meta_path) as f:
-        return json.load(f)
+        meta = json.load(f)
+    meta["paths"] = [_normalize_data_path(path) for path in meta.get("paths", [])]
+    for source in meta.get("sources", []):
+        if isinstance(source, dict) and isinstance(source.get("path"), str):
+            source["path"] = _normalize_data_path(source["path"])
+    return meta
+
+
+def _normalize_data_path(path):
+    return (os.path.normpath(path.replace("\\", os.sep))
+            if isinstance(path, str) else path)
 
 
 # ---------------------------------------------------------------------------
@@ -77,32 +491,115 @@ def significance_histogram(S, bins=32):
     }
 
 
+ALL_BANDS = tuple(f"SPHEREx-D{i}" for i in range(1, 7))
+
+
+class CoverageError(RuntimeError):
+    """The release has no like-for-like epoch pair here (not a network fault)."""
+
+
+def shared_band_epochs(cutouts):
+    """How many epochs contain a band that at least one other epoch also has."""
+    by_band = {}
+    for c in cutouts:
+        by_band.setdefault(c.get("band"), set()).add(c.get("epoch"))
+    epochs = set()
+    for eps in by_band.values():
+        if len(eps) >= 2:
+            epochs |= eps
+    return len(epochs)
+
+
+def epoch_coverage_error(epochs, bands):
+    """Explain why these exposures cannot form a like-for-like epoch pair."""
+    if len(epochs) != len(bands):
+        return "exposure epoch and detector metadata do not align"
+    epoch_groups = {}
+    for epoch, band in zip(epochs, bands):
+        epoch_groups.setdefault(epoch, set()).add(band)
+    if len(epoch_groups) < 2:
+        return (f"only {len(epoch_groups)} observing epoch(s) are available; "
+                "at least two are required")
+    common_bands = set.intersection(*epoch_groups.values())
+    if not common_bands:
+        available = {str(epoch): sorted(values)
+                     for epoch, values in epoch_groups.items()}
+        return (f"no detector band is observed in every epoch "
+                f"({available}); comparing different bands would measure colour, "
+                "not change")
+    return None
+
+
+def _resolve_epochs(epochs, n_sources):
+    """Use recorded epochs; infer two halves only for legacy metadata with none."""
+    if epochs is not None and len(epochs) == n_sources and all(e is not None for e in epochs):
+        return list(epochs)
+    half = n_sources // 2
+    return ([1] * max(1, half) + [2] * max(1, n_sources - half))[:n_sources]
+
+
 def live_exposures(target, meta, size_deg=0.2, epoch_mode="firstlast",
-                  max_slots=0, bands=LIVE_BANDS):
+                  max_slots=0, bands=LIVE_BANDS, progress=None, rows=None):
     """
-    Fetch a target's cutouts from IRSA into memory (TTL-cached, no disk).
+    Fetch the current SIA2 listing and cutouts from IRSA into memory (no cache).
 
-    Returns (cutouts, provenance).  Raises RuntimeError if fewer than two
-    exposures come back, because ZOGY needs a pair.
+    Returns (cutouts, provenance, False).  The third value is retained for API
+    compatibility; live requests are never served from a local RAM cache.
     """
-    import time as _time
+    rejected = []
+    rejected_lock = threading.Lock()
 
-    key = (target, size_deg, epoch_mode, tuple(bands), max_slots)
-    hit = LIVE_CACHE.get(key)
-    if hit and (_time.time() - hit[0]) < LIVE_TTL_SECONDS:
-        return hit[1], hit[2], True
+    def report_progress(event):
+        if event.get("outcome") == "rejected":
+            with rejected_lock:
+                rejected.append(event["message"])
+        if progress:
+            progress(event)
 
-    cutouts = live_cutouts(meta["meta"]["ra"], meta["meta"]["dec"],
-                           size_deg=size_deg, bands=bands,
-                           epoch_mode=epoch_mode,
-                           max_slots=max_slots or None,
-                           log=lambda msg: print(msg, flush=True))
-    if len(cutouts) < 2:
-        raise RuntimeError(
-            f"live mode fetched only {len(cutouts)} usable cutout(s); "
-            "IRSA may be throttling -- try again, or use source=cache")
+    ra, dec = meta["meta"]["ra"], meta["meta"]["dec"]
+    deadline = time.monotonic() + LIVE_DEADLINE_SECONDS
+    # One fresh IRSA listing per request: reuse the caller's (it just asked
+    # IRSA for this position) and share it with the all-detector retry below.
+    if rows is None:
+        if progress:
+            progress({"stage": "irsa_query", "message": "Querying IRSA SIA2"})
+        rows = query_sia2(ra, dec, radius_deg=0.1, use_cache=False)
+
+    def fetch(band_set):
+        return live_cutouts(ra, dec,
+                            size_deg=size_deg, bands=band_set,
+                            epoch_mode=epoch_mode,
+                            max_slots=max_slots or None,
+                            log=lambda msg: print(msg, flush=True),
+                            progress=report_progress,
+                            rows=rows, deadline=deadline)
+
+    cutouts = fetch(bands)
+    if shared_band_epochs(cutouts) < 2 and tuple(bands) != tuple(ALL_BANDS):
+        # The default pair (D1, D4) may simply not be observed in some epoch
+        # (Sgr A*: epoch 2 has neither) -- try every detector before giving up.
+        print(f"live: {target}: bands {list(bands)} do not cover two epochs; "
+              "retrying with all six detectors", flush=True)
+        if progress:
+            progress({
+                "stage": "irsa_query",
+                "message": "Selected detectors do not span two epochs; retrying all six",
+            })
+        cutouts = fetch(ALL_BANDS)
+    if shared_band_epochs(cutouts) < 2:
+        per_epoch = {}
+        for c in cutouts:
+            per_epoch.setdefault(c.get("epoch"), []).append(c.get("band"))
+        rejection_detail = ""
+        if rejected:
+            reasons = "; ".join(dict.fromkeys(rejected[-4:]))
+            rejection_detail = f" IRSA cutout validation rejected: {reasons}."
+        raise CoverageError(
+            "no usable detector band spans two epochs, so there is nothing "
+            f"like-for-like to subtract (usable bands per epoch: {per_epoch or 'none'})."
+            f"{rejection_detail} "
+            "This is a coverage limit of the SPHEREx release, not a network error.")
     provenance = describe_live_cutouts(cutouts)
-    LIVE_CACHE[key] = (_time.time(), cutouts, provenance)
     return cutouts, provenance, False
 
 
@@ -188,8 +685,20 @@ def catalog_overlay(meta, target_wcs, npix=180):
                 "mag": src.get("gmag", src.get("w1", src.get("mag"))),
                 "label": src.get("name") or src.get("type"),
             })
+    # Cap the drawn markers, but per catalogue: a plain sort-by-name-then-cut
+    # let ~600 in-field Gaia stars ("g" < "v" < "w") crowd out every VSX
+    # variable and AllWISE source. VSX is small and the most interesting, so
+    # it is never cut; the rest keep their brightest entries.
+    caps = {"vsx": None, "gaia": 500, "wise": 300}
     out.sort(key=lambda r: (r["cat"], r["mag"] if r["mag"] is not None else 99))
-    return out[:600]
+    kept, seen = [], {}
+    for r in out:
+        n = seen.get(r["cat"], 0)
+        cap = caps.get(r["cat"], 300)
+        if cap is None or n < cap:
+            kept.append(r)
+            seen[r["cat"]] = n + 1
+    return kept
 
 
 def build_field_objects(meta, detections, target_wcs, npix=180,
@@ -222,6 +731,31 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
             return None
         return x, y
 
+    # Spatial hash for the twin search: cells one dedup radius wide, so a twin
+    # can only sit in the same or a neighbouring cell. The old linear scan
+    # was O(N^2) -- ~10^9 comparisons for a 20k Gaia + 20k AllWISE field.
+    cell = dedup_arcsec / 3600.0
+    grid = {}
+
+    def cell_of(ra, dec):
+        return int(np.floor(ra / cell)), int(np.floor(dec / cell))
+
+    def find_twin(ra, dec):
+        # Nearest row inside the dedup box. (The old scan took the first row
+        # in list order, so in crowded fields like Orion a VSX variable within
+        # 2" of two Gaia stars could attach to the farther one.)
+        ci, cj = cell_of(ra, dec)
+        best, best_d2 = None, None
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                for obj in grid.get((ci + di, cj + dj), ()):
+                    dra, ddec = obj["ra"] - ra, obj["dec"] - dec
+                    if abs(dra) < cell and abs(ddec) < cell:
+                        d2 = (dra * np.cos(np.radians(dec))) ** 2 + ddec ** 2
+                        if best_d2 is None or d2 < best_d2:
+                            best, best_d2 = obj, d2
+        return best
+
     # --- catalogue entries ------------------------------------------------
     for cat_name, sources in (meta.get("catalogs") or {}).items():
         for src in sources or []:
@@ -235,15 +769,16 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
             in_field = (0 <= x < npix and 0 <= y < npix)
 
             # merge with an existing row for the same star
-            twin = None
-            for obj in objects:
-                if (abs(obj["ra"] - s_ra) < dedup_arcsec / 3600.0
-                        and abs(obj["dec"] - s_dec) < dedup_arcsec / 3600.0):
-                    twin = obj
-                    break
+            twin = find_twin(s_ra, s_dec)
+            extras = object_extras(cat_name, src)
             if twin is not None:
                 if cat_name not in twin["catalogs"]:
                     twin["catalogs"].append(cat_name)
+                for k, v in extras.items():
+                    if twin.get(k) is None:
+                        twin[k] = v
+                if cat_name == "vsx" and src.get("type"):
+                    twin["type"] = src.get("type")
                 if twin.get("mag") is None:
                     twin["mag"] = src.get("gmag", src.get("w1", src.get("mag")))
                 if src.get("name"):
@@ -266,10 +801,13 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
                 "sep_arcsec": None,
                 "kind": None,
                 "pair": None,
+                "category": None,
+                **extras,
             })
+            grid.setdefault(cell_of(s_ra, s_dec), []).append(objects[-1])
 
     # --- detections: attach to a catalogue row, or add as CANDIDATE -------
-    def sep_arcsec(a_ra, a_dec, b_ra, b_dec):
+    def _sep(a_ra, a_dec, b_ra, b_dec):
         cosd = np.cos(np.radians(a_dec))
         return float(np.hypot((a_ra - b_ra) * cosd, a_dec - b_dec) * 3600.0)
 
@@ -280,10 +818,13 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
             continue
         best = None
         best_sep = match_arcsec
-        for obj in objects:
-            s = sep_arcsec(d_ra, d_dec, obj["ra"], obj["dec"])
-            if s < best_sep:
-                best, best_sep = obj, s
+        # Triage already decided whether a catalogue entry explains this
+        # detection; a CANDIDATE must not be re-attached to a row here.
+        if det.get("verdict") != "CANDIDATE":
+            for obj in objects:
+                s = _sep(d_ra, d_dec, obj["ra"], obj["dec"])
+                if s < best_sep:
+                    best, best_sep = obj, s
 
         if best is not None:
             if (best.get("snr") or 0) < det["snr"]:
@@ -291,6 +832,7 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
                 best["sep_arcsec"] = round(best_sep, 2)
                 best["kind"] = det.get("kind")
                 best["pair"] = det.get("pair")
+                best["category"] = det.get("category")
             best["detected"] = True
             continue
 
@@ -313,12 +855,371 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
             "sep_arcsec": 0.0,
             "kind": det.get("kind"),
             "pair": det.get("pair"),
+            "category": det.get("category", "CANDIDATE"),
         })
 
     objects.sort(key=lambda o: (not o["detected"],
                                 -(o.get("snr") or 0),
                                 o.get("mag") if o.get("mag") is not None else 99))
     return objects
+
+
+def object_extras(cat, src):
+    """Per-catalogue facts shown on hover / in the catalogue table."""
+    out = {}
+    if src.get("moved_arcsec"):
+        out["moved_arcsec"] = src["moved_arcsec"]
+    if cat == "vsx":
+        label, family = decode_vsx_type(src.get("type"))
+        out.update({"vsx_label": label, "vsx_family": family,
+                    "period_d": src.get("period_d"),
+                    "aavso_url": aavso_url(src.get("oid"))})
+    elif cat == "gaia":
+        dist = gaia_distance(src)
+        if dist:
+            out.update({"dist_pc": dist["distance_pc"], "nearby": dist["nearby"]})
+        if src.get("var_flag") == "VARIABLE":
+            out["gaia_variable"] = True
+    elif cat == "wise":
+        colour, cls = wise_colour_class(src.get("w1"), src.get("w2"))
+        if colour is not None:
+            out.update({"w1_w2": colour, "colour_class": cls})
+        if not wise_reliable(src):
+            out["wise_artefact"] = True
+    return {k: v for k, v in out.items() if v is not None}
+
+
+# ---------------------------------------------------------------------------
+# Epochs, target motion and catalogue science (see catalog_tools.py)
+# ---------------------------------------------------------------------------
+EXTENDED_TYPES = ("Galaxy", "Nebula", "Supernova", "Cluster", "Galactic")
+
+
+def target_motion_block(target, meta):
+    """
+    The target's ra/dec/pm/pos_epoch. Caches written before the moving
+    targets got motions fall back to step1_ingest.TARGETS, so the dashboard
+    follows the star without a re-ingest.
+    """
+    block = dict(meta["meta"])
+    if block.get("pm_ra") or block.get("pm_dec"):
+        return block
+    try:
+        from step1_ingest import TARGETS
+        ref = TARGETS.get(target, {})
+    except Exception:
+        ref = {}
+    if ref.get("pm_ra") or ref.get("pm_dec"):
+        block.update({k: ref[k] for k in ("ra", "dec", "pm_ra", "pm_dec",
+                                          "pos_epoch") if k in ref})
+    return block
+
+
+def exposure_bands(meta, sources, live_cutouts_list=None):
+    """Detector band of every exposure ('SPHEREx-D4'), for matched masking."""
+    import re
+    if live_cutouts_list is not None:
+        return [c.get("band") or f"exp{i}" for i, c in enumerate(live_cutouts_list)]
+    by_path = {s.get("path"): s.get("band") for s in meta.get("sources", []) if s}
+    out = []
+    for i, p in enumerate(sources):
+        band = by_path.get(p)
+        if not band:
+            m = re.search(r"D(\d)_spx", os.path.basename(str(p)))
+            band = f"SPHEREx-D{m.group(1)}" if m else f"exp{i}"
+        out.append(band)
+    return out
+
+
+def exposure_mjds(meta, paths, live_cutouts_list=None):
+    """MJD of every exposure, aligned with the list the pipeline runs on."""
+    if live_cutouts_list is not None:
+        return [c.get("mjd") for c in live_cutouts_list]
+    by_path = {s.get("path"): s.get("mjd") for s in meta.get("sources", []) if s}
+    return [by_path.get(p) for p in paths]
+
+
+def aperture_flux(img, x, y, sigma, r=2.0, r_in=4.0, r_out=7.0):
+    """Background-subtracted aperture sum on a target-plane map, with error."""
+    ny, nx = img.shape
+    x0, x1 = int(max(0, x - r_out - 1)), int(min(nx, x + r_out + 2))
+    y0, y1 = int(max(0, y - r_out - 1)), int(min(ny, y + r_out + 2))
+    if x1 - x0 < 3 or y1 - y0 < 3:
+        return None, None
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    d = np.hypot(xx - x, yy - y)
+    cut = img[y0:y1, x0:x1]
+    ap, ann = (d <= r) & np.isfinite(cut), (d > r_in) & (d <= r_out) & np.isfinite(cut)
+    if ap.sum() == 0 or ann.sum() < 5:
+        return None, None
+    flux = float(np.sum(cut[ap]) - np.median(cut[ann]) * ap.sum())
+    return flux, float(sigma * np.sqrt(ap.sum()))
+
+
+MASK_RADIUS_PX = 2          # 6" on the 3" grid: the detection core
+
+
+def masked_near(hole_map, py, px, radius=MASK_RADIUS_PX):
+    """Max number of exposures masked at any pixel within `radius` of (py, px)."""
+    if hole_map is None:
+        return 0
+    ny, nx = hole_map.shape
+    y0, y1 = max(0, int(py) - radius), min(ny, int(py) + radius + 1)
+    x0, x1 = max(0, int(px) - radius), min(nx, int(px) + radius + 1)
+    if y1 <= y0 or x1 <= x0:
+        return 0
+    return int(hole_map[y0:y1, x0:x1].max())
+
+
+def delta_mag(img_a, img_b, sigma_a, sigma_b, x, y):
+    """V3: SPHEREx brightness change of a monopole between two epochs."""
+    fa, ea = aperture_flux(img_a, x, y, sigma_a)
+    fb, eb = aperture_flux(img_b, x, y, sigma_b)
+    if None in (fa, fb, ea, eb) or fa <= 3 * ea or fb <= 3 * eb:
+        return None
+    return round(-2.5 * np.log10(fb / fa), 3)
+
+
+def astrometry_check(img, wcs, gaia, sigma, npix=180, max_stars=150):
+    """
+    G7: centroid unsaturated, isolated Gaia stars (already propagated to the
+    epoch of `img`) and report the median offset of the SPHEREx frame.
+    """
+    if not gaia or not sigma:
+        return None
+    usable = [s for s in gaia if 10.0 <= (s.get("gmag") or 99) <= 16.0]
+    if len(usable) < 3:
+        return None
+    usable = sorted(usable, key=lambda s: s["gmag"])[:max_stars * 3]
+    all_ra = np.array([s["ra"] for s in gaia])
+    all_dec = np.array([s["dec"] for s in gaia])
+    all_g = np.array([s.get("gmag") or 99 for s in gaia])
+
+    offsets = []
+    for s in usable:
+        try:
+            x, y = wcs.world_to_pixel_values(s["ra"], s["dec"])
+        except Exception:
+            continue
+        x, y = float(x), float(y)
+        if not (5 <= x < npix - 5 and 5 <= y < npix - 5):
+            continue
+        # isolation: no Gaia star within 2 mag of it inside 12"
+        cosd = np.cos(np.radians(s["dec"]))
+        near = np.hypot((all_ra - s["ra"]) * cosd, all_dec - s["dec"]) * 3600 < 12
+        if np.sum(near & (all_g < s["gmag"] + 2)) > 1:
+            continue
+        ix, iy = int(round(x)), int(round(y))
+        box = img[iy - 3:iy + 4, ix - 3:ix + 4]
+        if box.shape != (7, 7) or not np.all(np.isfinite(box)):
+            continue
+        border = np.concatenate([box[0], box[-1], box[1:-1, 0], box[1:-1, -1]])
+        sub = box - np.median(border)
+        if sub.max() < 10 * sigma:
+            continue
+        py, px = np.unravel_index(np.argmax(sub), sub.shape)
+        if abs(py - 3) > 1 or abs(px - 3) > 1:
+            continue
+        w = np.clip(sub, 0, None)
+        gy, gx = np.mgrid[-3:4, -3:4]
+        cx, cy = ix + float(np.sum(w * gx) / w.sum()), iy + float(np.sum(w * gy) / w.sum())
+        ra_c, dec_c = wcs.pixel_to_world_values(cx, cy)
+        offsets.append(((float(ra_c) - s["ra"]) * cosd * 3600,
+                        (float(dec_c) - s["dec"]) * 3600))
+        if len(offsets) >= max_stars:
+            break
+    if len(offsets) < 3:
+        return {"n_stars": len(offsets),
+                "note": "too few isolated, unsaturated Gaia stars (G 10-16)"}
+    d = np.array(offsets)
+    total = np.hypot(d[:, 0] - np.median(d[:, 0]), d[:, 1] - np.median(d[:, 1]))
+    return {"n_stars": len(offsets),
+            "median_dra_arcsec": round(float(np.median(d[:, 0])), 2),
+            "median_ddec_arcsec": round(float(np.median(d[:, 1])), 2),
+            "scatter_arcsec": round(float(1.4826 * np.median(total)), 2),
+            "note": "SPHEREx centroid minus Gaia DR3 at the SPHEREx epoch"}
+
+
+def expected_movers(catalogs, mjd_a, mjd_b, wcs, detections, npix=180,
+                    block=None, min_arcsec=3.0, limit=25):
+    """
+    G2: catalogued stars that *should* have moved >= one map pixel between the
+    first and last epoch, and whether a detection was found at either end.
+    """
+    if mjd_a is None or mjd_b is None or mjd_b <= mjd_a:
+        return []
+    dt = (mjd_b - mjd_a) / 365.25
+    det_xy = []
+    for d in detections:
+        for key in ("pos_plus", "pos_minus", "pos"):
+            if d.get(key):
+                det_xy.append((d[key][1], d[key][0], d))
+
+    def found_near(points):
+        best = None
+        for (x, y) in points:
+            for dx, dy, d in det_xy:
+                if np.hypot(dx - x, dy - y) * 3.0 <= 15.0:
+                    if best is None or d["snr"] > best["snr"]:
+                        best = d
+        return best
+
+    rows = []
+
+    def consider(cat, src, pm, name=None, is_target=False):
+        disp = float(np.hypot(*pm) * dt / 1e3)
+        if disp < min_arcsec:
+            return
+        ref = CATALOG_EPOCH_MJD.get(cat, mjd_a)
+        if is_target:
+            a, b = target_position(block, mjd_a), target_position(block, mjd_b)
+        else:
+            a = propagate(src["ra"], src["dec"], pm[0], pm[1], (mjd_a - ref) / 365.25)
+            b = propagate(src["ra"], src["dec"], pm[0], pm[1], (mjd_b - ref) / 365.25)
+        try:
+            xa, ya = (float(v) for v in wcs.world_to_pixel_values(*a))
+            xb, yb = (float(v) for v in wcs.world_to_pixel_values(*b))
+        except Exception:
+            return
+        if not (0 <= xb < npix and 0 <= yb < npix):
+            return
+        hit = found_near([(xa, ya), (xb, yb)])
+        rows.append({
+            "cat": cat, "name": name, "is_target": is_target,
+            "ra": round(b[0], 6), "dec": round(b[1], 6),
+            "x_a": round(xa, 1), "y_a": round(ya, 1),
+            "x": round(xb, 1), "y": round(yb, 1),
+            "pm_masyr": round(float(np.hypot(*pm)), 1),
+            "displacement_arcsec": round(disp, 2),
+            "resolvable": disp >= PSF_FWHM_ARCSEC,
+            "mag": src.get("gmag", src.get("w1")) if src else None,
+            "detected": hit is not None,
+            "det_kind": hit.get("kind") if hit else None,
+            "det_snr": round(float(hit["snr"]), 1) if hit else None})
+
+    if block and (block.get("pm_ra") or block.get("pm_dec")):
+        consider("target", {}, (block.get("pm_ra") or 0, block.get("pm_dec") or 0),
+                 name=block.get("common"), is_target=True)
+    pm_floor = min_arcsec / dt * 1e3
+    for cat in ("gaia", "wise"):
+        for s in (catalogs or {}).get(cat) or []:
+            if cat == "gaia" and (s.get("gmag") or 99) > 19:
+                continue
+            if cat == "wise" and ((s.get("w1") or 99) > 15.5 or s.get("pm_from") == "gaia"):
+                continue                     # Gaia twins are already listed
+            pm = source_pm(cat, s)
+            if pm and np.hypot(*pm) >= pm_floor:
+                consider(cat, s, pm)
+    # the target is usually also in Gaia/AllWISE: keep the target row only
+    if any(r["is_target"] for r in rows):
+        t = next(r for r in rows if r["is_target"])
+        rows = [r for r in rows if r["is_target"]
+                or sep_arcsec(r["ra"], r["dec"], t["ra"], t["dec"]) > 6.0]
+    rows.sort(key=lambda r: -r["displacement_arcsec"])
+    return rows[:limit]
+
+
+def target_sed(meta, block, spectrum_points, mjds):
+    """
+    W6 SED (Gaia + AllWISE + SPHEREx) and W5 2010 comparison for the target.
+
+    spectrum_points: [(wavelength_um, aperture_sum MJy/sr, pix_sr)].
+    """
+    cats = meta.get("catalogs") or {}
+    extended = str(block.get("type", "")).startswith(EXTENDED_TYPES)
+    out = {"points": [], "spherex": [], "counterparts": {}, "extended": extended}
+
+    def nearest(cat, epoch_mjd, radius):
+        ra, dec = target_position(block, epoch_mjd)
+        best, best_sep = None, radius
+        for s in cats.get(cat) or []:
+            if cat == "wise" and not wise_reliable(s):
+                continue
+            sep = sep_arcsec(ra, dec, s["ra"], s["dec"])
+            if sep < best_sep:
+                best, best_sep = s, sep
+        return best, best_sep
+
+    if not extended:
+        g, gsep = nearest("gaia", GAIA_DR3_EPOCH_MJD, 3.0)
+        if g:
+            out["counterparts"]["gaia"] = {"source_id": g.get("source_id"),
+                                           "sep_arcsec": round(gsep, 2)}
+            for band, key in (("BP", "bpmag"), ("G", "gmag"), ("RP", "rpmag")):
+                conv = mag_to_mjy(band, g.get(key))
+                if conv:
+                    out["points"].append({"band": f"Gaia {band}", "lam_um": conv[0],
+                                          "mjy": round(conv[1], 4), "mag": g.get(key)})
+        w, wsep = nearest("wise", ALLWISE_EPOCH_MJD, 4.0)
+        if w:
+            out["counterparts"]["wise"] = {"designation": w.get("designation"),
+                                           "sep_arcsec": round(wsep, 2)}
+            for band, key in (("W1", "w1"), ("W2", "w2"), ("W3", "w3"), ("W4", "w4")):
+                conv = mag_to_mjy(band, w.get(key))
+                if conv:
+                    out["points"].append({"band": band, "lam_um": conv[0],
+                                          "mjy": round(conv[1], 4), "mag": w.get(key)})
+
+    for lam, flux, pix_sr in spectrum_points:
+        mjy = surface_sum_to_mjy(flux, pix_sr)
+        if lam is not None and mjy is not None:
+            out["spherex"].append({"lam_um": round(float(lam), 4),
+                                   "mjy": round(mjy, 4)})
+
+    # W5: SPHEREx now vs AllWISE 2010, in the W1 and W2 windows
+    comparison = []
+    years = [mjd_to_year(m) for m in mjds if m]
+    for band, lo, hi in (("W1", 3.0, 3.9), ("W2", 4.1, 5.0)):
+        wise_pt = next((p for p in out["points"] if p["band"] == band), None)
+        sph = [p["mjy"] for p in out["spherex"] if lo <= p["lam_um"] <= hi and p["mjy"] > 0]
+        if wise_pt and sph:
+            ratio = float(np.median(sph)) / wise_pt["mjy"]
+            comparison.append({
+                "band": band, "spherex_mjy": round(float(np.median(sph)), 3),
+                "wise_mjy": wise_pt["mjy"], "ratio": round(ratio, 3),
+                "delta_mag": round(-2.5 * np.log10(ratio), 3),
+                "n_spherex": len(sph),
+                "years_between": round(float(np.mean(years)) - mjd_to_year(ALLWISE_EPOCH_MJD), 1)
+                if years else None})
+    out["wise_comparison"] = comparison
+    out["note"] = ("SPHEREx points are 3-pixel-radius aperture sums: crowded "
+                   "fields and extended targets inflate them, so treat a ratio "
+                   "within ~30% of 1 as 'no change'.")
+    return out
+
+
+def load_neowise(target):
+    store = _snapshot_store()
+    if store is not None:
+        manifest = _optional_published_manifest(store)
+        entry = (manifest or {}).get("targets", {}).get(target)
+        if entry and entry.get("neowise_object"):
+            return _published_json(
+                store, entry["neowise_object"], f"NEOWISE history for {target}")
+    path = os.path.join(CACHE, f"{target}_neowise.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def neowise_at(neowise, ra, dec, radius_arcsec=5.0):
+    """The step7 summary for the detection position nearest (ra, dec)."""
+    best, best_sep = None, radius_arcsec
+    for p in (neowise or {}).get("positions", []):
+        if p.get("kind") != "detection":
+            continue
+        s = sep_arcsec(ra, dec, p["ra"], p["dec"])
+        if s < best_sep:
+            best, best_sep = p, s
+    if not best:
+        return None
+    out = dict(best.get("summary") or {})
+    out["n_exposures"] = best.get("n_exposures")
+    return out
 
 
 def target_statistics(meta, detections, sigma1, sigma2, npix=180,
@@ -374,52 +1275,339 @@ def target_statistics(meta, detections, sigma1, sigma2, npix=180,
     }
 
 
-@app.get("/api/targets")
-def list_targets():
+@_rate_limited_route("get", "/api/targets", "60/minute")
+def list_targets(request: Request = None):
     """Return the list of target presets that are available in the cache."""
-    targets = []
-    for fname in sorted(os.listdir(CACHE)):
-        if fname.endswith("_meta.json"):
-            name = fname.replace("_meta.json", "")
-            meta = load_target(name)
-            if meta:
-                targets.append({
-                    "name": name,
-                    "common": meta["meta"].get("common", name),
-                    "ra": meta["meta"]["ra"],
-                    "dec": meta["meta"]["dec"],
-                })
-    # fields opened at runtime (no files) are addressable too
-    for name, meta in FIELD_REGISTRY.items():
-        if any(t["name"] == name for t in targets):
-            continue
-        targets.append({
-            "name": name,
-            "common": meta["meta"].get("common", name),
-            "ra": meta["meta"]["ra"],
-            "dec": meta["meta"]["dec"],
-            "custom": True,
-        })
+    store = _snapshot_store()
+    if store is not None:
+        manifest = _published_manifest(store)
+        return _published_json(
+            store, manifest.get("targets_object"), "target list")
 
-    return {"targets": targets}
+    # N3: in cloud-only mode the bucket is mandatory; reaching this branch
+    # means SPHEREX_SNAPSHOT_READS was explicitly disabled or the store is
+    # misconfigured.  Return a clear error rather than scanning local files.
+    raise HTTPException(
+        status_code=503,
+        detail="Snapshot store is not available. "
+               "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name."
+    )
 
 
-@app.get("/api/dashboard")
-def get_dashboard(target: str = Query("WISE_0855"),
+@app.get("/api/status")
+def get_status(target: str = Query("WISE_0855")):
+    store = _snapshot_store()
+    if store is None:
+        return {
+            "target": target,
+            "snapshot_published_at": None,
+            "field_last_checked_at": None,
+            "field_last_processed_at": None,
+            "catalogs_last_checked_at": None,
+            "neowise_last_updated_at": None,
+            "last_check": None,
+            "refresh_attempt": {"status": "unavailable"},
+        }
+
+    pointer, manifest = _published_state(store)
+    entry = (manifest or {}).get("targets", {}).get(target)
+    if not entry:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No published snapshot exists for target '{target}'.")
+    attempt = store.read_json("refresh-status/latest.json")
+    if attempt:
+        attempt = {
+            key: attempt.get(key)
+            for key in (
+                "status", "started_at", "completed_at", "published_at",
+                "error_code", "total_targets", "completed_targets",
+                "current_target", "current_target_index",
+                "current_target_state", "updated_count", "unchanged_count",
+                "failed_count", "failed_target",
+            )
+        }
+    else:
+        attempt = {"status": "unknown"}
+    neowise_last_updated_at = entry.get("neowise_checked_at")
+    if not neowise_last_updated_at and entry.get("neowise_object"):
+        neowise = store.read_json(entry["neowise_object"])
+        neowise_last_updated_at = (neowise or {}).get("generated_utc")
+    return {
+        "target": target,
+        "snapshot_published_at": pointer.get("published_at"),
+        "field_last_checked_at": entry.get("last_checked_at"),
+        "field_last_processed_at": entry.get("last_updated_at"),
+        "catalogs_last_checked_at": entry.get("catalogs_checked_at"),
+        "neowise_last_updated_at": neowise_last_updated_at,
+        "last_check": entry.get("last_check"),
+        "refresh_attempt": attempt,
+    }
+
+
+_REFRESH_STATUS_FIELDS = (
+    "status", "started_at", "completed_at", "published_at", "error_code",
+    "total_targets", "completed_targets", "current_target",
+    "current_target_index", "current_target_state", "updated_count",
+    "unchanged_count", "failed_count", "failed_target",
+)
+
+
+_FIELD_REFRESH_STATES = frozenset(
+    {"queued", "checking", "updated", "unchanged", "retained", "failed"})
+
+
+def _safe_field_states(value):
+    """Keep only well-formed per-field refresh states (name -> known state)."""
+    if not isinstance(value, dict):
+        return {}
+    return {
+        name: state
+        for name, state in list(value.items())[:64]
+        if isinstance(name, str) and TARGET_NAME.fullmatch(name)
+        and state in _FIELD_REFRESH_STATES
+    }
+
+
+def _safe_refresh_status(value):
+    value = value if isinstance(value, dict) else {}
+    safe = {key: value.get(key) for key in _REFRESH_STATUS_FIELDS}
+    if safe["status"] is None:
+        safe["status"] = "unknown"
+    safe["field_states"] = _safe_field_states(value.get("field_states"))
+    return safe
+
+
+def _next_scheduled_refresh(now=None):
+    """Next Cloud Scheduler run, as an ISO-8601 UTC string, or None.
+
+    Terraform schedules ``0 */12 * * *`` in Asia/Kuala_Lumpur (UTC+8, no
+    DST), i.e. 04:00 and 16:00 UTC.  Terraform passes the same hours here via
+    SPHEREX_REFRESH_SCHEDULE_UTC_HOURS so the two cannot drift silently.
+    """
+    from datetime import datetime, timedelta, timezone
+    raw = os.environ.get("SPHEREX_REFRESH_SCHEDULE_UTC_HOURS", "4,16")
+    try:
+        hours = sorted({int(part) for part in raw.split(",") if part.strip()})
+    except ValueError:
+        return None
+    hours = [hour for hour in hours if 0 <= hour <= 23]
+    if not hours:
+        return None
+    now = now or datetime.now(timezone.utc)
+    for day in (0, 1):
+        base = (now + timedelta(days=day)).replace(
+            minute=0, second=0, microsecond=0)
+        for hour in hours:
+            candidate = base.replace(hour=hour)
+            if candidate > now:
+                return candidate.isoformat()
+    return None
+
+
+def _refresh_proxy_url():
+    value = os.environ.get("SPHEREX_REFRESH_API_URL", "").strip().rstrip("/")
+    if not value:
+        return None
+    parsed = urlsplit(value)
+    if (parsed.scheme != "https" or not parsed.hostname
+            or parsed.username or parsed.password
+            or parsed.query or parsed.fragment):
+        raise HTTPException(
+            status_code=503,
+            detail="Cloud refresh proxy must be a trusted HTTPS API URL.")
+    return value
+
+
+def _proxy_refresh_request(endpoint, method, token=None):
+    base = _refresh_proxy_url()
+    if not base:
+        return None
+    headers = {"X-Refresh-Token": token} if token else {}
+    try:
+        response = requests.request(
+            method,
+            f"{base}/{endpoint}",
+            headers=headers,
+            timeout=(5, 25),
+            allow_redirects=False,
+        )
+    except requests.RequestException as error:
+        _LOGGER.error("Cloud refresh proxy failed: %s", type(error).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="The configured Cloud refresh API could not be reached.") from error
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="The configured Cloud refresh API returned invalid data.") from error
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=502,
+            detail="The configured Cloud refresh API returned invalid data.")
+    if endpoint == "refresh-status" and response.ok:
+        payload = {
+            **_safe_refresh_status(payload),
+            "manual_refresh_available": bool(
+                payload.get("manual_refresh_available")),
+            "snapshot_published_at": payload.get("snapshot_published_at"),
+            "next_scheduled_at": payload.get("next_scheduled_at"),
+        }
+    return JSONResponse(status_code=response.status_code, content=payload)
+
+
+@app.get("/api/refresh-status")
+def get_refresh_status():
+    proxied = _proxy_refresh_request("refresh-status", "GET")
+    if proxied is not None:
+        return proxied
+    store = _snapshot_store()
+    if store is None:
+        return {
+            "status": "unavailable",
+            "manual_refresh_available": False,
+            "snapshot_published_at": None,
+            "next_scheduled_at": None,
+            "field_states": {},
+        }
+    pointer, _ = store.read_current()
+    status = _safe_refresh_status(
+        store.read_json("refresh-status/latest.json"))
+    return {
+        **status,
+        "manual_refresh_available": bool(
+            os.environ.get("SPHEREX_REFRESH_OPERATOR_TOKEN")
+            and os.environ.get("SPHEREX_REFRESH_PROJECT")
+            and os.environ.get("SPHEREX_REFRESH_REGION")
+            and os.environ.get("SPHEREX_REFRESH_JOB")),
+        "snapshot_published_at": (pointer or {}).get("published_at"),
+        "next_scheduled_at": _next_scheduled_refresh(),
+    }
+
+
+def _invoke_cloud_refresh_job():
+    project = os.environ["SPHEREX_REFRESH_PROJECT"]
+    region = os.environ["SPHEREX_REFRESH_REGION"]
+    job = os.environ["SPHEREX_REFRESH_JOB"]
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+
+    credentials, _ = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    url = (f"https://run.googleapis.com/v2/projects/{project}/locations/"
+           f"{region}/jobs/{job}:run")
+    response = AuthorizedSession(credentials).post(url, json={}, timeout=20)
+    if not 200 <= response.status_code < 300:
+        raise RuntimeError(
+            f"Cloud Run Jobs API returned HTTP {response.status_code}")
+    try:
+        return response.json().get("name")
+    except (ValueError, AttributeError):
+        return None
+
+
+@_rate_limited_route("post", "/api/refresh", "3/minute")
+def trigger_cloud_refresh(request: Request):
+    supplied_token = request.headers.get("x-refresh-token", "")
+    proxied = _proxy_refresh_request("refresh", "POST", supplied_token)
+    if proxied is not None:
+        return proxied
+    store = _snapshot_store()
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Cloud snapshot refresh is not configured for this API.")
+    expected_token = os.environ.get("SPHEREX_REFRESH_OPERATOR_TOKEN", "")
+    if not expected_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Operator-authorized cloud refresh is not configured.")
+    if (not supplied_token or len(supplied_token) > 1024
+            or not hmac.compare_digest(supplied_token, expected_token)):
+        raise HTTPException(status_code=401, detail="Invalid operator token.")
+
+    try:
+        if store.refresh_lock_is_active():
+            raise HTTPException(
+                status_code=409,
+                detail="A cloud refresh is already running.")
+    except HTTPException:
+        raise
+    except Exception as error:
+        _LOGGER.error("Could not verify cloud refresh lock: %s",
+                      type(error).__name__)
+        raise HTTPException(
+            status_code=503,
+            detail="Could not verify whether a cloud refresh is running.") from error
+    required = ("SPHEREX_REFRESH_PROJECT", "SPHEREX_REFRESH_REGION",
+                "SPHEREX_REFRESH_JOB")
+    if any(not os.environ.get(name) for name in required):
+        raise HTTPException(
+            status_code=503,
+            detail="Cloud Run refresh job configuration is incomplete.")
+    accepted_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    try:
+        operation = _invoke_cloud_refresh_job()
+    except Exception as error:
+        _LOGGER.error("Cloud refresh trigger failed: %s", type(error).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="Cloud Run did not accept the refresh request.") from error
+    return {
+        "status": "accepted",
+        "accepted_at": accepted_at,
+        "operation": operation,
+    }
+
+
+@_rate_limited_route("get", "/api/dashboard", "30/minute")
+def get_dashboard(request: Request = None,
+                  target: str = Query("WISE_0855"),
                   source: str = Query("cache"),
-                  live_slots: int = Query(0),
-                  live_size: float = Query(0.2),
-                  live_epochs: str = Query("firstlast")):
+                  live_slots: int = Query(0, ge=0, le=12),
+                  live_size: float = Query(0.2, ge=0.05, le=0.5),
+                  live_epochs: str = Query("firstlast", pattern="^(firstlast|all)$")):
     """
     Run the full pipeline on the specified target and return everything
     the frontend needs to render the dashboard.
     """
-    meta = load_target(target)
+    store = _snapshot_store()
+    entry = None
+    if store is not None:
+        live_request = str(source).lower() == "live"
+        manifest = (_optional_published_manifest(store) if live_request
+                    else _published_manifest(store))
+        entry = (manifest or {}).get("targets", {}).get(target)
+        if not live_request:
+            if not entry:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No published snapshot exists for target '{target}'.")
+            return _published_json(
+                store, entry.get("dashboard"), f"dashboard for {target}")
+        if entry:
+            if entry.get("meta_object"):
+                meta = _published_json(
+                    store, entry.get("meta_object"), f"metadata for {target}")
+            else:
+                # B7 FIX: no-products / error-only entries have no meta_object.
+                # Fall back to the TARGETS registry so a live retry can still
+                # run the pipeline instead of returning 503/404.
+                meta = _meta_from_targets_registry(target)
+        else:
+            meta = load_target(target)
+    else:
+        meta = load_target(target)
+    if meta is None and str(source).lower() == "live":
+        # A fresh IRSA fetch needs only the field position, so it must not
+        # depend on the snapshot being reachable.
+        meta = _meta_from_targets_registry(target)
     if meta is None:
         return JSONResponse(
             status_code=404,
-            content={"error": f"No cached data for target '{target}'. "
-                              f"Run step1_ingest.py first."}
+            content={"error": f"No published or registered field '{target}'."}
         )
 
     ra = meta["meta"]["ra"]
@@ -427,28 +1615,62 @@ def get_dashboard(target: str = Query("WISE_0855"),
 
     custom = bool(meta.get("custom"))
     live_mode = (str(source).lower() == "live") or custom
-    if custom and target in FIELD_DASH_CACHE and str(source).lower() != "refresh":
+    if (custom and target in FIELD_DASH_CACHE
+            and str(source).lower() not in {"refresh", "live"}):
         return FIELD_DASH_CACHE[target]
     live_provenance = None
     live_cached = False
+    irsa_check = None
+    listing_rows = None
+    if live_mode and not custom and _is_registered_field(target):
+        # Ask IRSA what exists *now*.  When it lists exactly the products the
+        # published snapshot processed, reprocessing would reproduce that
+        # result, so return it (labelled) instead of re-downloading cutouts.
+        try:
+            listing, irsa_check, unchanged = _check_irsa_listing(
+                store, entry, target)
+        except Exception as e:
+            return JSONResponse(
+                status_code=502,
+                content={"error": f"IRSA listing query failed: {e}",
+                         "hint": "IRSA may be busy; retry in a minute."})
+        if unchanged is not None:
+            return unchanged
+        if _same_position(listing[0], listing[1], ra, dec):
+            listing_rows = listing[2]
     if live_mode:
         try:
             cutouts, live_provenance, live_cached = live_exposures(
                 target, meta, size_deg=live_size,
-                epoch_mode=live_epochs, max_slots=live_slots)
+                epoch_mode=live_epochs, max_slots=live_slots,
+                progress=_PROGRESS_CALLBACK.get(), rows=listing_rows)
         except Exception as e:
             return JSONResponse(
-                status_code=502,
-                content={"error": f"Live fetch from IRSA failed: {e}",
+                status_code=422 if isinstance(e, CoverageError) else 502,
+                content={"error": (str(e) if isinstance(e, CoverageError)
+                                   else f"Live fetch from IRSA failed: {e}"),
                          "hint": "retry, or call without ?source=live to use data_cache/"}
             )
         paths = []
         sources = [c["data"] for c in cutouts]
         epochs = [c["epoch"] for c in cutouts]
     else:
-        paths = meta["paths"]
+        # FITS files are gitignored, so a clone can hold a target's
+        # _meta.json without its cutouts: keep only the files that exist.
+        present = [i for i, p in enumerate(meta["paths"]) if os.path.exists(p)]
+        paths = [meta["paths"][i] for i in present]
         sources = list(paths)
-        epochs = meta.get("epochs")
+        all_epochs = meta.get("epochs")
+        epochs = ([all_epochs[i] for i in present]
+                  if all_epochs is not None and len(all_epochs) == len(meta["paths"])
+                  else None)
+        if len(paths) < 2:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"'{target}': {len(paths)} of {len(meta['paths'])} "
+                                  f"cutout FITS files are on disk. Run "
+                                  f"`python step1_ingest.py --targets {target}` "
+                                  f"or use source=live."})
 
     if len(sources) < 2:
         return JSONResponse(
@@ -457,28 +1679,61 @@ def get_dashboard(target: str = Query("WISE_0855"),
                               f"Need at least 2 for subtraction."}
         )
 
+    epochs = _resolve_epochs(epochs, len(sources))
+    bands = exposure_bands(meta, sources, cutouts if live_mode else None)
+    coverage_error = epoch_coverage_error(epochs, bands)
+    if coverage_error:
+        return JSONResponse(
+            status_code=422,
+            content={"error": f"'{target}': {coverage_error}.",
+                     "hint": "Use a release with a shared detector band in at least two "
+                             "epochs, or select another field."}
+        )
+
     npix = 180
     wcs = make_target_wcs(ra, dec, npix=npix, pixscale_arcsec=3.0)
+
+    # Epoch dates and the target's own motion: catalogues are propagated to
+    # each epoch (G1) and the target spectrum follows the star (movers).
+    mjds = exposure_mjds(meta, paths, cutouts if live_mode else None)
+    block = target_motion_block(target, meta)
+    neowise = load_neowise(target)
 
     # -- epochs -----------------------------------------------------------
     # Every epoch in the cache is co-added separately, and ZOGY is run on each
     # consecutive pair.  The deepest baseline (first vs last) becomes the map
     # shown by default; the extra pairs contribute detections only.
-    if not (epochs and len(epochs) == len(sources) and len(set(epochs)) > 1):
-        half = len(sources) // 2
-        epochs = [1] * max(1, half) + [2] * max(1, len(sources) - half)
-        epochs = epochs[:len(sources)]
-
     order = sorted(set(epochs))
     files_by_epoch = {e: [s for s, pe in zip(sources, epochs) if pe == e]
                       for e in order}
+    epoch_mjd = {}
+    for e in order:
+        vals = [m for m, pe in zip(mjds, epochs) if pe == e and m]
+        epoch_mjd[e] = float(np.mean(vals)) if vals else None
+
+    raw_catalogs = meta.get("catalogs") or {}
+    _cats_cache = {}
+
+    def catalogs_at(e):
+        """Catalogues with every movable row moved to epoch e (G1, W4)."""
+        if e not in _cats_cache:
+            _cats_cache[e] = propagate_catalogs(raw_catalogs, epoch_mjd.get(e))
+        return _cats_cache[e]
+
+    def baseline_years(ea, eb):
+        a, b = epoch_mjd.get(ea), epoch_mjd.get(eb)
+        return (b - a) / 365.25 if a and b and b > a else None
 
     try:
-        stacks, noises = {}, {}
-        for e in order:
-            stack, noise = coadd_detector(files_by_epoch[e], wcs, npix=npix)
-            stacks[e] = stack
-            noises[e] = float(np.nanmedian(noise))
+        # Matched masks: a band only counts at a pixel where it is unmasked
+        # in every epoch, so no epoch can lose a band the others keep.
+        _emit_progress("coadd", f"Co-adding {len(order)} observing epochs")
+        groups = {e: [(s, b) for s, b, pe in zip(sources, bands, epochs) if pe == e]
+                  for e in order}
+        stacks, noise_maps, excluded, n_bands = coadd_matched(groups, wcs, npix=npix)
+        noises = {e: float(np.nanmedian(np.where(noise_maps[e] < 1e3, noise_maps[e], np.nan)))
+                  for e in order}
+        _emit_progress("coadd", f"Co-add complete for {len(order)} epochs")
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -491,7 +1746,9 @@ def get_dashboard(target: str = Query("WISE_0855"),
     sigma1, sigma2 = noises[order[0]], noises[order[-1]]
 
     try:
+        _emit_progress("subtraction", "Running ZOGY subtraction")
         D, S = zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4)
+        _emit_progress("subtraction", "Initial ZOGY subtraction complete")
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -507,6 +1764,8 @@ def get_dashboard(target: str = Query("WISE_0855"),
 
     raw_detections = []
     pair_summary = []
+    pair_count = sum(1 for ea, eb in pair_list if ea != eb)
+    completed_pairs = 0
     for ea, eb in pair_list:
         if ea == eb:
             continue
@@ -529,7 +1788,15 @@ def get_dashboard(target: str = Query("WISE_0855"),
         })
         for d in found:
             d["pair"] = f"E{ea}\u2192E{eb}"
+            d["epochs"] = (ea, eb)
             raw_detections.append(d)
+        completed_pairs += 1
+        _emit_progress(
+            "subtraction",
+            f"Processed epoch-pair subtraction ({completed_pairs}/{pair_count})",
+            completed=completed_pairs,
+            total=pair_count,
+        )
 
     # merge the same object found in several pairs, keeping the strongest
     detections = []
@@ -542,17 +1809,60 @@ def get_dashboard(target: str = Query("WISE_0855"),
         detections.append(d)
 
     triaged = []
-    for d in detections[:10]:
-        t = triage(d, ra, dec, npix, 3.0, meta["catalogs"])
+    triage_detections = detections[:10]
+    _emit_progress("triage", f"Classifying {len(triage_detections)} detections")
+    for index, d in enumerate(triage_detections, start=1):
+        ea, eb = d.get("epochs", (order[0], order[-1]))
+        b_yr = baseline_years(ea, eb)
+        context = {"baseline_years": b_yr}
+        # How many bands the mask matching dropped at this detection
+        lost = max((masked_near(excluded, *d[k]) for k in ("pos_plus", "pos_minus", "pos")
+                    if d.get(k)), default=0)
+        if lost:
+            context["mask"] = {"bands_excluded": lost, "n_bands": n_bands}
+        mask_hits = lost >= n_bands
+        if d.get("kind") == "dipole":
+            (y1, x1), (y2, x2) = d["pos_plus"], d["pos_minus"]
+            d["separation_arcsec"] = float(np.hypot(x1 - x2, y1 - y2) * 3.0)
+            if b_yr:
+                # step3 assumed dt = 0.5 yr; use the real epoch spacing
+                d["proper_motion_arcsec_yr"] = d["separation_arcsec"] / b_yr
+        elif ea in stacks and eb in stacks and not mask_hits:
+            py, px = d["pos"]
+            context["delta_mag"] = delta_mag(stacks[ea], stacks[eb], noises[ea],
+                                             noises[eb], px, py)
+        if neowise:
+            py, px = d.get("pos_plus") or d.get("pos")
+            d_ra, d_dec = wcs.pixel_to_world_values(float(px), float(py))
+            context["neowise"] = neowise_at(neowise, float(d_ra), float(d_dec))
+        t = triage(d, ra, dec, npix, 3.0, catalogs_at(eb), wcs=wcs, context=context)
         t["kind"] = d["kind"]
         t["snr"] = d["snr"]
         t["pair"] = d.get("pair")
         t["position"] = d.get("pos_plus") or d.get("pos")
+        if d.get("pos_minus"):
+            t["position_minus"] = d["pos_minus"]
         if "proper_motion_arcsec_yr" in d:
             t["proper_motion_arcsec_yr"] = d["proper_motion_arcsec_yr"]
+        if context.get("delta_mag") is not None:
+            t["delta_mag"] = context["delta_mag"]
+        d["category"] = t["category"]
         triaged.append(t)
+        _emit_progress(
+            "triage",
+            f"Classified detections ({index}/{len(triage_detections)})",
+            completed=index,
+            total=len(triage_detections),
+        )
 
-    spectrum = extract_spectrum_from_cutout(sources[0], ra, dec)
+    # Spectrum: follow the target to each exposure's own epoch, so a fast
+    # mover is measured where it actually is, not at its catalogue position.
+    _emit_progress("spectrum", "Extracting the target spectrum")
+    def target_at(i):
+        return target_position(block, mjds[i] if i < len(mjds) else None)
+
+    spectrum = extract_spectrum_from_cutout(sources[0], *target_at(0))
+    points = []
     if meta.get("spectrum_fits") and os.path.exists(meta["spectrum_fits"]):
         # A cached 102-band SPECTRUM table wins over the synthetic ramp below.
         from astropy.io import fits
@@ -567,11 +1877,11 @@ def get_dashboard(target: str = Query("WISE_0855"),
         # photometry of every cached exposure, using each file's own WCS-WAVE
         # wavelength calibration.
         points = []
-        for path in sources:
-            spec = extract_spectrum_from_cutout(path, ra, dec)
+        for i, path in enumerate(sources):
+            spec = extract_spectrum_from_cutout(path, *target_at(i))
             if spec.get("wavelength_um") is not None:
-                points.append((spec["wavelength_um"], spec["flux"]))
-        points.sort()
+                points.append((spec["wavelength_um"], spec["flux"], spec.get("pix_sr")))
+        points.sort(key=lambda p: p[0])
         wavelengths = [float(p[0]) for p in points]
         flux = [float(p[1]) for p in points]
         # The three-index classifier needs a sampled spectrum, not a handful
@@ -584,6 +1894,36 @@ def get_dashboard(target: str = Query("WISE_0855"),
         arr = np.round(arr, 2)
         return np.where(np.isfinite(arr), arr, 0).tolist()
 
+    # ---- field-level catalogue science --------------------------------------
+    last_cats = catalogs_at(order[-1])            # positions as of the map epoch
+    movers = expected_movers(harmonise_motions(raw_catalogs), epoch_mjd.get(order[0]),
+                             epoch_mjd.get(order[-1]), wcs, detections,
+                             npix=npix, block=block)
+    astrometry = astrometry_check(img1, wcs, catalogs_at(order[0]).get("gaia"),
+                                  sigma1, npix=npix)
+    sed = target_sed(meta, block, points, mjds)
+    t_ra, t_dec = target_position(block, epoch_mjd.get(order[-1]))
+    try:
+        tx, ty = (float(v) for v in wcs.world_to_pixel_values(t_ra, t_dec))
+    except Exception:
+        tx = ty = None
+    categories = {}
+    for t in triaged:
+        categories[t["category"]] = categories.get(t["category"], 0) + 1
+    neowise_target = next((p for p in (neowise or {}).get("positions", [])
+                           if p.get("kind") == "target"), None)
+
+    stats = target_statistics(meta, triaged, sigma1, sigma2, npix=npix,
+                              n_exposures=len(sources))
+    stats.update({
+        "categories": categories,
+        "n_priority": sum(1 for t in triaged if t["priority"] <= 2),
+        "n_expected_movers": len(movers),
+        "n_movers_detected": sum(1 for m in movers if m["detected"]),
+        "astrometry": astrometry,
+    })
+
+    _emit_progress("complete", "Dashboard processing complete")
     return {
         "target": target,
         "common": meta["meta"].get("common", target),
@@ -615,41 +1955,80 @@ def get_dashboard(target: str = Query("WISE_0855"),
                        else exposure_provenance(meta, wcs, npix=npix)),
         "source": "live" if live_mode else "cache",
         "live_cached": live_cached,
-        "stats": target_statistics(meta, triaged, sigma1, sigma2, npix=npix,
-                                   n_exposures=len(sources)),
-        "catalog_overlay": catalog_overlay(meta, wcs, npix=npix),
-        "field_objects": build_field_objects(meta, triaged, wcs, npix=npix),
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "stats": stats,
+        "catalog_overlay": catalog_overlay({**meta, "catalogs": last_cats}, wcs, npix=npix),
+        "field_objects": build_field_objects({**meta, "catalogs": last_cats},
+                                             triaged, wcs, npix=npix),
         "histogram": significance_histogram(S),
         "epoch_pairs": pair_summary,
-        "catalog_counts": {k: len(v or []) for k, v in
-                           (meta.get("catalogs") or {}).items()},
+        "catalog_counts": {k: len(v or []) for k, v in raw_catalogs.items()},
+        "epochs": [{"epoch": e, "mjd": epoch_mjd.get(e),
+                    "year": round(mjd_to_year(epoch_mjd[e]), 3) if epoch_mjd.get(e) else None}
+                   for e in order],
+        "target_position": {"ra": t_ra, "dec": t_dec, "x": tx, "y": ty,
+                            "moving": bool(block.get("pm_ra") or block.get("pm_dec")),
+                            "pm_ra": block.get("pm_ra"), "pm_dec": block.get("pm_dec")},
+        "expected_movers": movers,
+        "sed": sed,
+        "irsa_check": irsa_check,
+        "neowise": {"available": neowise is not None,
+                    "generated_utc": (neowise or {}).get("generated_utc"),
+                    "target": neowise_target},
     }
 
 
-@app.get("/api/recovery")
-def get_recovery(target: str = Query("WISE_0855")):
-    """Run injection-recovery on the specified target and return the grid."""
-    meta = load_target(target)
-    if meta is None:
-        return JSONResponse(
-            status_code=404,
-            content={"error": f"No cached data for target '{target}'."}
-        )
+@app.get("/api/dashboard/stream")
+async def stream_dashboard(target: str = Query("WISE_0855"),
+                           live_slots: int = Query(0, ge=0, le=12),
+                           live_size: float = Query(0.2, ge=0.05, le=0.5),
+                           live_epochs: str = Query(
+                               "firstlast", pattern="^(firstlast|all)$")):
+    return _progress_stream(
+        lambda: get_dashboard(
+            target=target,
+            source="live",
+            live_slots=live_slots,
+            live_size=live_size,
+            live_epochs=live_epochs,
+        ),
+        f"Starting a fresh IRSA run for {target}",
+    )
 
-    ra = meta["meta"]["ra"]
-    dec = meta["meta"]["dec"]
-    paths = meta["paths"]
-    if len(paths) < 2:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Need at least 2 cutouts for recovery."}
-        )
 
+def _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source="live"):
+    """Shared pipeline body for all recovery code paths."""
+    epochs = _resolve_epochs(epochs, len(sources))
+    coverage_error = epoch_coverage_error(epochs, bands)
+    if coverage_error:
+        return JSONResponse(
+            status_code=422,
+            content={"error": f"'{target}': recovery unavailable because "
+                              f"{coverage_error}."})
+
+    order = sorted(set(epochs))
     npix = 180
     wcs = make_target_wcs(ra, dec, npix=npix)
-    half = len(paths) // 2
-    img1, noise1 = coadd_detector(paths[:half], wcs, npix=npix)
-    img2, noise2 = coadd_detector(paths[half:], wcs, npix=npix)
+    groups = {e: [(s, b) for s, b, pe in zip(sources, bands, epochs) if pe == e]
+              for e in (order[0], order[-1])}
+    _emit_progress("coadd", "Co-adding matched recovery epochs")
+    stacks, noise_maps, _, _ = coadd_matched(groups, wcs, npix=npix)
+    _emit_progress("coadd", "Matched recovery epochs are ready")
+    img1, img2 = stacks[order[0]], stacks[order[-1]]
+    noise1, noise2 = noise_maps[order[0]], noise_maps[order[-1]]
+    noise1 = np.where(noise1 < 1e3, noise1, np.nan)
+    noise2 = np.where(noise2 < 1e3, noise2, np.nan)
+
+    _emit_progress("recovery", "Running injection-recovery trials")
+
+    def report_recovery_progress(event):
+        _emit_progress(
+            "recovery",
+            f"Recovery grid {event['completed']}/{event['total']} cells "
+            f"(SNR {event['snr']}, motion {event['mu']} arcsec/year)",
+            completed=event["completed"],
+            total=event["total"],
+        )
 
     results = run_injection_recovery(
         img1, img2,
@@ -658,13 +2037,154 @@ def get_recovery(target: str = Query("WISE_0855")):
         snr_grid=[3, 5, 7, 10, 15, 20],
         mu_grid=[1, 2, 5, 10],
         n_trials=10,
+        progress=(report_recovery_progress
+                  if _PROGRESS_CALLBACK.get() else None),
     )
 
     grid = []
     for (snr, mu), frac in sorted(results.items()):
         grid.append({"snr": snr, "mu": mu, "recovery": float(frac)})
 
-    return {"target": target, "grid": grid}
+    return {
+        "target": target,
+        "grid": grid,
+        "source": "live" if str(source).lower() == "live" else "cache",
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
+def _meta_from_targets_registry(target):
+    """
+    B7: Build a minimal meta dict from the TARGETS registry for targets whose
+    manifest entry has no meta_object (no-products or error-only entries).
+    Returns None when the target is not in TARGETS.
+    """
+    try:
+        from step1_ingest import TARGETS
+        t = TARGETS.get(target)
+    except Exception:
+        t = None
+    if not t:
+        return None
+    return {
+        "target": target,
+        "meta": {
+            "ra": float(t["ra"]),
+            "dec": float(t["dec"]),
+            "common": t.get("common", target),
+            "type": t.get("type", ""),
+            "pm_ra": t.get("pm_ra"),
+            "pm_dec": t.get("pm_dec"),
+            "pos_epoch": t.get("pos_epoch"),
+        },
+        "paths": [],
+        "epochs": [],
+        "catalogs": {},
+        "collection": "spherex_qr2",
+    }
+
+
+@_rate_limited_route("get", "/api/recovery", "30/minute")
+def get_recovery(request: Request = None,
+                 target: str = Query("WISE_0855"), source: str = Query("cache")):
+    """
+    Run injection-recovery on the specified target and return the grid.
+
+    Uses the first and last epoch with matched masks, like the dashboard.
+    Runtime fields and source=live fetch current cutouts from IRSA for each
+    request; live data is not reused from the dashboard or a process cache.
+    """
+    # B6 FIX: custom fields live only in FIELD_REGISTRY (in-process); they
+    # are never in the GCS manifest, so checking the manifest first returns
+    # 404.  Short-circuit to the live pipeline for any registered custom field
+    # regardless of what the caller put in ?source=.
+    if target in FIELD_REGISTRY:
+        meta = FIELD_REGISTRY[target]
+        if meta is None:
+            return JSONResponse(status_code=404,
+                                content={"error": f"Custom field '{target}' not found."})
+        ra = meta["meta"]["ra"]
+        dec = meta["meta"]["dec"]
+        try:
+            cutouts, _, _ = live_exposures(
+                target, meta, progress=_PROGRESS_CALLBACK.get())
+        except Exception as e:
+            return JSONResponse(
+                status_code=422 if isinstance(e, CoverageError) else 502,
+                content={"error": (str(e) if isinstance(e, CoverageError)
+                                   else f"Live fetch from IRSA failed: {e}")})
+        sources = [c["data"] for c in cutouts]
+        epochs = [c["epoch"] for c in cutouts]
+        bands = exposure_bands(meta, sources, cutouts)
+        return _run_recovery_pipeline(
+            target, ra, dec, sources, epochs, bands, source="live")
+
+    store = _snapshot_store()
+    if store is not None:
+        live_request = str(source).lower() == "live"
+        manifest = (_optional_published_manifest(store) if live_request
+                    else _published_manifest(store))
+        entry = (manifest or {}).get("targets", {}).get(target)
+        if not live_request:
+            if not entry:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No published recovery grid exists for target '{target}'.")
+            return _published_json(
+                store, entry.get("recovery"), f"recovery grid for {target}")
+        if entry:
+            if entry.get("meta_object"):
+                meta = _published_json(
+                    store, entry.get("meta_object"), f"metadata for {target}")
+            else:
+                # B7 FIX: same as get_dashboard — fall back to TARGETS registry.
+                meta = _meta_from_targets_registry(target)
+        else:
+            meta = load_target(target)
+    else:
+        meta = load_target(target)
+    if meta is None and str(source).lower() == "live":
+        meta = _meta_from_targets_registry(target)
+    if meta is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"No published or registered field '{target}'."}
+        )
+
+    ra = meta["meta"]["ra"]
+    dec = meta["meta"]["dec"]
+    if str(source).lower() == "live" or meta.get("custom"):
+        try:
+            cutouts, _, _ = live_exposures(
+                target, meta, progress=_PROGRESS_CALLBACK.get())
+        except Exception as e:
+            return JSONResponse(status_code=422 if isinstance(e, CoverageError) else 502,
+                                content={"error": (str(e) if isinstance(e, CoverageError)
+                                                   else f"Live fetch from IRSA failed: {e}")})
+        sources = [c["data"] for c in cutouts]
+        epochs = [c["epoch"] for c in cutouts]
+        bands = exposure_bands(meta, sources, cutouts)
+    else:
+        present = [i for i, p in enumerate(meta["paths"]) if os.path.exists(p)]
+        sources = [meta["paths"][i] for i in present]
+        all_ep = meta.get("epochs")
+        epochs = ([all_ep[i] for i in present]
+                  if all_ep is not None and len(all_ep) == len(meta["paths"])
+                  else None)
+        bands = exposure_bands(meta, sources)
+
+    return _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source=source)
+
+
+@app.get("/api/recovery/stream")
+async def stream_recovery(target: str = Query("WISE_0855"),
+                          source: str = Query(
+                              "live", pattern="^(cache|live)$")):
+    return _progress_stream(
+        lambda: get_recovery(target=target, source=source),
+        f"Starting {'fresh IRSA retrieval' if source == 'live' else 'cached-cutout'} "
+        f"recovery for {target}",
+    )
 
 
 MOSAIC_CACHE = {"t": 0.0, "payload": None}
@@ -684,21 +2204,102 @@ def _thumbnail(arr, size=48):
     return np.round(blocks, 2).tolist()
 
 
-@app.get("/api/field")
-def add_field(ra: float = Query(...), dec: float = Query(...),
-              name: str = Query(""), size: float = Query(0.2),
-              slots: int = Query(0), epochs: str = Query("firstlast")):
+@_rate_limited_route("get", "/api/field", "5/minute")
+def add_field(request: Request = None,
+              ra: float = Query(...), dec: float = Query(...),
+              name: str = Query("", max_length=80),
+              size: float = Query(0.2, ge=0.05, le=0.5),
+              slots: int = Query(0, ge=0, le=12),
+              epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
+              catalogs: int = Query(1, ge=0, le=1)):
+    if not 0 <= ra <= 360 or not -90 <= dec <= 90:
+        return JSONResponse(
+            status_code=422,
+            content={"error": "RA must be between 0 and 360 degrees and Dec between "
+                              "-90 and 90 degrees."})
+    if not FIELD_REQUEST_LIMIT.acquire(blocking=False):
+        return JSONResponse(
+            status_code=429,
+            content={"error": "The field loader is busy. Wait for an active request "
+                              "to finish, then try again."})
+    try:
+        return _register_field(ra, dec, name, size, slots, epochs, catalogs)
+    finally:
+        FIELD_REQUEST_LIMIT.release()
+
+
+@app.get("/api/field/stream")
+async def stream_field(ra: float = Query(...), dec: float = Query(...),
+                       name: str = Query("", max_length=80),
+                       size: float = Query(0.2, ge=0.05, le=0.5),
+                       slots: int = Query(0, ge=0, le=12),
+                       epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
+                       catalogs: int = Query(1, ge=0, le=1)):
+    return _progress_stream(
+        lambda: add_field(
+            ra=ra, dec=dec, name=name, size=size, slots=slots,
+            epochs=epochs, catalogs=catalogs,
+        ),
+        "Starting a fresh IRSA request for the custom field",
+    )
+
+
+def _manifest_target_entry(target):
+    """
+    B5: Return a minimal meta-like dict if 'target' exists in the published
+    snapshot manifest or the TARGETS registry, so name-collision checks work
+    even when no local files are present (cloud-only deployments).
+    """
+    # Check TARGETS registry first (cheapest).
+    try:
+        from step1_ingest import TARGETS
+        if target in TARGETS:
+            t = TARGETS[target]
+            return {"meta": {"ra": float(t["ra"]), "dec": float(t["dec"])}}
+    except Exception:
+        pass
+    # Check GCS manifest.
+    store = _snapshot_store()
+    if store is None:
+        return None
+    manifest = _optional_published_manifest(store)
+    entry = (manifest or {}).get("targets", {}).get(target)
+    if not entry:
+        return None
+    # Build a minimal meta-like object from whatever RA/dec we can recover.
+    if entry.get("meta_object"):
+        try:
+            meta = store.read_json(entry["meta_object"])
+            if meta:
+                return meta
+        except Exception:
+            pass
+    return None
+
+
+def _register_field(ra, dec, name, size, slots, epochs, catalogs):
     """
     Load a field that is not in data_cache/ -- any position on the sky.
 
     The cutouts are fetched from IRSA into RAM (nothing is written to disk),
-    the full pipeline runs, and the field is registered for this process so the
-    dashboard, the mosaic and the sky view can address it by name.
+    the full pipeline runs, and its dashboard is returned in this response so
+    clients do not depend on process-local state for a later request.
     """
-    import re as _re
-
-    safe = _re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_") or (
+    safe = re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_") or (
         f"Field_{ra:.2f}_{dec:.2f}".replace("-", "m").replace(".", "p"))
+    # B5 FIX: check against the GCS manifest and the TARGETS registry too, not
+    # only local disk / FIELD_REGISTRY.  In cloud-only mode local disk is
+    # empty so collisions with registered snapshot fields were silently missed.
+    existing = load_target(safe)
+    if existing is None:
+        existing = _manifest_target_entry(safe)
+    if (existing and
+            (float(existing["meta"]["ra"]) != ra or float(existing["meta"]["dec"]) != dec)):
+        base = safe[:55]
+        suffix = f"_{ra:.4f}_{dec:.4f}".replace("-", "m").replace(".", "p")
+        safe = f"{base}{suffix}"
+        while load_target(safe) is not None or _manifest_target_entry(safe) is not None:
+            safe = f"{safe[:70]}_x"
     meta = {
         "target": safe,
         "meta": {"ra": float(ra), "dec": float(dec), "common": name or safe,
@@ -707,15 +2308,39 @@ def add_field(ra: float = Query(...), dec: float = Query(...),
         "collection": "spherex_qr2", "cutout_size_deg": size,
         "custom": True,
     }
+    if catalogs:
+        # Without catalogues every detection in a custom field would be a
+        # CANDIDATE. Gaia + AllWISE come from IRSA TAP (~10 s each), VSX from
+        # VizieR; a failure just leaves that catalogue empty.
+        _emit_progress("catalogs", "Querying catalogues for the custom field")
+        try:
+            from step1_ingest import download_catalogs
+            meta["catalogs"] = download_catalogs(float(ra), float(dec))
+        except Exception as exc:
+            print(f"field catalogues failed: {type(exc).__name__}: {exc}", flush=True)
+            _emit_progress(
+                "catalogs",
+                "Catalogue lookup failed; continuing without catalogue matches",
+            )
+        else:
+            _emit_progress("catalogs", "Catalogue lookup complete")
+    previous_meta = FIELD_REGISTRY.get(safe)
     FIELD_REGISTRY[safe] = meta
-    FIELD_DASH_CACHE.pop(safe, None)
 
     payload = get_dashboard(target=safe, source="live", live_slots=slots,
                             live_size=size, live_epochs=epochs)
     if not isinstance(payload, dict):
+        if previous_meta is None:
+            FIELD_REGISTRY.pop(safe, None)
+        else:
+            FIELD_REGISTRY[safe] = previous_meta
         return payload
 
     FIELD_DASH_CACHE[safe] = payload
+    while len(FIELD_REGISTRY) > max(1, MAX_CUSTOM_FIELDS):
+        oldest = next(key for key in FIELD_REGISTRY if key != safe)
+        FIELD_REGISTRY.pop(oldest)
+        FIELD_DASH_CACHE.pop(oldest, None)
     MOSAIC_CACHE["payload"] = None          # force the all-sky tiles to refresh
     return {
         "target": safe,
@@ -726,12 +2351,123 @@ def add_field(ra: float = Query(...), dec: float = Query(...),
         "max_snr": payload.get("stats", {}).get("max_snr"),
         "n_exposures": payload.get("stats", {}).get("n_exposures"),
         "n_epochs": payload.get("stats", {}).get("n_epochs"),
-        "note": "registered for this process; nothing written to disk",
+        "dashboard": payload,
+        "note": "fetched from IRSA for this request; not added to scheduled snapshots",
     }
 
 
-@app.get("/api/mosaic")
-def get_mosaic(thumb: int = Query(48), refresh: int = Query(0)):
+def mosaic_tile(dashboard, thumb=48):
+    """Build one available all-sky tile from a dashboard response."""
+    stats = dashboard.get("stats", {})
+    return {
+        "target": dashboard["target"],
+        "common": dashboard.get("common", dashboard["target"]),
+        "ra": dashboard["ra"],
+        "dec": dashboard["dec"],
+        "fov_arcmin": dashboard["map"]["fov_arcmin"],
+        "thumb": _thumbnail(dashboard["zogy_snr"], size=thumb),
+        "thumb_npix": thumb,
+        "available": True,
+        "reason": None,
+        "n_detections": stats.get("n_detections", 0),
+        "n_known": stats.get("n_known", 0),
+        "n_candidate": stats.get("n_candidate", 0),
+        "max_snr": stats.get("max_snr"),
+        "baseline_days": stats.get("baseline_days"),
+        "sigma1": stats.get("sigma1"),
+        "sigma2": stats.get("sigma2"),
+        "n_exposures": stats.get("n_exposures"),
+        "n_epochs": stats.get("n_epochs"),
+        "n_gaia": stats.get("n_gaia"),
+        "n_vsx": stats.get("n_vsx"),
+        "source": dashboard.get("source", "cache"),
+    }
+
+
+def unavailable_mosaic_tile(entry, reason, thumb=48):
+    """Keep a target locatable even when it has no comparable epoch data."""
+    return {
+        "target": entry["name"],
+        "common": entry.get("common", entry["name"]),
+        "ra": entry["ra"],
+        "dec": entry["dec"],
+        "fov_arcmin": 9.0,
+        "thumb": [],
+        "thumb_npix": thumb,
+        "available": False,
+        "reason": reason,
+        "n_detections": None,
+        "n_known": None,
+        "n_candidate": None,
+        "max_snr": None,
+        "baseline_days": None,
+        "n_exposures": None,
+        "n_epochs": None,
+        "source": "cache",
+    }
+
+
+def mosaic_payload(tiles):
+    available = [tile for tile in tiles if tile.get("available")]
+    return {
+        "tiles": tiles,
+        "n_fields": len(tiles),
+        "n_available": len(available),
+        "n_unavailable": len(tiles) - len(available),
+        "sky_area_deg2": round(sum(
+            (tile["fov_arcmin"] / 60.0) ** 2 for tile in available), 6),
+    }
+
+
+def live_mosaic_tile(target, thumb=48):
+    """Fetch one registered field fresh from IRSA and return its all-sky tile.
+
+    The fresh all-sky view calls this once per field, in sequence: a single
+    request for all 18 would run ~12 minutes with no partial result.
+    """
+    registry = _meta_from_targets_registry(target)
+    if registry is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"'{target}' is not a registered field."})
+    entry = {"name": target, "common": registry["meta"]["common"],
+             "ra": registry["meta"]["ra"], "dec": registry["meta"]["dec"]}
+    checked_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    started = time.monotonic()
+    result = get_dashboard(target=target, source="live", live_slots=0,
+                           live_size=0.2, live_epochs="firstlast")
+    payload = result if isinstance(result, dict) else None
+    if payload is None or payload.get("error") or payload.get("zogy_snr") is None:
+        if payload is None:
+            try:
+                payload = json.loads(result.body.decode("utf-8"))
+            except (AttributeError, UnicodeDecodeError, json.JSONDecodeError):
+                payload = {}
+        tile = unavailable_mosaic_tile(
+            entry, payload.get("error") or "The fresh IRSA run returned no map.",
+            thumb=thumb)
+    else:
+        tile = mosaic_tile(payload, thumb=thumb)
+    tile["source"] = "live"
+    tile["generated_at"] = checked_at
+    tile["irsa_check"] = (payload or {}).get("irsa_check")
+    tile["elapsed_seconds"] = round(time.monotonic() - started, 1)
+    return tile
+
+
+@app.get("/api/mosaic/tile/stream")
+async def stream_mosaic_tile(target: str = Query(..., max_length=80)):
+    return _progress_stream(
+        lambda: live_mosaic_tile(target),
+        f"Fetching {target} fresh from IRSA for the all-sky view",
+    )
+
+
+@_rate_limited_route("get", "/api/mosaic", "60/minute")
+def get_mosaic(request: Request = None,
+               thumb: int = Query(48, ge=16, le=96),
+               refresh: int = Query(0, ge=0, le=1),
+               source: str = Query("cache")):
     """
     One small tile per cached target, for the all-sky view.
 
@@ -741,68 +2477,28 @@ def get_mosaic(thumb: int = Query(48), refresh: int = Query(0)):
     """
     import time as _time
 
-    if (not refresh and MOSAIC_CACHE["payload"]
-            and (_time.time() - MOSAIC_CACHE["t"]) < MOSAIC_TTL):
-        return MOSAIC_CACHE["payload"]
+    store = _snapshot_store()
+    if store is not None and str(source).lower() != "live":
+        manifest = _published_manifest(store)
+        return _published_json(store, manifest.get("mosaic"), "all-sky mosaic")
 
-    tiles = []
-    for entry in list_targets()["targets"]:
-        if entry["name"] in FIELD_REGISTRY:
-            continue
-        name = entry["name"]
-        dashboard = get_dashboard(target=name)
-        if not isinstance(dashboard, dict):
-            continue
-        stats = dashboard.get("stats", {})
-        tiles.append({
-            "target": name,
-            "common": dashboard.get("common", name),
-            "ra": dashboard["ra"],
-            "dec": dashboard["dec"],
-            "fov_arcmin": dashboard["map"]["fov_arcmin"],
-            "thumb": _thumbnail(dashboard["zogy_snr"], size=thumb),
-            "thumb_npix": thumb,
-            "n_detections": stats.get("n_detections", 0),
-            "n_known": stats.get("n_known", 0),
-            "n_candidate": stats.get("n_candidate", 0),
-            "max_snr": stats.get("max_snr"),
-            "baseline_days": stats.get("baseline_days"),
-            "sigma1": stats.get("sigma1"),
-            "sigma2": stats.get("sigma2"),
-            "n_exposures": stats.get("n_exposures"),
-            "n_epochs": stats.get("n_epochs"),
-            "n_gaia": stats.get("n_gaia"),
-            "n_vsx": stats.get("n_vsx"),
-            "source": dashboard.get("source", "cache"),
-        })
+    if source.lower() == "live":
+        return JSONResponse(
+            status_code=501,
+            content={
+                "error": "Fresh all-sky IRSA mosaics are not implemented. "
+                         "This endpoint only serves cache-derived tiles.",
+                "hint": "Select one field to fetch its cutouts from IRSA; "
+                        "fresh all-sky cutouts and processing cannot complete "
+                        "within 200 ms."
+            })
 
-    for name, payload_dash in FIELD_DASH_CACHE.items():
-        stats = payload_dash.get("stats", {})
-        tiles.append({
-            "target": name,
-            "common": payload_dash.get("common", name),
-            "ra": payload_dash["ra"], "dec": payload_dash["dec"],
-            "fov_arcmin": payload_dash["map"]["fov_arcmin"],
-            "thumb": _thumbnail(payload_dash["zogy_snr"], size=thumb),
-            "thumb_npix": thumb,
-            "n_detections": stats.get("n_detections", 0),
-            "n_known": stats.get("n_known", 0),
-            "n_candidate": stats.get("n_candidate", 0),
-            "max_snr": stats.get("max_snr"),
-            "baseline_days": stats.get("baseline_days"),
-            "sigma1": stats.get("sigma1"), "sigma2": stats.get("sigma2"),
-            "n_exposures": stats.get("n_exposures"),
-            "n_epochs": stats.get("n_epochs"),
-            "n_gaia": 0, "n_vsx": 0,
-            "source": "live", "custom": True,
-        })
-
-    payload = {"tiles": tiles, "n_fields": len(tiles),
-               "sky_area_deg2": round(sum(
-                   (t["fov_arcmin"] / 60.0) ** 2 for t in tiles), 6)}
-    MOSAIC_CACHE["t"] = _time.time()
-    MOSAIC_CACHE["payload"] = payload
-    return payload
+    # N3: no local-file fallback — the snapshot store is required.
+    raise HTTPException(
+        status_code=503,
+        detail="Snapshot store is not available. "
+               "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name."
+    )
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

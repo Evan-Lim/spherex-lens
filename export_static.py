@@ -4,7 +4,7 @@ export_static.py
 OPTIONAL deployment helper -- NOT one of the ten blueprint files.
 
 The app is a FastAPI service plus a vanilla-JS dashboard.  Render/Railway/Fly
-can run the whole thing as a container (see Dockerfile), but Netlify, Vercel,
+can run the whole thing as a container (see Dockerfile), but Netlify,
 Cloudflare Pages and GitHub Pages can only serve static files.  This script
 pre-renders every API response the dashboard needs, so the same UI runs with no
 backend at all:
@@ -25,12 +25,12 @@ Output:
     └── figures/              the pipeline charts, for the "science" section
 
 Deploy with any static host:  netlify deploy --dir site
-                              vercel --cwd site
                               (or point GitHub Pages at site/)
 """
 
 import os
 import sys
+import html as html_lib
 import json
 import shutil
 import argparse
@@ -47,18 +47,23 @@ except ModuleNotFoundError as exc:      # e.g. running with the wrong Python
         "or, with conda:\n\n"
         "  conda create -n spherex python=3.11 -y && conda activate spherex\n"
         "  pip install -r requirements.txt && python export_static.py\n\n"
-        "If you only want to DEPLOY, you do not need this script: site/ already\n"
-        "contains the pre-rendered site (5 targets). Publish that folder.\n"
+        "If you only want to DEPLOY, you do not need this script: publish the\n"
+        "site/ folder that was last generated for this project.\n"
     )
 
 
 def build(outdir="site", targets=None, with_recovery=True, with_figures=True,
-          api_base=""):
+          api_base="", pipeline_api_base=""):
     """Render the API responses for every cached target into outdir/."""
-    targets = targets or [t["name"] for t in portal.list_targets()["targets"]]
+    target_index = portal.list_targets()["targets"]
+    targets = targets or [t["name"] for t in target_index]
     if not targets:
         raise SystemExit("No cached targets: run step1_ingest.py or "
                          "make_demo_data.py first.")
+    target_entries = {t["name"]: t for t in target_index}
+    unknown = sorted(set(targets) - set(target_entries))
+    if unknown:
+        raise SystemExit(f"Unknown target(s): {', '.join(unknown)}")
 
     api_dir = os.path.join(outdir, "api")
     os.makedirs(api_dir, exist_ok=True)
@@ -68,41 +73,77 @@ def build(outdir="site", targets=None, with_recovery=True, with_figures=True,
         shutil.copy(os.path.join("static", fname), os.path.join(outdir, fname))
     index_path = os.path.join(outdir, "index.html")
     with open(index_path) as f:
-        html = f.read()
+        page = f.read()
     body_attrs = 'data-mode="static" data-api-dir="api"'
     if api_base:
-        body_attrs += f' data-api-base="{api_base}"'
-    html = html.replace("<body>", f"<body {body_attrs}>", 1)
+        body_attrs += f' data-api-base="{html_lib.escape(api_base, quote=True)}"'
+    if pipeline_api_base:
+        body_attrs += (
+            f' data-live-api="{html_lib.escape(pipeline_api_base.rstrip("/"), quote=True)}"')
+    page = page.replace("<body>", f"<body {body_attrs}>", 1)
     with open(index_path, "w") as f:
-        f.write(html)
+        f.write(page)
 
 
     written = []
+    mosaic_tiles = []
     for name in targets:
         print(f" {name}")
         dashboard = portal.get_dashboard(target=name)
-        if not isinstance(dashboard, dict):
-            print(f"   skipped: {getattr(dashboard, 'body', dashboard)}")
-            continue
         path = os.path.join(api_dir, f"dashboard-{name}.json")
-        with open(path, "w") as f:
-            json.dump(dashboard, f)
+        if isinstance(dashboard, portal.JSONResponse):
+            try:
+                body = json.loads(dashboard.body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                body = {"error": f"Dashboard returned HTTP {dashboard.status_code}"}
+            with open(path, "w") as f:
+                json.dump(body, f)
+            mosaic_tiles.append(portal.unavailable_mosaic_tile(
+                target_entries[name], body.get("error", "dashboard unavailable")))
+            print(f"   saved unavailable status: {body.get('error', 'dashboard unavailable')}")
+        elif isinstance(dashboard, dict):
+            with open(path, "w") as f:
+                json.dump(dashboard, f)
+            mosaic_tiles.append(portal.mosaic_tile(dashboard))
+        else:
+            body = {"error": "Dashboard returned an unexpected response"}
+            with open(path, "w") as f:
+                json.dump(body, f)
+            mosaic_tiles.append(portal.unavailable_mosaic_tile(
+                target_entries[name], body["error"]))
+            print(f"   saved unavailable status: {body['error']}")
         written.append(path)
 
         if with_recovery:
             try:
                 recovery = portal.get_recovery(target=name)
-                if isinstance(recovery, dict):
-                    path = os.path.join(api_dir, f"recovery-{name}.json")
-                    with open(path, "w") as f:
-                        json.dump(recovery, f)
-                    written.append(path)
+                path = os.path.join(api_dir, f"recovery-{name}.json")
+                if isinstance(recovery, portal.JSONResponse):
+                    try:
+                        recovery = json.loads(recovery.body.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        recovery = {"error": f"Recovery returned HTTP {recovery.status_code}"}
+                if not isinstance(recovery, dict):
+                    recovery = {"error": "Recovery returned an unexpected response."}
+                with open(path, "w") as f:
+                    json.dump(recovery, f)
+                written.append(path)
             except Exception as e:
-                print(f"   recovery skipped: {e}")
+                path = os.path.join(api_dir, f"recovery-{name}.json")
+                with open(path, "w") as f:
+                    json.dump({"error": f"Recovery export failed ({type(e).__name__}). "
+                                         "See the export log."}, f)
+                written.append(path)
+                print(f"   recovery export failed: {type(e).__name__}: {e}")
+        else:
+            path = os.path.join(api_dir, f"recovery-{name}.json")
+            with open(path, "w") as f:
+                json.dump({"error": "Recovery grids were omitted from this export."}, f)
+            written.append(path)
 
-    # All-sky tiles (one small thumbnail per field) for the sky view.
+    # Use the dashboards rendered above instead of recomputing every field.
     try:
-        mosaic = portal.get_mosaic(thumb=48, refresh=0)
+        mosaic = portal.mosaic_payload(mosaic_tiles)
         path = os.path.join(api_dir, "mosaic.json")
         with open(path, "w") as f:
             json.dump(mosaic, f)
@@ -110,8 +151,8 @@ def build(outdir="site", targets=None, with_recovery=True, with_figures=True,
     except Exception as e:
         print(f"   mosaic skipped: {e}")
 
-    # The target index lists only what was actually rendered.
-    available = [t for t in portal.list_targets()["targets"] if t["name"] in targets]
+    # Keep unavailable targets selectable so their saved error explains the gap.
+    available = [target_entries[name] for name in targets]
     with open(os.path.join(api_dir, "targets.json"), "w") as f:
         json.dump({"targets": available}, f, indent=2)
     written.append(os.path.join(api_dir, "targets.json"))
@@ -140,16 +181,17 @@ def main():
                         help="proxy prefix for a live backend, e.g. /live-api "
                              "(see netlify.toml); enables live mode and "
                              "'open any field' on the deployed site")
+    parser.add_argument("--pipeline-api-base", default="",
+                        help="direct Cloud Run API base for long live requests, "
+                             "e.g. https://service.run.app/api")
     args = parser.parse_args()
-
-    if os.path.isdir(args.outdir):
-        shutil.rmtree(args.outdir)
 
     print(f"Rendering static site into {args.outdir}/ ...")
     written, available = build(args.outdir, args.targets,
                                with_recovery=not args.no_recovery,
                                with_figures=not args.no_figures,
-                               api_base=args.api_base)
+                               api_base=args.api_base,
+                               pipeline_api_base=args.pipeline_api_base)
 
     total = sum(os.path.getsize(p) for p in written if os.path.isfile(p))
     print(f"\n{len(available)} target(s): "
@@ -159,9 +201,11 @@ def main():
     if args.api_base:
         print(f"Live backend proxied at {args.api_base}/ "
               "(set the redirect target in netlify.toml)")
+    if args.pipeline_api_base:
+        print(f"Long-running live requests go directly to "
+              f"{args.pipeline_api_base.rstrip('/')}")
     print("\nDeploy:")
     print(f"  netlify deploy --prod --dir {args.outdir}")
-    print(f"  vercel --cwd {args.outdir}")
     print(f"  (or set the GitHub Pages source to /{args.outdir})")
 
 
