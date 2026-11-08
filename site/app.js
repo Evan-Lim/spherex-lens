@@ -78,16 +78,18 @@ function syncBackendUi() {
         + 'one) to switch these on.';
     hint.classList.toggle('hint-warn', !ok);
   }
+  // Offline, coordinates saved in History still open, so the inputs stay on.
+  const fieldOk = ok || isOffline;
   if (fieldBtn) {
-    fieldBtn.disabled = !ok;
-    fieldBtn.classList.toggle('is-disabled', !ok);
+    fieldBtn.disabled = !fieldOk;
+    fieldBtn.classList.toggle('is-disabled', !fieldOk);
   }
   ['field-ra', 'field-dec', 'field-name'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.disabled = !ok;
+    if (el) el.disabled = !fieldOk;
   });
   if (fieldHint && isOffline) {
-    fieldHint.textContent = 'unavailable offline \u2014 opening a new field needs IRSA';
+    fieldHint.textContent = 'offline \u2014 only coordinates saved in History can be opened';
     fieldHint.classList.add('hint-warn');
     fieldHint.dataset.offline = 'true';
   } else if (fieldHint && !ok) {
@@ -943,12 +945,433 @@ function rememberRefreshStatus(status) {
   offlineWriteJson(OFFLINE_LAST_STATUS_URL, status).catch(() => {});
 }
 
+// --------------------------------------------------------- research history
+//
+// Every result a researcher fetches -- custom fields, fresh IRSA runs of the
+// registered fields, live recovery grids -- is saved on this device exactly as
+// received (IndexedDB), so it can be found again by name or coordinates and
+// reopened without internet. Entries (small) and payloads (MBs) are stored
+// separately so listing never loads the payloads.
+
+const HISTORY_DB = 'spx-history';
+const HISTORY_LIMIT_BYTES = 200 * 1024 * 1024;
+const HISTORY_MATCH_ARCSEC = 1;
+const HISTORY_FORMAT = 'spherexlens-history';
+const HISTORY_KINDS = { field: 'custom field', fresh: 'fresh IRSA', recovery: 'recovery' };
+
+const researchHistory = {
+  db: null,
+  entries: [],
+  filter: '',
+  note: '',
+};
+
+function historyOpen() {
+  if (researchHistory.db) return Promise.resolve(researchHistory.db);
+  if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB unavailable'));
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(HISTORY_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      const entries = db.createObjectStore('entries', { keyPath: 'id' });
+      entries.createIndex('key', 'key', { unique: false });
+      db.createObjectStore('payloads', { keyPath: 'id' });
+    };
+    request.onsuccess = () => { researchHistory.db = request.result; resolve(researchHistory.db); };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function historyTx(stores, mode, work) {
+  return historyOpen().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(stores, mode);
+    let result;
+    Promise.resolve(work(tx)).then((value) => { result = value; }, reject);
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('history transaction aborted'));
+  }));
+}
+
+function idbRequest(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function historyKey(kind, target, ra, dec, params) {
+  if (kind === 'field') {
+    return ['field', Number(ra).toFixed(5), Number(dec).toFixed(5),
+      params.slots ?? '', params.size ?? '', params.epochs ?? ''].join('|');
+  }
+  return `${kind}|${target}`;
+}
+
+function historySeparationArcsec(ra1, dec1, ra2, dec2) {
+  const rad = Math.PI / 180;
+  const dRa = ((ra1 - ra2 + 540) % 360 - 180) * Math.cos(((dec1 + dec2) / 2) * rad);
+  return Math.hypot(dRa, dec1 - dec2) * 3600;
+}
+
+async function historyRefresh() {
+  try {
+    researchHistory.entries = await historyTx(['entries'], 'readonly',
+      (tx) => idbRequest(tx.objectStore('entries').getAll()));
+    researchHistory.entries.sort((a, b) => String(b.saved_at).localeCompare(String(a.saved_at)));
+  } catch (error) {
+    researchHistory.entries = [];
+    researchHistory.note = `History unavailable in this browser (${error.message}).`;
+  }
+  researchHistory.loaded = true;
+  renderResearchHistory();
+}
+
+// Save one result. Replaces the previous unpinned result with the same key;
+// pinned results are never replaced or removed automatically.
+async function historySave({ kind, target, name, ra, dec, params = {}, data,
+  irsaCheck = null }) {
+  if (!data || typeof data !== 'object') return;
+  try {
+    const id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const key = historyKey(kind, target, ra, dec, params);
+    const stats = data.stats || {};
+    const entry = {
+      id, kind, key, target, name: name || data.common || target,
+      ra: Number.isFinite(ra) ? ra : null,
+      dec: Number.isFinite(dec) ? dec : null,
+      params, saved_at: new Date().toISOString(), pinned: false,
+      bytes: JSON.stringify(data).length,
+      fingerprint: irsaCheck?.source_fingerprint || null,
+      irsa_check: irsaCheck,
+      summary: kind === 'recovery'
+        ? { cells: (data.grid || []).length }
+        : { detections: (data.detections || []).length,
+          max_snr: stats.max_snr ?? null, exposures: stats.n_exposures ?? null },
+    };
+    await historyTx(['entries', 'payloads'], 'readwrite', async (tx) => {
+      const entries = tx.objectStore('entries');
+      const payloads = tx.objectStore('payloads');
+      const same = await idbRequest(entries.index('key').getAll(key));
+      same.filter((old) => !old.pinned).forEach((old) => {
+        entries.delete(old.id);
+        payloads.delete(old.id);
+      });
+      entries.put(entry);
+      payloads.put({ id, data });
+    });
+    const removed = await historyEnforceLimit(id);
+    researchHistory.note = removed
+      ? `History is full (${fmt.bytes(HISTORY_LIMIT_BYTES)}): removed ${removed} oldest unpinned result(s).`
+      : '';
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    await historyRefresh();
+  } catch (error) {
+    researchHistory.note = error && error.name === 'QuotaExceededError'
+      ? 'Not enough browser storage to save this result in History.'
+      : `Could not save to History: ${error.message}`;
+    renderResearchHistory();
+  }
+}
+
+async function historyEnforceLimit(keepId) {
+  const entries = await historyTx(['entries'], 'readonly',
+    (tx) => idbRequest(tx.objectStore('entries').getAll()));
+  let total = entries.reduce((sum, e) => sum + (e.bytes || 0), 0);
+  const victims = [];
+  entries.filter((e) => !e.pinned && e.id !== keepId)
+    .sort((a, b) => String(a.saved_at).localeCompare(String(b.saved_at)))
+    .forEach((e) => {
+      if (total > HISTORY_LIMIT_BYTES) {
+        victims.push(e.id);
+        total -= e.bytes || 0;
+      }
+    });
+  if (victims.length) {
+    await historyTx(['entries', 'payloads'], 'readwrite', (tx) => {
+      victims.forEach((id) => {
+        tx.objectStore('entries').delete(id);
+        tx.objectStore('payloads').delete(id);
+      });
+    });
+  }
+  return victims.length;
+}
+
+async function historyPayload(id) {
+  const row = await historyTx(['payloads'], 'readonly',
+    (tx) => idbRequest(tx.objectStore('payloads').get(id)));
+  return row ? row.data : null;
+}
+
+async function historyUpdate(id, changes) {
+  await historyTx(['entries'], 'readwrite', async (tx) => {
+    const store = tx.objectStore('entries');
+    const entry = await idbRequest(store.get(id));
+    if (entry) store.put({ ...entry, ...changes });
+  });
+  await historyRefresh();
+}
+
+async function historyDelete(id) {
+  await historyTx(['entries', 'payloads'], 'readwrite', (tx) => {
+    tx.objectStore('entries').delete(id);
+    tx.objectStore('payloads').delete(id);
+  });
+  await historyRefresh();
+}
+
+function historyFindField(ra, dec, params) {
+  return researchHistory.entries.find((e) => e.kind === 'field'
+    && Number.isFinite(e.ra) && Number.isFinite(e.dec)
+    && String(e.params?.slots ?? '') === String(params.slots ?? '')
+    && historySeparationArcsec(e.ra, e.dec, ra, dec) <= HISTORY_MATCH_ARCSEC) || null;
+}
+
+function historyMatches(entry, filter) {
+  if (!filter) return true;
+  const coords = filter.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (coords && Number.isFinite(entry.ra)) {
+    // "RA, Dec": anything within 0.1 degree (the cutout radius).
+    return historySeparationArcsec(entry.ra, entry.dec,
+      Number(coords[1]), Number(coords[2])) <= 360;
+  }
+  const text = `${entry.name} ${entry.target} ${HISTORY_KINDS[entry.kind]}`.toLowerCase();
+  return text.includes(filter.toLowerCase());
+}
+
+function renderResearchHistory() {
+  const list = $('history-list');
+  if (!list) return;
+  const total = researchHistory.entries.reduce((sum, e) => sum + (e.bytes || 0), 0);
+  setText('history-usage', researchHistory.entries.length
+    ? `${researchHistory.entries.length} saved · ${fmt.bytes(total)} of ${fmt.bytes(HISTORY_LIMIT_BYTES)}`
+    : '');
+  const shown = researchHistory.entries.filter((e) => historyMatches(e, researchHistory.filter));
+  list.replaceChildren(...shown.map((entry) => {
+    const item = document.createElement('li');
+    item.className = 'history-item';
+    item.dataset.id = entry.id;
+    const coords = Number.isFinite(entry.ra)
+      ? `${entry.ra.toFixed(4)}, ${entry.dec.toFixed(4)}` : '';
+    const summary = entry.kind === 'recovery'
+      ? `${entry.summary?.cells ?? '?'} cells`
+      : `${entry.summary?.detections ?? '?'} detections`;
+    const title = document.createElement('div');
+    title.className = 'history-title';
+    title.textContent = `${entry.pinned ? '★ ' : ''}${entry.name}`;
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+    meta.textContent = [HISTORY_KINDS[entry.kind], coords, summary,
+      formatTimestamp(entry.saved_at)].filter(Boolean).join(' · ');
+    const actions = document.createElement('div');
+    actions.className = 'history-actions-row';
+    const button = (action, text, label) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'history-btn';
+      b.dataset.action = action;
+      b.textContent = text;
+      b.setAttribute('aria-label', `${label}: ${entry.name}`);
+      return b;
+    };
+    actions.append(
+      button('open', 'Open', 'Open saved result'),
+      button('pin', entry.pinned ? 'Unpin' : 'Pin', entry.pinned ? 'Unpin' : 'Pin'),
+      button('delete', 'Delete', 'Delete saved result'));
+    item.append(title, meta, actions);
+    return item;
+  }));
+  const empty = $('history-empty');
+  if (empty) {
+    empty.hidden = shown.length > 0;
+    empty.textContent = researchHistory.entries.length
+      ? 'No saved result matches this search.'
+      : 'Results you fetch from IRSA are saved here automatically, and open without internet.';
+  }
+  setText('history-note', researchHistory.note);
+}
+
+function renderRecoveryHistoryLabel(entry) {
+  return `Saved recovery result from ${formatTimestamp(entry.saved_at)}`;
+}
+
+async function openHistoryEntry(entry) {
+  const data = await historyPayload(entry.id);
+  if (!data) {
+    researchHistory.note = 'This saved result is missing its data; it was removed.';
+    await historyDelete(entry.id);
+    return false;
+  }
+  const sel = $('target-select');
+  if (entry.kind === 'field' && ![...sel.options].some((o) => o.value === entry.target)) {
+    const option = document.createElement('option');
+    option.value = entry.target;
+    option.textContent = `${entry.name} (${entry.ra.toFixed(2)}, ${entry.dec.toFixed(2)})`;
+    sel.appendChild(option);
+  }
+  if ([...sel.options].some((o) => o.value === entry.target)) sel.value = entry.target;
+  if (entry.kind === 'field') {
+    state.fieldCoordinates = { ra: entry.ra, dec: entry.dec, name: entry.name };
+    state.customFields[entry.target] = state.fieldCoordinates;
+  }
+  if (entry.kind === 'recovery') {
+    const message = renderRecoveryResult(data, renderRecoveryHistoryLabel(entry));
+    setText('action-message', message);
+    return true;
+  }
+  if (state.viewMode === 'sky') switchView('field');
+  await waitForPipeline();
+  await runPipeline(data, null, entry);
+  return true;
+}
+
+function historyExport() {
+  return Promise.all(researchHistory.entries.map(async (entry) => ({
+    ...entry, data: await historyPayload(entry.id),
+  }))).then((entries) => {
+    const file = {
+      format: HISTORY_FORMAT, version: 1,
+      exported_at: new Date().toISOString(),
+      entries: entries.filter((e) => e.data),
+    };
+    const blob = new Blob([JSON.stringify(file)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `spherexlens-history-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+    researchHistory.note = `Exported ${file.entries.length} saved result(s).`;
+    renderResearchHistory();
+  });
+}
+
+function historyValidEntry(e) {
+  if (!e || typeof e !== 'object' || !HISTORY_KINDS[e.kind]) return false;
+  if (typeof e.id !== 'string' || typeof e.target !== 'string') return false;
+  if (!e.data || typeof e.data !== 'object') return false;
+  if (e.kind === 'recovery') return Array.isArray(e.data.grid);
+  return Array.isArray(e.data.detections) && !!e.data.map
+    && Number.isFinite(e.ra ?? e.data.ra ?? 0);
+}
+
+async function historyImport(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    researchHistory.note = 'Import failed: the file is not valid JSON.';
+    renderResearchHistory();
+    return;
+  }
+  if (!parsed || parsed.format !== HISTORY_FORMAT || !Array.isArray(parsed.entries)) {
+    researchHistory.note = 'Import failed: this is not a SPHERExLens history file.';
+    renderResearchHistory();
+    return;
+  }
+  const valid = parsed.entries.filter(historyValidEntry);
+  const known = new Set(researchHistory.entries.map((e) => e.id));
+  const fresh = valid.filter((e) => !known.has(e.id));
+  try {
+    await historyTx(['entries', 'payloads'], 'readwrite', (tx) => {
+      fresh.forEach(({ data, ...entry }) => {
+        tx.objectStore('entries').put({
+          ...entry,
+          key: historyKey(entry.kind, entry.target, entry.ra, entry.dec, entry.params || {}),
+          bytes: JSON.stringify(data).length,
+        });
+        tx.objectStore('payloads').put({ id: entry.id, data });
+      });
+    });
+    const removed = await historyEnforceLimit(null);
+    researchHistory.note = `Imported ${fresh.length} result(s)` +
+      (valid.length - fresh.length ? `; ${valid.length - fresh.length} already saved` : '') +
+      (parsed.entries.length - valid.length
+        ? `; ${parsed.entries.length - valid.length} skipped (incomplete)` : '') +
+      (removed ? `; removed ${removed} oldest unpinned to stay within the limit` : '') + '.';
+  } catch (error) {
+    researchHistory.note = `Import failed: ${error.message}`;
+  }
+  await historyRefresh();
+}
+
+function attachHistoryEvents() {
+  const list = $('history-list');
+  if (list) {
+    list.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const id = button.closest('.history-item')?.dataset.id;
+      const entry = researchHistory.entries.find((e) => e.id === id);
+      if (!entry) return;
+      if (button.dataset.action === 'open') await openHistoryEntry(entry);
+      if (button.dataset.action === 'pin') await historyUpdate(id, { pinned: !entry.pinned });
+      if (button.dataset.action === 'delete') {
+        if (entry.pinned && !window.confirm(`Delete the pinned result "${entry.name}"?`)) return;
+        await historyDelete(id);
+      }
+    });
+  }
+  $('history-search')?.addEventListener('input', (event) => {
+    researchHistory.filter = event.target.value.trim();
+    renderResearchHistory();
+  });
+  $('history-export')?.addEventListener('click', () => historyExport());
+  $('history-import')?.addEventListener('change', async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (file) await historyImport(file);
+    event.target.value = '';
+  });
+}
+
+// ------------------------------------------------- live service wake-up
+// The live pipeline service scales to zero. A cheap request when someone
+// starts typing coordinates (or reaches for the IRSA toggle) wakes it while
+// they type, so the real request does not also wait for a cold start.
+let liveWarmedAt = 0;
+function warmLivePipeline() {
+  if (!LIVE_PIPELINE_API || offline.mode === 'offline') return;
+  if (Date.now() - liveWarmedAt < 4 * 60 * 1000) return;
+  liveWarmedAt = Date.now();
+  fetch(`${LIVE_PIPELINE_API}/targets`, { cache: 'no-store' }).catch(() => {});
+}
+
+function catalogSummary(dashboard) {
+  const counts = dashboard?.catalog_counts || {};
+  const status = dashboard?.catalog_status || {};
+  const labels = { gaia: 'Gaia', wise: 'AllWISE', vsx: 'VSX' };
+  const parts = Object.keys(labels).filter((k) => k in counts || k in status)
+    .map((k) => (status[k] === 'unavailable'
+      ? `${labels[k]} unavailable` : `${labels[k]} ${counts[k] ?? 0}`));
+  return parts.length ? `catalogues: ${parts.join(' · ')}` : '';
+}
+
+function unavailableCatalogs(dashboard) {
+  const status = dashboard?.catalog_status || {};
+  const labels = { gaia: 'Gaia', wise: 'AllWISE', vsx: 'VSX' };
+  return Object.keys(labels).filter((k) => status[k] === 'unavailable').map((k) => labels[k]);
+}
+
+async function unpackStreamResult(result) {
+  if (result.encoding !== 'gzip-base64') return result.data;
+  const binary = atob(result.data_packed);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(stream).text());
+}
+
 async function fetchProgressApi(kind, target, onProgress, extraParams = {}) {
   const base = STATIC_MODE
     ? (LIVE_PIPELINE_API || LIVE_API)
     : `${API_BASE}/api`;
   const params = new URLSearchParams(extraParams);
   if (target) params.set('target', target);
+  // The final result arrives gzip-packed (about 5x smaller) when this
+  // browser can unpack it; it unpacks to exactly the same JSON.
+  if ('DecompressionStream' in window) params.set('result', 'gzip');
   const response = await fetch(`${base}/${kind}/stream?${params}`, {
     cache: 'no-store',
     headers: { Accept: 'text/event-stream' },
@@ -995,7 +1418,7 @@ async function fetchProgressApi(kind, target, onProgress, extraParams = {}) {
     unsupported: false,
     ok: result.status >= 200 && result.status < 300,
     status: result.status,
-    data: result.data,
+    data: await unpackStreamResult(result),
     elapsedSeconds: result.elapsed_seconds,
   };
 }
@@ -1902,7 +2325,7 @@ function renderProvenance(data) {
 
 // --------------------------------------------------------------- pipeline IO
 
-async function runPipeline(preloadedData = null, preloadedElapsed = null) {
+async function runPipeline(preloadedData = null, preloadedElapsed = null, savedEntry = null) {
   let statusPromise = null;   // fetched alongside the dashboard
   let fromSavedCopy = false;  // served by sw.js from this device's offline copy
   if (state.pipelineRunning) return;
@@ -2061,6 +2484,15 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null) {
       setText('cloud-support-freshness', '');
     }
     if (data.irsa_check) freshness = `${irsaCheckText(data.irsa_check)}; ${freshness}`;
+    if (savedEntry) {
+      freshness = `saved result from ${formatTimestamp(savedEntry.saved_at)}, ` +
+        'opened from History on this device';
+    }
+    const missingCatalogs = unavailableCatalogs(data);
+    if (missingCatalogs.length) {
+      freshness += `; ${missingCatalogs.join(', ')} catalogue unavailable for this run, ` +
+        'so matches against it are missing';
+    }
     const offlineView = fromSavedCopy && offline.mode === 'offline';
     if (offlineView) {
       freshness = `offline copy saved on this device ${formatTimestamp(
@@ -2086,9 +2518,16 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null) {
         : (data.generated_at
           ? `Field data loaded from local cache; pipeline completed ${formatTimestamp(data.generated_at)}`
           : 'Field data loaded from local cache; pipeline completion time unavailable')));
-    setStatus(offlineView ? 'OFFLINE \u00b7 SAVED CLOUD SNAPSHOT' : data.source === 'scheduled'
-      ? 'SCHEDULED CLOUD SNAPSHOT'
-      : 'NORMAL OPS \u00b7 FIELD LOADED', offlineView ? 'busy' : undefined);
+    setStatus(savedEntry ? 'SAVED RESULT \u00b7 HISTORY'
+      : offlineView ? 'OFFLINE \u00b7 SAVED CLOUD SNAPSHOT' : data.source === 'scheduled'
+        ? 'SCHEDULED CLOUD SNAPSHOT'
+        : 'NORMAL OPS \u00b7 FIELD LOADED', offlineView || savedEntry ? 'busy' : undefined);
+    if (savedEntry) progress.update(`Opened the saved result from ${formatTimestamp(savedEntry.saved_at)}`);
+    // A fresh IRSA run of a registered field is research work: keep it.
+    if (!preloadedData && state.live && data.source === 'live') {
+      historySave({ kind: 'fresh', target, name: data.common, ra: data.ra, dec: data.dec,
+        data, irsaCheck: data.irsa_check || null });
+    }
     setText('footer-status',
       `${target} \u00b7 ${data.detections.length} detections \u00b7 ` +
       `${data.source === 'scheduled' ? 'published' : 'computed'} ` +
@@ -2115,21 +2554,39 @@ async function openFieldAt(ra, dec, name) {
     setText('field-hint', 'enter RA in [0, 360] and Dec in [-90, 90] degrees');
     return false;
   }
+  const params = {
+    ra: String(ra),
+    dec: String(dec),
+    name,
+    slots: '4',
+  };
+  // Coordinates opened before: show the saved result at once.
+  if (!researchHistory.loaded) await historyRefresh();
+  const saved = historyFindField(ra, dec, params);
+  if (saved && await openHistoryEntry(saved)) {
+    const when = formatTimestamp(saved.saved_at);
+    if (offline.mode === 'offline' || !backendAvailable()) {
+      setText('field-hint', `saved result from ${when} (offline: opened from History)`);
+      return true;
+    }
+    if (saved.fingerprint) params.known = saved.fingerprint;
+    setText('field-hint', `saved result from ${when} shown · checking IRSA for new images…`);
+  } else if (offline.mode === 'offline') {
+    setText('field-hint',
+      'offline, and these coordinates are not in History \u2014 new fields need IRSA');
+    return false;
+  }
   if (!backendAvailable()) {
     setText('field-hint', 'this needs a backend — set data-api-base to your API URL');
     return false;
   }
-  setText('field-hint', 'fetching cutouts from IRSA — this can take a minute…');
+  if (!saved) setText('field-hint', 'fetching cutouts from IRSA…');
   const started = performance.now();
-  const progress = startActionProgress('Querying IRSA for the custom field');
-  show('map-loader');
+  const progress = startActionProgress(saved
+    ? 'Checking IRSA for new images at these coordinates'
+    : 'Querying IRSA for the custom field');
+  if (!saved) show('map-loader');
   try {
-    const params = {
-      ra: String(ra),
-      dec: String(dec),
-      name,
-      slots: '4',
-    };
     const streamed = await fetchProgressApi('field', null, (event) => {
       progress.update(event.message || 'Custom-field pipeline is running');
       setText('field-hint', event.message || 'Custom-field pipeline is running');
@@ -2154,6 +2611,15 @@ async function openFieldAt(ra, dec, name) {
       }
       elapsed = (performance.now() - started) / 1000;
     }
+    if (data.unchanged && saved) {
+      const check = data.irsa_check || {};
+      const message = `IRSA checked: same ${check.irsa_rows} images as your saved result ` +
+        `from ${formatTimestamp(saved.saved_at)}, so nothing was reprocessed`;
+      setText('field-hint', message);
+      progress.update(message);
+      await historyUpdate(saved.id, { irsa_check: check, last_checked_at: check.checked_at });
+      return true;
+    }
     if (!data.dashboard) throw new Error('Backend response omitted the field dashboard');
     const sel = $('target-select');
     if (![...sel.options].some((option) => option.value === data.target)) {
@@ -2166,9 +2632,15 @@ async function openFieldAt(ra, dec, name) {
     state.fieldCoordinates = { ra: data.ra, dec: data.dec, name: data.common };
     state.customFields[data.target] = state.fieldCoordinates;
     progress.update(`${data.common}: IRSA field processing complete`);
+    const catalogText = catalogSummary(data.dashboard);
     setText('field-hint',
       `${data.common}: ${data.n_detections} detections, max ${data.max_snr}σ, ` +
-      `${data.n_exposures} exposures, ${data.n_epochs} epoch(s)`);
+      `${data.n_exposures} exposures, ${data.n_epochs} epoch(s)` +
+      (catalogText ? ` · ${catalogText}` : '') +
+      (saved ? ' · IRSA had new images, so this is a fresh result' : ''));
+    historySave({ kind: 'field', target: data.target, name: data.common,
+      ra: data.ra, dec: data.dec, params: { slots: params.slots },
+      data: data.dashboard, irsaCheck: data.irsa_check || null });
     state.mosaic = null;
     progress.stop();
     await runPipeline(data.dashboard, elapsed);
@@ -2191,6 +2663,31 @@ function refreshSelectedTarget() {
   }
   state.fieldCoordinates = null;
   runPipeline();
+}
+
+function renderRecoveryResult(data, savedLabel = null) {
+  const grid = data.grid || [];
+  state.recovery = grid;
+  const lines = grid.slice(0, 6).map((g) =>
+    `SNR ${String(g.snr).padStart(2)} \u00b7 \u03bc ${String(g.mu).padStart(2)}\u2033/yr \u2192 ${(g.recovery * 100).toFixed(0)}%`);
+  const best = grid.reduce((a, b) => (b.recovery > (a ? a.recovery : -1) ? b : a), null);
+  if (best) lines.push(`peak ${(best.recovery * 100).toFixed(0)}% at SNR ${best.snr}, \u03bc ${best.mu}\u2033/yr`);
+  const saved = data.source === 'scheduled';
+  const sourceLabel = saved ? 'Saved scheduled result'
+    : (data.source === 'live' ? 'Fresh IRSA run' : 'Cached-cutout run');
+  lines.unshift(`${sourceLabel}: ${grid.length}/24 cells` +
+    (data.generated_at ? ` \u00b7 ${formatTimestamp(data.generated_at)}` : ''));
+  setText('recovery-out', lines.join('\n'));
+  $('recovery-out').style.whiteSpace = 'pre-line';
+  drawRecoveryChart(grid);
+  const complete = grid.length === 24 ? 'complete' : 'incomplete';
+  const message = saved
+    ? `Saved recovery grid loaded: ${grid.length}/24 cells; generated ${formatTimestamp(data.generated_at)}`
+    : `Recovery ${complete}: ${grid.length}/24 cells` +
+      (data.generated_at ? `; finished ${formatTimestamp(data.generated_at)}` : '');
+  setText('footer-status', `recovery: ${complete} \u00b7 ${grid.length}/24 cells`);
+  if (savedLabel) setText('recovery-out', `${savedLabel}\n${$('recovery-out').textContent}`);
+  return savedLabel ? `${savedLabel}: ${grid.length}/24 cells` : message;
 }
 
 async function runRecovery() {
@@ -2246,27 +2743,12 @@ async function runRecovery() {
     if (data.error) {
       throw new Error(data.error);
     }
-    const grid = data.grid || [];
-    state.recovery = grid;
-    const lines = grid.slice(0, 6).map((g) =>
-      `SNR ${String(g.snr).padStart(2)} \u00b7 \u03bc ${String(g.mu).padStart(2)}\u2033/yr \u2192 ${(g.recovery * 100).toFixed(0)}%`);
-    const best = grid.reduce((a, b) => (b.recovery > (a ? a.recovery : -1) ? b : a), null);
-    if (best) lines.push(`peak ${(best.recovery * 100).toFixed(0)}% at SNR ${best.snr}, \u03bc ${best.mu}\u2033/yr`);
-    const saved = data.source === 'scheduled';
-    const sourceLabel = saved ? 'Saved scheduled result'
-      : (data.source === 'live' ? 'Fresh IRSA run' : 'Cached-cutout run');
-    lines.unshift(`${sourceLabel}: ${grid.length}/24 cells` +
-      (data.generated_at ? ` \u00b7 ${formatTimestamp(data.generated_at)}` : ''));
-    setText('recovery-out', lines.join('\n'));
-    $('recovery-out').style.whiteSpace = 'pre-line';
-    drawRecoveryChart(grid);
-    const complete = grid.length === 24 ? 'complete' : 'incomplete';
-    const message = saved
-      ? `Saved recovery grid loaded: ${grid.length}/24 cells; generated ${formatTimestamp(data.generated_at)}`
-      : `Recovery ${complete}: ${grid.length}/24 cells` +
-        (data.generated_at ? `; finished ${formatTimestamp(data.generated_at)}` : '');
+    const message = renderRecoveryResult(data);
     progress.update(message);
-    setText('footer-status', `recovery: ${complete} \u00b7 ${grid.length}/24 cells`);
+    if (state.live && data.source === 'live') {
+      historySave({ kind: 'recovery', target, name: `${fieldLabel(target)} recovery`,
+        ra: state.data?.ra, dec: state.data?.dec, data });
+    }
   } catch (e) {
     setText('recovery-out', 'Recovery failed: ' + e.message);
     progress.update('Recovery failed: ' + e.message);
@@ -2955,6 +3437,12 @@ function attachUiEvents() {
 async function init() {
   attachUiEvents();
   attachMapEvents();
+  attachHistoryEvents();
+  historyRefresh();
+  ['field-ra', 'field-dec', 'field-name', 'tog-live'].forEach((id) => {
+    $(id)?.addEventListener('focus', warmLivePipeline);
+    $(id)?.addEventListener('pointerenter', warmLivePipeline);
+  });
   await startOfflineCopy();          // reads the saved copy's index (a few ms)
   syncBackendUi();
   // The refresh panel does not need the target list: load both at once.

@@ -1445,3 +1445,144 @@ def test_irsa_timeouts_fit_inside_cloud_run_request_limit():
     # attempt that began just before the budget ran out is still in flight.
     worst = sia2_worst + live_ingest.LIVE_DEADLINE_SECONDS + (connect + read)
     assert worst < 900, f"worst case {worst} s exceeds Cloud Run's 900 s limit"
+
+
+def test_catalogs_run_in_parallel_and_report_status(monkeypatch):
+    import threading
+    import step1_ingest as ingest
+
+    barrier = threading.Barrier(3, timeout=5)   # all three must be in flight together
+
+    def gaia(*args, **kwargs):
+        barrier.wait()
+        return [{"ra": 1.0, "dec": 2.0}]
+
+    def allwise(*args, **kwargs):
+        barrier.wait()
+        raise RuntimeError("TAP down")           # falls back to VizieR
+
+    class Mirrors:
+        calls = []
+
+        def __init__(self, **kwargs):
+            pass
+
+        def query_region(self, *args, catalog=None, **kwargs):
+            Mirrors.calls.append((self.VIZIER_SERVER, catalog))
+            if catalog == "B/vsx/vsx":
+                if len([c for c in Mirrors.calls if c[1] == catalog]) == 1:
+                    barrier.wait()
+                return []                         # the mirror answers: no sources
+            raise ConnectionError("unreachable")
+
+    monkeypatch.setattr(ingest, "Vizier", Mirrors)
+    monkeypatch.setattr(ingest, "VIZIER_MIRRORS", ("first.test", "second.test"))
+    monkeypatch.setattr(ingest.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ingest, "query_irsa_tap_gaia", gaia)
+    monkeypatch.setattr(ingest, "query_irsa_tap_allwise", allwise)
+
+    seen = []
+    cats, status = ingest.download_catalogs_with_status(
+        10.0, 20.0, progress=lambda key, n, state: seen.append((key, state)))
+
+    assert cats["gaia"] == [{"ra": 1.0, "dec": 2.0}] and status["gaia"] == "ok"
+    assert cats["wise"] == [] and status["wise"] == "unavailable"
+    assert cats["vsx"] == [] and status["vsx"] == "none"
+    # VSX: the answering first mirror is retried once and then believed;
+    # the unreachable fallback mirror is not waited on.
+    vsx_calls = [c for c in Mirrors.calls if c[1] == "B/vsx/vsx"]
+    assert vsx_calls == [("first.test", "B/vsx/vsx")] * 2
+    assert sorted(seen) == [("gaia", "ok"), ("vsx", "none"), ("wise", "unavailable")]
+
+
+def test_custom_field_with_unchanged_listing_skips_reprocessing(monkeypatch):
+    import app as portal
+    from step1_ingest import source_fingerprint
+
+    rows = [{"obs_id": "a", "access_url": "https://x/1.fits", "t_min": 60000.0,
+             "energy_bandpassname": "SPHEREx-D1", "s_ra": 2.0, "s_dec": 2.0}]
+    monkeypatch.setattr(portal, "query_sia2", lambda *a, **k: rows)
+    monkeypatch.setattr(portal, "_start_catalog_lookup",
+                        lambda *a, **k: pytest.fail("catalogues must not be queried"))
+    monkeypatch.setattr(portal, "live_exposures",
+                        lambda *a, **k: pytest.fail("cutouts must not be fetched"))
+    monkeypatch.setattr(portal, "_manifest_target_entry", lambda name: None)
+
+    known = source_fingerprint(rows, 2.0, 2.0)
+    result = portal._register_field(2.0, 2.0, "", 0.2, 4, "firstlast", 1,
+                                    known_fingerprint=known)
+    assert result["unchanged"] is True
+    assert result["irsa_check"]["source_fingerprint"] == known
+    assert result["irsa_check"]["irsa_rows"] == 1
+
+
+def test_compressed_stream_result_unpacks_to_identical_json():
+    import base64
+    import gzip
+    import json
+    import app as portal
+
+    payload = {"target": "Field", "values": list(range(500)), "name": "Ωmega ✓"}
+    packed = portal._pack_result(payload)
+    assert packed["encoding"] == "gzip-base64"
+    raw = gzip.decompress(base64.b64decode(packed["data_packed"]))
+    assert json.loads(raw) == payload
+    assert packed["raw_bytes"] == len(raw)
+
+
+def _no_login_store(*args, **kwargs):
+    from google.auth.exceptions import DefaultCredentialsError
+    raise DefaultCredentialsError("Your default credentials were not found.")
+
+
+def test_without_google_login_snapshot_reads_go_through_the_api(monkeypatch):
+    import app as portal
+
+    monkeypatch.setenv("SPHEREX_SNAPSHOT_READS", "true")
+    monkeypatch.setattr(portal, "SNAPSHOT_SOURCE", "auto")
+    monkeypatch.setattr(portal, "_SNAPSHOT_STORE", None)
+    monkeypatch.setitem(portal._SNAPSHOT_MODE, "value", None)
+    monkeypatch.setattr(portal, "SnapshotStore", _no_login_store)
+    forwarded = []
+
+    def fake_forward(method, path, query, token=None):
+        forwarded.append((method, path, query))
+        body = b'{"targets":[{"name":"Field_A"}]}' if path == "/api/targets" else b'{"ok":true}'
+        return 200, {"Content-Type": "application/json",
+                     "X-Snapshot-Object": "snapshots/x/abc.json"}, body
+
+    monkeypatch.setattr(portal, "_forward_snapshot_request", fake_forward)
+
+    status, headers, body = _asgi_get(portal.app, "/api/targets")
+    assert status == 200 and body == {"targets": [{"name": "Field_A"}]}
+    assert headers["x-snapshot-object"] == "snapshots/x/abc.json"
+    assert headers["cache-control"].startswith("no-store")
+    assert portal._snapshot_mode() == "api"
+    assert portal._snapshot_store() is None
+
+    _asgi_get(portal.app, "/api/dashboard", "target=Betelgeuse")
+    assert forwarded[-1] == ("GET", "/api/dashboard", "target=Betelgeuse")
+
+    # Fresh IRSA requests and custom fields stay on this computer.
+    count = len(forwarded)
+    monkeypatch.setattr(portal, "live_exposures",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no IRSA in tests")))
+    monkeypatch.setattr(portal, "query_sia2", lambda *a, **k: [])
+    _asgi_get(portal.app, "/api/dashboard", "target=Betelgeuse&source=live")
+    monkeypatch.setitem(portal.FIELD_REGISTRY, "My_Field", None)
+    _asgi_get(portal.app, "/api/recovery", "target=My_Field")
+    assert len(forwarded) == count
+
+
+def test_forced_bucket_mode_without_login_gives_a_clear_error_not_a_crash(monkeypatch):
+    import app as portal
+
+    monkeypatch.setenv("SPHEREX_SNAPSHOT_READS", "true")
+    monkeypatch.setattr(portal, "SNAPSHOT_SOURCE", "bucket")
+    monkeypatch.setattr(portal, "_SNAPSHOT_STORE", None)
+    monkeypatch.setitem(portal._SNAPSHOT_MODE, "value", None)
+    monkeypatch.setattr(portal, "SnapshotStore", _no_login_store)
+
+    status, _, body = _asgi_get(portal.app, "/api/targets")
+    assert status == 503
+    assert "Google login" in body["detail"]

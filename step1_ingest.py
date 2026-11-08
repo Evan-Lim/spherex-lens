@@ -670,147 +670,176 @@ def query_irsa_tap_allwise(ra, dec, radius_deg, limit=WISE_TAP_LIMIT,
     return rows
 
 
-def download_catalogs(ra, dec, radius_arcmin=15, strict=False):
+VIZIER_QUERIES = {
+    "gaia": ("I/355/gaiadr3", ["RA_ICRS", "DE_ICRS", "pmRA", "pmDE",
+                               "Gmag", "Plx", "e_Plx", "BPmag", "RPmag"]),
+    "wise": ("II/328/allwise", ["RAJ2000", "DEJ2000", "W1mag", "W2mag"]),
+    "vsx": ("B/vsx/vsx", ["RAJ2000", "DEJ2000", "Name", "Type", "OID",
+                          "max", "n_max", "f_min", "min", "n_min",
+                          "Period"]),
+}
+# The first mirror answers from most networks; the others are reachable only
+# from some (never from Google Cloud), so they get a short limit instead of
+# holding a request for 30 s each.
+VIZIER_TIMEOUT_FIRST = 30
+VIZIER_TIMEOUT_FALLBACK = 10
+
+
+def _vizier_row(key, row):
+    if key == "gaia":
+        return {
+            "ra": float(row["RA_ICRS"]),
+            "dec": float(row["DE_ICRS"]),
+            "pm_ra": _cell(row, "pmRA", 0.0),
+            "pm_de": _cell(row, "pmDE", 0.0),
+            "gmag": _cell(row, "Gmag", 99.0),
+            "parallax": _cell(row, "Plx"),
+            "parallax_error": _cell(row, "e_Plx"),
+            "bpmag": _cell(row, "BPmag"),
+            "rpmag": _cell(row, "RPmag"),
+        }
+    if key == "wise":
+        return {
+            "ra": float(row["RAJ2000"]),
+            "dec": float(row["DEJ2000"]),
+            "w1": _cell(row, "W1mag", 99.0),
+            "w2": _cell(row, "W2mag", 99.0),
+        }
+    oid = _cell(row, "OID")
+    return {
+        "ra": float(row["RAJ2000"]),
+        "dec": float(row["DEJ2000"]),
+        "name": str(row["Name"]).strip(),
+        "type": str(row["Type"]).strip(),
+        # V3 amplitude/period, V4 AAVSO link
+        "oid": int(oid) if oid is not None else None,
+        "max": _cell(row, "max"),
+        "min": _cell(row, "min"),
+        "f_min": _cell(row, "f_min", text=True),
+        "n_max": _cell(row, "n_max", text=True),
+        "n_min": _cell(row, "n_min", text=True),
+        "period_d": _cell(row, "Period"),
+    }
+
+
+def _query_vizier(key, coord, radius_arcmin, strict):
     """
-    Query Gaia DR3, AllWISE and VSX for sources within radius.
+    One catalogue from the VizieR mirrors, in order.
 
-    Only the few columns the triage step needs are requested (asking for
-    "**" pulls every column of a billion-row catalogue and takes minutes), and
-    the VizieR mirrors are tried in order because the default CDS host is not
-    reachable from every network.
+    Returns (rows, answered): ``answered`` is True when a mirror replied with
+    a table, "empty" when a mirror replied but had no table (VizieR's reply
+    for a cone with no sources -- or a transient glitch, hence the retry),
+    and False when no mirror replied at all.
+    """
+    catalog, cols = VIZIER_QUERIES[key]
+    # +Gmag / +W1mag sort brightest-first, like the TAP path, so a capped
+    # fallback drops the faintest stars rather than a random slice of the cone.
+    sort_cols = {"gaia": ["+Gmag"], "wise": ["+W1mag"]}.get(key, [])
+    answered = False
+    for index, mirror in enumerate(VIZIER_MIRRORS):
+        # VSX exists only on VizieR: give the mirror a second chance.
+        attempts = 2 if key == "vsx" else 1
+        for attempt in range(attempts):
+            try:
+                viz = Vizier(
+                    row_limit=GAIA_TAP_LIMIT,
+                    columns=[c for c in cols if "+" + c not in sort_cols] + sort_cols)
+                viz.VIZIER_SERVER = mirror
+                viz.TIMEOUT = (VIZIER_TIMEOUT_FIRST if index == 0
+                               else VIZIER_TIMEOUT_FALLBACK)
+                res = viz.query_region(coord, radius=radius_arcmin * u.arcmin,
+                                       catalog=catalog)
+                if len(res) == 0:
+                    answered = answered or "empty"
+                    if attempt + 1 < attempts:
+                        print(f"    {key}: no table from {mirror}; retrying")
+                        time.sleep(2)
+                        continue
+                    print(f"    {key}: no table from {mirror}")
+                    break
+                rows = []
+                for row in res[0]:
+                    try:
+                        rows.append(_vizier_row(key, row))
+                    except Exception:
+                        continue
+                print(f"    {key}: {len(rows)} sources ({mirror})")
+                return rows, True
+            except Exception as e:
+                print(f"    {key}: {mirror} attempt {attempt + 1} "
+                      f"failed ({type(e).__name__})")
+                if attempt + 1 < attempts:
+                    time.sleep(2)
+        # A mirror that answered "no sources" twice is believed, except by
+        # the strict refresh job, which keeps its previous catalogue instead.
+        if answered == "empty" and not strict:
+            return [], "empty"
+    return [], answered
 
-    Returns a dict: {"gaia": [...], "wise": [...], "vsx": [...]}
+
+def download_catalogs_with_status(ra, dec, radius_arcmin=15, strict=False,
+                                  progress=None):
+    """
+    Gaia DR3, AllWISE and VSX for sources within radius, queried in parallel.
+
+    Returns (catalogs, status). ``catalogs`` is {"gaia": [...], "wise": [...],
+    "vsx": [...]}; ``status`` maps each to "ok", "none" (the archive answered
+    with no sources) or "unavailable" (no archive answered), so an empty list
+    is never mistaken for "no catalogue stars here".
+
+    Only the few columns the triage step needs are requested (asking for "**"
+    pulls every column of a billion-row catalogue and takes minutes). Gaia and
+    AllWISE come from IRSA TAP first -- the host that serves the images -- with
+    VizieR as the fallback; VSX lives only on VizieR.
+
+    ``strict`` (the refresh job) raises if any catalogue gets no valid
+    response, so the job keeps its previous catalogue rather than publishing
+    an empty one.
     """
     print(f"  Querying catalogs within {radius_arcmin}'...")
     coord = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
-    out = {"gaia": [], "wise": [], "vsx": []}
-    tap_succeeded = {"gaia": False, "wise": False}
+    radius_deg = radius_arcmin / 60.0
+    tap = {"gaia": query_irsa_tap_gaia, "wise": query_irsa_tap_allwise}
 
-    # Gaia and AllWISE come from IRSA TAP first: it is the same host that
-    # serves the images, so it is the most reliable path; VizieR is the
-    # fallback. VSX lives only on VizieR.
-    try:
-        out["gaia"] = query_irsa_tap_gaia(
-            ra, dec, radius_arcmin / 60.0, strict=strict)
-        tap_succeeded["gaia"] = True
-    except RuntimeError as exc:
-        if not strict:
-            raise
-        print(f"    gaia IRSA TAP failed; trying VizieR: {exc}")
-    if out["gaia"]:
-        print(f"    gaia: {len(out['gaia'])} sources (IRSA TAP)")
-    try:
-        out["wise"] = query_irsa_tap_allwise(
-            ra, dec, radius_arcmin / 60.0, strict=strict)
-        tap_succeeded["wise"] = True
-    except RuntimeError as exc:
-        if not strict:
-            raise
-        print(f"    allwise IRSA TAP failed; trying VizieR: {exc}")
-    if out["wise"]:
-        print(f"    wise: {len(out['wise'])} sources (IRSA TAP)")
+    def one(key):
+        tap_ok = False
+        rows = []
+        if key in tap:
+            try:
+                rows = tap[key](ra, dec, radius_deg, strict=strict)
+                tap_ok = True
+            except Exception as exc:
+                print(f"    {key} IRSA TAP failed; trying VizieR: {exc}")
+            if rows:
+                print(f"    {key}: {len(rows)} sources (IRSA TAP)")
+        answered = False
+        if not rows:
+            rows, answered = _query_vizier(key, coord, radius_arcmin, strict)
+        if strict and not rows and not tap_ok and answered is not True:
+            raise RuntimeError(f"{key} catalog query failed without a valid response")
+        if rows:
+            state = "ok"
+        elif tap_ok or answered:
+            state = "none"
+        else:
+            state = "unavailable"
+        if progress:
+            progress(key, len(rows), state)
+        return rows, state
 
-    queries = {
-        "gaia": ("I/355/gaiadr3", ["RA_ICRS", "DE_ICRS", "pmRA", "pmDE",
-                                   "Gmag", "Plx", "e_Plx", "BPmag", "RPmag"]),
-        "wise": ("II/328/allwise", ["RAJ2000", "DEJ2000", "W1mag", "W2mag"]),
-        "vsx": ("B/vsx/vsx", ["RAJ2000", "DEJ2000", "Name", "Type", "OID",
-                              "max", "n_max", "f_min", "min", "n_min",
-                              "Period"]),
-    }
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        jobs = {key: pool.submit(one, key) for key in ("gaia", "wise", "vsx")}
+        results = {key: job.result() for key, job in jobs.items()}
 
-    vizier_table_succeeded = {"gaia": False, "wise": False, "vsx": False}
-    for key, (catalog, cols) in queries.items():
-        if key in ("gaia", "wise") and out[key]:
-            continue
-        for mirror in VIZIER_MIRRORS:
-            attempts = 2 if key == "vsx" and strict else 1
-            for attempt in range(attempts):
-                try:
-                    # +Gmag / +W1mag sort brightest-first, like the TAP path,
-                    # so a capped fallback drops the faintest stars rather
-                    # than a random slice of the cone.
-                    sort_cols = {"gaia": ["+Gmag"],
-                                 "wise": ["+W1mag"]}.get(key, [])
-                    viz = Vizier(
-                        row_limit=GAIA_TAP_LIMIT,
-                        columns=[c for c in cols
-                                 if "+" + c not in sort_cols] + sort_cols)
-                    viz.VIZIER_SERVER = mirror
-                    viz.TIMEOUT = 30
-                    res = viz.query_region(
-                        coord, radius=radius_arcmin * u.arcmin,
-                        catalog=catalog)
-                    if len(res) == 0:
-                        if attempt + 1 < attempts:
-                            print(f"    {key}: no table from {mirror}; retrying")
-                            time.sleep(2)
-                            continue
-                        print(f"    {key}: no table from {mirror}")
-                        break
-                    tab = res[0]
-                    vizier_table_succeeded[key] = True
-                    for row in tab:
-                        try:
-                            if key == "gaia":
-                                out["gaia"].append({
-                                    "ra": float(row["RA_ICRS"]),
-                                    "dec": float(row["DE_ICRS"]),
-                                    "pm_ra": _cell(row, "pmRA", 0.0),
-                                    "pm_de": _cell(row, "pmDE", 0.0),
-                                    "gmag": _cell(row, "Gmag", 99.0),
-                                    "parallax": _cell(row, "Plx"),
-                                    "parallax_error": _cell(row, "e_Plx"),
-                                    "bpmag": _cell(row, "BPmag"),
-                                    "rpmag": _cell(row, "RPmag"),
-                                })
-                            elif key == "wise":
-                                out["wise"].append({
-                                    "ra": float(row["RAJ2000"]),
-                                    "dec": float(row["DEJ2000"]),
-                                    "w1": _cell(row, "W1mag", 99.0),
-                                    "w2": _cell(row, "W2mag", 99.0),
-                                })
-                            else:
-                                oid = _cell(row, "OID")
-                                out["vsx"].append({
-                                    "ra": float(row["RAJ2000"]),
-                                    "dec": float(row["DEJ2000"]),
-                                    "name": str(row["Name"]).strip(),
-                                    "type": str(row["Type"]).strip(),
-                                    # V3 amplitude/period, V4 AAVSO link
-                                    "oid": int(oid) if oid is not None else None,
-                                    "max": _cell(row, "max"),
-                                    "min": _cell(row, "min"),
-                                    "f_min": _cell(row, "f_min", text=True),
-                                    "n_max": _cell(row, "n_max", text=True),
-                                    "n_min": _cell(row, "n_min", text=True),
-                                    "period_d": _cell(row, "Period"),
-                                })
-                        except Exception:
-                            continue
-                    print(f"    {key}: {len(out[key])} sources ({mirror})")
-                    break
-                except Exception as e:
-                    print(f"    {key}: {mirror} attempt {attempt + 1} "
-                          f"failed ({type(e).__name__})")
-                    if attempt + 1 < attempts:
-                        time.sleep(2)
-            if vizier_table_succeeded[key]:
-                break
+    out = {key: rows for key, (rows, _) in results.items()}
+    status = {key: state for key, (_, state) in results.items()}
+    return out, status
 
-    if strict:
-        for key in ("gaia", "wise", "vsx"):
-            if (not out[key] and not tap_succeeded.get(key, False)
-                    and not vizier_table_succeeded[key]):
-                raise RuntimeError(
-                    f"{key} catalog query failed without a valid response")
 
-    if not out["gaia"]:
-        if not strict:
-            out["gaia"] = query_irsa_tap_gaia(ra, dec, radius_arcmin / 60.0)
-        print(f"    gaia: {len(out['gaia'])} sources (IRSA TAP fallback)")
-
+def download_catalogs(ra, dec, radius_arcmin=15, strict=False):
+    """Catalogues only; see download_catalogs_with_status."""
+    out, _ = download_catalogs_with_status(ra, dec, radius_arcmin, strict)
     return out
 
 

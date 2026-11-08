@@ -356,10 +356,22 @@ python step6_injection.py
 uvicorn app:app --reload --port 8000     # then open http://localhost:8000
 ```
 
-That command uses the local cache by default. To view the published private
-Cloud Storage snapshot on localhost, set `SPHEREX_SNAPSHOT_BUCKET` and
-authenticate with Google Application Default Credentials before starting
-Uvicorn; see [Use the Cloud snapshot from localhost](cloud/README.md#use-the-cloud-snapshot-from-localhost).
+`uvicorn app:app` shows the published Cloud snapshot, and works on any
+computer:
+
+* **With a Google login that can read the snapshot bucket** (the project
+  owner, after `gcloud auth application-default login`): it reads the bucket
+  directly.
+* **Without one** (a teammate who cloned the repository): it reads the same
+  snapshot through the deployed snapshot API, like the Netlify site, and prints
+  `No access to gs://… Reading the Cloud snapshot through https://… instead`.
+  No setup is needed.
+
+Either way, fresh IRSA fetches and "Open any field" run on your own computer.
+"Fetch all 18 from IRSA" still needs the operator token. To choose a mode
+explicitly, set `SPHEREX_SNAPSHOT_SOURCE=bucket` or `api` (the default is
+`auto`); `SPHEREX_SNAPSHOT_API` overrides the API address. See
+[Use the Cloud snapshot from localhost](cloud/README.md#use-the-cloud-snapshot-from-localhost).
 
 Offline / rehearsal mode (synthetic cache + all charts):
 

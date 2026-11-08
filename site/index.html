@@ -89,8 +89,23 @@
                    placeholder="name (optional)">
           </div>
           <button id="btn-field" class="btn btn-secondary">Load field from IRSA</button>
-          <div class="hint-inline" id="field-hint">streams the cutouts, runs the pipeline, writes nothing</div>
+          <div class="hint-inline" id="field-hint">fetches from IRSA, runs the pipeline; results are kept in History</div>
         </div>
+      </div>
+
+      <div class="section history-section">
+        <div class="section-label">History <span id="history-usage" class="history-usage"></span></div>
+        <input id="history-search" class="control-input" type="search"
+               placeholder="Search name, or RA, Dec" aria-label="Search saved results">
+        <p id="history-empty" class="hint-inline history-empty"></p>
+        <ul id="history-list" class="history-list" aria-label="Saved results"></ul>
+        <div class="history-tools">
+          <button id="history-export" class="btn btn-secondary" type="button">Export</button>
+          <label class="btn btn-secondary history-import">Import
+            <input id="history-import" type="file" accept="application/json,.json">
+          </label>
+        </div>
+        <p id="history-note" class="hint-inline" role="status" aria-live="polite"></p>
       </div>
 
       <div class="section">
