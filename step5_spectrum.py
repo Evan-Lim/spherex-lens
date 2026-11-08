@@ -103,6 +103,13 @@ def extract_spectrum_from_cutout(cutout_path, ra, dec, aperture_radius_pix=3):
 
         cwave = hdul["CWAVE"].data.astype(float) if "CWAVE" in hdul else None
 
+        # Pixel solid angle, so a sum of MJy/sr pixels can become mJy (SED).
+        try:
+            from astropy.wcs.utils import proj_plane_pixel_area
+            pix_sr = float(proj_plane_pixel_area(wcs.celestial)) * (np.pi / 180.0) ** 2
+        except Exception:
+            pix_sr = None
+
         try:
             cx, cy = wcs.world_to_pixel_values(ra, dec)
         except Exception:
@@ -136,6 +143,7 @@ def extract_spectrum_from_cutout(cutout_path, ra, dec, aperture_radius_pix=3):
         "wavelength_um": lam,
         "bandwidth_um": band,
         "center_pix": (cy_i, cx_i),
+        "pix_sr": pix_sr,
     }
 
 

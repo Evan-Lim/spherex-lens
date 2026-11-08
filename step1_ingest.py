@@ -37,17 +37,35 @@ from astropy.wcs import WCS
 from astroquery.vizier import Vizier
 
 from step2_coadd import BAD_BITS
+from catalog_tools import target_position, year_to_mjd, sep_arcsec
+
+# Epoch (Julian year) the moving targets are re-centred on at ingest: the
+# middle of the QR2/QR3 coverage, so no exposure is more than ~0.6 yr off.
+INGEST_EPOCH = 2026.0
+# IRSA SIA2 listing: 10 s to connect, 90 s to answer.  Three attempts plus
+# back-off stay near 6 minutes, inside Cloud Run's 15-minute request limit.
+SIA2_TIMEOUT = (10, 90)
 
 # ---------------------------------------------------------------------------
 # Target definitions
 # ---------------------------------------------------------------------------
+# Fast movers carry pm_ra/pm_dec (mas/yr, mu_alpha* incl. cos dec) and
+# pos_epoch (Julian year of ra/dec). Their ra/dec are the Gaia DR3 J2016.0
+# values (Sirius A: Hipparcos, J2000; WISE 0855: fitted from NEOWISE), and the
+# cutouts are centred on the position propagated to INGEST_EPOCH -- Barnard's
+# Star alone moves ~4.4' between J2000 and the SPHEREx epochs.
 TARGETS = {
-    "Barnards_Star": {"ra": 269.452083, "dec": 4.693333, "type": "Mover_M4V",
-                      "common": "Barnard's Star"},
-    "Epsilon_Indi_B": {"ra": 331.043750, "dec": -56.782778, "type": "Mover_TDwarf",
-                       "common": "Epsilon Indi B"},
-    "WISE_0855": {"ra": 133.795129, "dec": -7.245147, "type": "Mover_YDwarf",
-                  "common": "WISE 0855"},
+    "Barnards_Star": {"ra": 269.44850252544, "dec": 4.73942005111,
+                      "pm_ra": -801.551, "pm_dec": 10362.394, "pos_epoch": 2016.0,
+                      "type": "Mover_M4V", "common": "Barnard's Star"},
+    "Epsilon_Indi_B": {"ra": 331.07645259656, "dec": -56.79381206688,
+                       "pm_ra": 3981.977, "pm_dec": -2466.832, "pos_epoch": 2016.0,
+                       "type": "Mover_TDwarf", "common": "Epsilon Indi B"},
+    # Not in Gaia: position and motion fitted by step7_neowise to the 23
+    # AllWISE+NEOWISE visits 2010-2024 (pm -8126+-44, +665+-17 mas/yr).
+    "WISE_0855": {"ra": 133.782364, "dec": -7.243937,
+                  "pm_ra": -8125.8, "pm_dec": 664.6, "pos_epoch": 2016.0,
+                  "type": "Mover_YDwarf", "common": "WISE 0855"},
     "RW_Aurigae": {"ra": 76.956250, "dec": 30.401389, "type": "Variable_TTauri",
                    "common": "RW Aurigae"},
     "R_Draconis": {"ra": 248.167500, "dec": 66.754722, "type": "Variable_Mira",
@@ -66,14 +84,18 @@ TARGETS = {
                       "common": "Whirlpool Galaxy (M51)"},
     "SgrA_star": {"ra": 266.416817, "dec": -29.007825, "type": "Galactic_Centre",
                   "common": "Sagittarius A*"},
-    "Proxima_Cen": {"ra": 217.428951, "dec": -62.679483, "type": "Mover_M5V",
-                    "common": "Proxima Centauri"},
-    "TRAPPIST_1": {"ra": 346.622400, "dec": -5.041300, "type": "Mover_M8V",
-                   "common": "TRAPPIST-1"},
+    "Proxima_Cen": {"ra": 217.39232147201, "dec": -62.67607511677,
+                    "pm_ra": -3781.741, "pm_dec": 769.465, "pos_epoch": 2016.0,
+                    "type": "Mover_M5V", "common": "Proxima Centauri"},
+    "TRAPPIST_1": {"ra": 346.62652162764, "dec": -5.04352831943,
+                   "pm_ra": 930.788, "pm_dec": -479.038, "pos_epoch": 2016.0,
+                   "type": "Mover_M8V", "common": "TRAPPIST-1"},
     "Betelgeuse": {"ra": 88.792938, "dec": 7.407064, "type": "Variable_Supergiant",
                    "common": "Betelgeuse"},
-    "Sirius": {"ra": 101.287155, "dec": -16.716116, "type": "Star_A1V",
-               "common": "Sirius"},
+    # Sirius A is too bright for Gaia (the Gaia high-PM source here is Sirius B)
+    "Sirius": {"ra": 101.287155, "dec": -16.716116,
+               "pm_ra": -546.01, "pm_dec": -1223.07, "pos_epoch": 2000.0,
+               "type": "Star_A1V", "common": "Sirius"},
     "Sombrero_M104": {"ra": 189.997633, "dec": -11.623051, "type": "Galaxy_Spiral",
                       "common": "Sombrero Galaxy (M104)"},
     "Ring_M57": {"ra": 283.395833, "dec": 33.029167, "type": "Nebula_Planetary",
@@ -95,9 +117,18 @@ IRSA_SIA2 = "https://irsa.ipac.caltech.edu/SIA"
 IRSA_CUTOUT = "https://irsa.ipac.caltech.edu/ibe/cutout"
 IRSA_TAP_SYNC = "https://irsa.ipac.caltech.edu/TAP/sync"
 
-# VizieR mirrors, tried in order (the CDS host is not always reachable).
+# VizieR mirrors, tried in order. Harvard first: it is the one that answers
+# from most networks; the CDS primary and NAOJ often time out. Note that the
+# Harvard mirror does NOT carry II/328/allwise -- AllWISE comes from IRSA TAP.
 VIZIER_MIRRORS = ("vizier.cfa.harvard.edu",
-                 )
+                  "vizier.cds.unistra.fr",
+                  "vizier.nao.ac.jp")
+
+# Row caps for the IRSA TAP cone searches. The densest preset field (Sgr A*)
+# holds ~20k Gaia DR3 sources inside 15', so 50k keeps every field complete;
+# ORDER BY magnitude means that if a cap is ever hit, the faintest go first.
+GAIA_TAP_LIMIT = 50000
+WISE_TAP_LIMIT = 50000
 
 # Every SPHEREx detector array, so a field can be co-added in all six bands.
 # Override with --bands for a quick two-band run.
@@ -128,16 +159,17 @@ def parse_votable(xml_bytes):
     return rows
 
 
-def query_sia2(ra, dec, radius_deg=0.1, collection="spherex_qr2", retries=3):
+def query_sia2(ra, dec, radius_deg=0.1, collection="spherex_qr2", retries=3,
+               use_cache=True):
     """
     SIA2 cone search for SPHEREx Level-2 spectral images (obs_collection,
     bandpass, footprint centre, start time and the access URL per row).
 
-    The VOTable response is cached under data_cache/, so re-runs and offline
-    work never re-query IRSA for the same cone.
+    The VOTable response is cached under data_cache/ by default. Live callers
+    can set use_cache=False to fetch the current archive listing every time.
     """
     cache = os.path.join(CACHE, f"sia2_{collection}_{ra:.4f}_{dec:.4f}_{radius_deg}.xml")
-    if os.path.exists(cache):
+    if use_cache and os.path.exists(cache):
         print(f"  SIA2 {collection} (cached {os.path.basename(cache)})")
         with open(cache, "rb") as f:
             return parse_votable(f.read())
@@ -148,11 +180,19 @@ def query_sia2(ra, dec, radius_deg=0.1, collection="spherex_qr2", retries=3):
     last_error = None
     for attempt in range(retries):
         try:
-            resp = requests.get(IRSA_SIA2, params=params, timeout=300)
+            headers = {} if use_cache else {
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+            }
+            # (connect, read): a stalled IRSA must fail well inside Cloud
+            # Run's 900 s request limit, even after all retries.
+            resp = requests.get(IRSA_SIA2, params=params, headers=headers,
+                                timeout=SIA2_TIMEOUT)
             resp.raise_for_status()
             rows = parse_votable(resp.content)
-            with open(cache, "wb") as f:
-                f.write(resp.content)
+            if use_cache:
+                with open(cache, "wb") as f:
+                    f.write(resp.content)
             print(f"  -> {len(rows)} overlapping Level-2 images.")
             return rows
         except Exception as e:
@@ -160,6 +200,52 @@ def query_sia2(ra, dec, radius_deg=0.1, collection="spherex_qr2", retries=3):
             print(f"  SIA2 attempt {attempt + 1} failed: {type(e).__name__}")
             time.sleep(15 * (attempt + 1))
     raise RuntimeError(f"SIA2 query failed after {retries} attempts: {last_error}")
+
+
+def target_coordinates(target):
+    """Position used for a registered field's IRSA query (proper motion applied).
+
+    Shared by the 12-hour refresh job and the IRSA-fresh views so both ask
+    IRSA about exactly the same patch of sky.
+    """
+    metadata = TARGETS[target]
+    if metadata.get("pm_ra") or metadata.get("pm_dec"):
+        return target_position(metadata, year_to_mjd(INGEST_EPOCH))
+    return float(metadata["ra"]), float(metadata["dec"])
+
+
+def source_fingerprint(rows, ra, dec):
+    """Hash of the SPHEREx images a full refresh would process for a field.
+
+    Two equal fingerprints mean IRSA lists exactly the same products for the
+    same exposure selection, so reprocessing would reproduce the published
+    result.  The refresh job stores it per field in the snapshot manifest.
+    """
+    import hashlib
+    slots, n_epochs = select_exposures(
+        rows, ra, dec, bands=DEFAULT_BANDS, epoch_mode="all")
+    selected = []
+    for epoch, candidates in slots:
+        candidates = sorted(
+            candidates,
+            key=lambda row: (
+                str(row.get("obs_id", "")),
+                str(row.get("energy_bandpassname", "")),
+                str(row.get("t_min", "")),
+            ),
+        )
+        selected.append({
+            "epoch": epoch,
+            "products": [{
+                key: row.get(key) for key in (
+                    "obs_id", "energy_bandpassname", "t_min", "s_ra", "s_dec",
+                    "access_url", "s_region")
+            } for row in candidates],
+        })
+    encoded = json.dumps({"n_epochs": n_epochs, "slots": selected},
+                         sort_keys=True, separators=(",", ":"),
+                         allow_nan=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def group_epochs(rows, gap_days=30.0):
@@ -393,7 +479,7 @@ def describe_sources(paths, epochs, rows, collection, size_deg):
 
 def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
                              size_deg=0.2, bands=DEFAULT_BANDS,
-                             epoch_mode="all", overwrite=False):
+                             epoch_mode="all", overwrite=False, rows=None):
     """
     Query SIA2 for SPHEREx Level-2 images and download validated cutouts.
 
@@ -404,7 +490,8 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
     Returns (paths, epochs, n_sia2_rows, n_epochs); epochs[i] is the 1-based
     epoch of paths[i], so a ZOGY split stays exact even with partial epochs.
     """
-    rows = query_sia2(ra, dec, radius_deg=radius_deg, collection=collection)
+    if rows is None:
+        rows = query_sia2(ra, dec, radius_deg=radius_deg, collection=collection)
     slots, n_epochs = select_exposures(rows, ra, dec, bands=bands,
                                        epoch_mode=epoch_mode)
     print(f"  {n_epochs} epoch(s), {len(slots)} (epoch, band) slot(s).")
@@ -438,18 +525,13 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
 # ---------------------------------------------------------------------------
 # Download catalogs via VizieR
 # ---------------------------------------------------------------------------
-def query_irsa_tap_gaia(ra, dec, radius_deg, limit=5000):
+def query_irsa_tap(adql, label, retries=3, strict=False):
     """
-    Gaia DR3 cone search through IRSA's TAP service.
-
-    Used as a fallback when the VizieR mirrors are unreachable; IRSA is the
-    same host that serves the images, so it is usually up when VizieR is not.
+    Run one synchronous ADQL query on IRSA TAP and return the rows as a list
+    of {column: string} dicts (empty strings for nulls). Returns [] on failure.
     """
-    adql = ("SELECT TOP %d ra, dec, pmra, pmdec, phot_g_mean_mag "
-            "FROM gaia.gaia_dr3_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec), "
-            "CIRCLE('ICRS',%.6f,%.6f,%.6f))" % (limit, ra, dec, radius_deg))
     resp = None
-    for attempt in range(3):
+    for attempt in range(retries):
         try:
             resp = requests.post(IRSA_TAP_SYNC,
                                  data={"REQUEST": "doQuery", "LANG": "ADQL",
@@ -458,33 +540,137 @@ def query_irsa_tap_gaia(ra, dec, radius_deg, limit=5000):
             resp.raise_for_status()
             break
         except Exception as e:
-            print(f"    IRSA TAP attempt {attempt + 1} failed: {type(e).__name__}")
+            print(f"    IRSA TAP {label} attempt {attempt + 1} failed: "
+                  f"{type(e).__name__}")
+            resp = None
             time.sleep(10)
     if resp is None:
+        if strict:
+            raise RuntimeError(f"IRSA TAP {label} query failed")
         return []
 
     text = resp.text.strip()
-    if not text or text.startswith("<"):
+    if not text or text.startswith("<"):       # VOTable error document
+        if strict:
+            raise RuntimeError(f"IRSA TAP {label} returned an invalid response")
         return []
+    lines = text.splitlines()
+    header = lines[0].split("\t")
+    return [dict(zip(header, line.split("\t"))) for line in lines[1:]]
+
+
+def _num(value, default):
+    try:
+        return float(value) if value not in (None, "") else default
+    except ValueError:
+        return default
+
+
+def _cell(row, col, default=None, text=False):
+    """A VizieR table cell as float/str, or `default` if missing or masked."""
+    try:
+        value = row[col]
+    except (KeyError, IndexError):
+        return default
+    if value is None or np.ma.is_masked(value):
+        return default
+    if text:
+        value = str(value).strip()
+        return value or default
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return default
+    return value if np.isfinite(value) else default
+
+
+def _cone(ra, dec, radius_deg):
+    return ("1=CONTAINS(POINT('ICRS',ra,dec), CIRCLE('ICRS',%.6f,%.6f,%.6f))"
+            % (ra, dec, radius_deg))
+
+
+def query_irsa_tap_gaia(ra, dec, radius_deg, limit=GAIA_TAP_LIMIT,
+                        strict=False):
+    """
+    Gaia DR3 cone search through IRSA's TAP service (primary Gaia source).
+
+    IRSA is the same host that serves the SPHEREx images, so it is the most
+    reliable path; VizieR I/355/gaiadr3 is the fallback. Sorted brightest
+    first so a hit row cap drops the faintest stars, never a random subset.
+    """
+    adql = ("SELECT TOP %d source_id, ra, dec, pmra, pmdec, parallax, "
+            "parallax_error, phot_g_mean_mag, phot_bp_mean_mag, "
+            "phot_rp_mean_mag, phot_variable_flag, ruwe "
+            "FROM gaia.gaia_dr3_source WHERE %s ORDER BY phot_g_mean_mag ASC"
+            % (limit, _cone(ra, dec, radius_deg)))
     rows = []
-    for line in text.splitlines()[1:]:
-        parts = line.split("\t")
-        if len(parts) < 5:
+    for r in query_irsa_tap(adql, "gaia", strict=strict):
+        if r.get("ra") in (None, "") or r.get("dec") in (None, ""):
             continue
-        try:
-            rows.append({
-                "ra": float(parts[0]),
-                "dec": float(parts[1]),
-                "pm_ra": float(parts[2]) if parts[2] else 0.0,
-                "pm_de": float(parts[3]) if parts[3] else 0.0,
-                "gmag": float(parts[4]) if parts[4] else 99.0,
-            })
-        except ValueError:
-            continue
+        rows.append({
+            "ra": float(r["ra"]),
+            "dec": float(r["dec"]),
+            "pm_ra": _num(r.get("pmra"), 0.0),
+            "pm_de": _num(r.get("pmdec"), 0.0),
+            "gmag": _num(r.get("phot_g_mean_mag"), 99.0),
+            # G6 distance, W6 SED colours, G5 variability, astrometric quality
+            "source_id": r.get("source_id") or None,
+            "parallax": _num(r.get("parallax"), None),
+            "parallax_error": _num(r.get("parallax_error"), None),
+            "bpmag": _num(r.get("phot_bp_mean_mag"), None),
+            "rpmag": _num(r.get("phot_rp_mean_mag"), None),
+            "var_flag": r.get("phot_variable_flag") or None,
+            "ruwe": _num(r.get("ruwe"), None),
+        })
+    if len(rows) >= limit:
+        print(f"    WARNING: gaia hit the {limit}-row cap; faintest stars dropped")
     return rows
 
 
-def download_catalogs(ra, dec, radius_arcmin=15):
+def query_irsa_tap_allwise(ra, dec, radius_deg, limit=WISE_TAP_LIMIT,
+                           strict=False):
+    """
+    AllWISE Source Catalog (allwise_p3as_psd) cone search through IRSA TAP.
+
+    IRSA is the home archive of WISE; the Harvard VizieR mirror does not carry
+    II/328/allwise, which is why every cached field had zero AllWISE rows.
+    """
+    adql = ("SELECT TOP %d designation, ra, dec, w1mpro, w2mpro, w3mpro, "
+            "w4mpro, w1sigmpro, w2sigmpro, pmra, pmdec, sigpmra, sigpmdec, "
+            "ph_qual, cc_flags, ext_flg FROM allwise_p3as_psd WHERE %s "
+            "ORDER BY w1mpro ASC" % (limit, _cone(ra, dec, radius_deg)))
+    rows = []
+    for r in query_irsa_tap(adql, "allwise", strict=strict):
+        if r.get("ra") in (None, "") or r.get("dec") in (None, ""):
+            continue
+        rows.append({
+            "ra": float(r["ra"]),
+            "dec": float(r["dec"]),
+            "w1": _num(r.get("w1mpro"), 99.0),
+            "w2": _num(r.get("w2mpro"), 99.0),
+            "w3": _num(r.get("w3mpro"), 99.0),
+            "w4": _num(r.get("w4mpro"), 99.0),
+            "w1sig": _num(r.get("w1sigmpro"), None),
+            "w2sig": _num(r.get("w2sigmpro"), None),
+            # W4: AllWISE motion -- only applied when significant (see
+            # catalog_tools.source_pm), it finds faint movers Gaia misses
+            "pm_ra": _num(r.get("pmra"), None),
+            "pm_de": _num(r.get("pmdec"), None),
+            "sig_pm_ra": _num(r.get("sigpmra"), None),
+            "sig_pm_de": _num(r.get("sigpmdec"), None),
+            "ext_flg": r.get("ext_flg") or None,
+            # "designation", not "name": app.py merges duplicate rows keeping
+            # the first "name", and a WISEA id must not hide a VSX star name.
+            "designation": r.get("designation") or None,
+            "ph_qual": r.get("ph_qual") or None,
+            "cc_flags": r.get("cc_flags") or None,
+        })
+    if len(rows) >= limit:
+        print(f"    WARNING: allwise hit the {limit}-row cap; faintest dropped")
+    return rows
+
+
+def download_catalogs(ra, dec, radius_arcmin=15, strict=False):
     """
     Query Gaia DR3, AllWISE and VSX for sources within radius.
 
@@ -498,68 +684,131 @@ def download_catalogs(ra, dec, radius_arcmin=15):
     print(f"  Querying catalogs within {radius_arcmin}'...")
     coord = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
     out = {"gaia": [], "wise": [], "vsx": []}
+    tap_succeeded = {"gaia": False, "wise": False}
 
-    # Gaia comes from IRSA TAP first: it is the same host that serves the
-    # images, so it is the most reliable path; VizieR is the fallback.
-    out["gaia"] = query_irsa_tap_gaia(ra, dec, radius_arcmin / 60.0)
+    # Gaia and AllWISE come from IRSA TAP first: it is the same host that
+    # serves the images, so it is the most reliable path; VizieR is the
+    # fallback. VSX lives only on VizieR.
+    try:
+        out["gaia"] = query_irsa_tap_gaia(
+            ra, dec, radius_arcmin / 60.0, strict=strict)
+        tap_succeeded["gaia"] = True
+    except RuntimeError as exc:
+        if not strict:
+            raise
+        print(f"    gaia IRSA TAP failed; trying VizieR: {exc}")
     if out["gaia"]:
         print(f"    gaia: {len(out['gaia'])} sources (IRSA TAP)")
+    try:
+        out["wise"] = query_irsa_tap_allwise(
+            ra, dec, radius_arcmin / 60.0, strict=strict)
+        tap_succeeded["wise"] = True
+    except RuntimeError as exc:
+        if not strict:
+            raise
+        print(f"    allwise IRSA TAP failed; trying VizieR: {exc}")
+    if out["wise"]:
+        print(f"    wise: {len(out['wise'])} sources (IRSA TAP)")
 
     queries = {
         "gaia": ("I/355/gaiadr3", ["RA_ICRS", "DE_ICRS", "pmRA", "pmDE",
-                                   "Gmag"]),
+                                   "Gmag", "Plx", "e_Plx", "BPmag", "RPmag"]),
         "wise": ("II/328/allwise", ["RAJ2000", "DEJ2000", "W1mag", "W2mag"]),
-        "vsx": ("B/vsx/vsx", ["RAJ2000", "DEJ2000", "Name", "Type"]),
+        "vsx": ("B/vsx/vsx", ["RAJ2000", "DEJ2000", "Name", "Type", "OID",
+                              "max", "n_max", "f_min", "min", "n_min",
+                              "Period"]),
     }
 
+    vizier_table_succeeded = {"gaia": False, "wise": False, "vsx": False}
     for key, (catalog, cols) in queries.items():
-        if key == "gaia" and out["gaia"]:
+        if key in ("gaia", "wise") and out[key]:
             continue
         for mirror in VIZIER_MIRRORS:
-            try:
-                viz = Vizier(row_limit=2000, columns=cols)
-                viz.VIZIER_SERVER = mirror
-                viz.TIMEOUT = 30
-                res = viz.query_region(coord, radius=radius_arcmin * u.arcmin,
-                                       catalog=catalog)
-                if len(res) == 0:
-                    print(f"    {key}: no sources ({mirror})")
+            attempts = 2 if key == "vsx" and strict else 1
+            for attempt in range(attempts):
+                try:
+                    # +Gmag / +W1mag sort brightest-first, like the TAP path,
+                    # so a capped fallback drops the faintest stars rather
+                    # than a random slice of the cone.
+                    sort_cols = {"gaia": ["+Gmag"],
+                                 "wise": ["+W1mag"]}.get(key, [])
+                    viz = Vizier(
+                        row_limit=GAIA_TAP_LIMIT,
+                        columns=[c for c in cols
+                                 if "+" + c not in sort_cols] + sort_cols)
+                    viz.VIZIER_SERVER = mirror
+                    viz.TIMEOUT = 30
+                    res = viz.query_region(
+                        coord, radius=radius_arcmin * u.arcmin,
+                        catalog=catalog)
+                    if len(res) == 0:
+                        if attempt + 1 < attempts:
+                            print(f"    {key}: no table from {mirror}; retrying")
+                            time.sleep(2)
+                            continue
+                        print(f"    {key}: no table from {mirror}")
+                        break
+                    tab = res[0]
+                    vizier_table_succeeded[key] = True
+                    for row in tab:
+                        try:
+                            if key == "gaia":
+                                out["gaia"].append({
+                                    "ra": float(row["RA_ICRS"]),
+                                    "dec": float(row["DE_ICRS"]),
+                                    "pm_ra": _cell(row, "pmRA", 0.0),
+                                    "pm_de": _cell(row, "pmDE", 0.0),
+                                    "gmag": _cell(row, "Gmag", 99.0),
+                                    "parallax": _cell(row, "Plx"),
+                                    "parallax_error": _cell(row, "e_Plx"),
+                                    "bpmag": _cell(row, "BPmag"),
+                                    "rpmag": _cell(row, "RPmag"),
+                                })
+                            elif key == "wise":
+                                out["wise"].append({
+                                    "ra": float(row["RAJ2000"]),
+                                    "dec": float(row["DEJ2000"]),
+                                    "w1": _cell(row, "W1mag", 99.0),
+                                    "w2": _cell(row, "W2mag", 99.0),
+                                })
+                            else:
+                                oid = _cell(row, "OID")
+                                out["vsx"].append({
+                                    "ra": float(row["RAJ2000"]),
+                                    "dec": float(row["DEJ2000"]),
+                                    "name": str(row["Name"]).strip(),
+                                    "type": str(row["Type"]).strip(),
+                                    # V3 amplitude/period, V4 AAVSO link
+                                    "oid": int(oid) if oid is not None else None,
+                                    "max": _cell(row, "max"),
+                                    "min": _cell(row, "min"),
+                                    "f_min": _cell(row, "f_min", text=True),
+                                    "n_max": _cell(row, "n_max", text=True),
+                                    "n_min": _cell(row, "n_min", text=True),
+                                    "period_d": _cell(row, "Period"),
+                                })
+                        except Exception:
+                            continue
+                    print(f"    {key}: {len(out[key])} sources ({mirror})")
                     break
-                tab = res[0]
-                for row in tab:
-                    try:
-                        if key == "gaia":
-                            out["gaia"].append({
-                                "ra": float(row["RA_ICRS"]),
-                                "dec": float(row["DE_ICRS"]),
-                                "pm_ra": float(row["pmRA"]) if row["pmRA"] is not None else 0.0,
-                                "pm_de": float(row["pmDE"]) if row["pmDE"] is not None else 0.0,
-                                "gmag": float(row["Gmag"]) if row["Gmag"] is not None else 99.0,
-                            })
-                        elif key == "wise":
-                            out["wise"].append({
-                                "ra": float(row["RAJ2000"]),
-                                "dec": float(row["DEJ2000"]),
-                                "w1": float(row["W1mag"]) if row["W1mag"] is not None else 99.0,
-                                "w2": float(row["W2mag"]) if row["W2mag"] is not None else 99.0,
-                            })
-                        else:
-                            out["vsx"].append({
-                                "ra": float(row["RAJ2000"]),
-                                "dec": float(row["DEJ2000"]),
-                                "name": str(row["Name"]),
-                                "type": str(row["Type"]),
-                            })
-                    except Exception:
-                        continue
-                print(f"    {key}: {len(out[key])} sources ({mirror})")
+                except Exception as e:
+                    print(f"    {key}: {mirror} attempt {attempt + 1} "
+                          f"failed ({type(e).__name__})")
+                    if attempt + 1 < attempts:
+                        time.sleep(2)
+            if vizier_table_succeeded[key]:
                 break
-            except Exception as e:
-                print(f"    {key}: {mirror} failed ({type(e).__name__})")
-                continue
+
+    if strict:
+        for key in ("gaia", "wise", "vsx"):
+            if (not out[key] and not tap_succeeded.get(key, False)
+                    and not vizier_table_succeeded[key]):
+                raise RuntimeError(
+                    f"{key} catalog query failed without a valid response")
 
     if not out["gaia"]:
-        out["gaia"] = query_irsa_tap_gaia(ra, dec, radius_arcmin / 60.0)
+        if not strict:
+            out["gaia"] = query_irsa_tap_gaia(ra, dec, radius_arcmin / 60.0)
         print(f"    gaia: {len(out['gaia'])} sources (IRSA TAP fallback)")
 
     return out
@@ -568,6 +817,68 @@ def download_catalogs(ra, dec, radius_arcmin=15):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def ingest_target(name, collection="spherex_qr2", radius_deg=0.1,
+                  size_deg=0.2, bands=DEFAULT_BANDS, epoch_mode="all",
+                  overwrite=False, skip_catalogs=False, rows=None,
+                  catalogs=None, strict_catalogs=False):
+    """Ingest one registered target, optionally using an already-fresh SIA2 listing."""
+    meta = dict(TARGETS[name])
+    if meta.get("pm_ra") or meta.get("pm_dec"):
+        c_ra, c_dec = target_position(meta, year_to_mjd(INGEST_EPOCH))
+        print(f"  {name}: moved "
+              f"{sep_arcsec(meta['ra'], meta['dec'], c_ra, c_dec):.0f}\" "
+              f"from its J{meta.get('pos_epoch', 2000.0):g} position")
+        meta.update({"ra_ref": meta["ra"], "dec_ref": meta["dec"],
+                     "pos_epoch_ref": meta.get("pos_epoch", 2000.0),
+                     "ra": round(c_ra, 7), "dec": round(c_dec, 7),
+                     "pos_epoch": INGEST_EPOCH})
+    print(f"\n=== {name} ({meta['common']}) ===")
+    paths, epochs, n_rows, n_epochs = download_spherex_cutouts(
+        meta["ra"], meta["dec"],
+        radius_deg=radius_deg,
+        collection=collection,
+        size_deg=size_deg,
+        bands=tuple(bands),
+        epoch_mode=epoch_mode,
+        overwrite=overwrite,
+        rows=rows,
+    )
+    if catalogs is not None:
+        cats = catalogs
+    elif skip_catalogs:
+        cats = {"gaia": [], "wise": [], "vsx": []}
+    else:
+        cats = download_catalogs(
+            meta["ra"], meta["dec"], strict=strict_catalogs)
+
+    if not paths:
+        return None
+
+    sia2_rows = rows
+    if sia2_rows is None:
+        sia2_rows = query_sia2(meta["ra"], meta["dec"], radius_deg=radius_deg,
+                               collection=collection)
+    sources = describe_sources(paths, epochs, sia2_rows, collection, size_deg)
+    record = {
+        "target": name,
+        "meta": meta,
+        "paths": paths,
+        "epochs": epochs,
+        "sources": sources,
+        "catalogs": cats,
+        "collection": collection,
+        "cutout_size_deg": size_deg,
+        "sia2_rows": n_rows,
+        "n_epochs": n_epochs,
+    }
+    with open(os.path.join(CACHE, f"{name}_meta.json"), "w") as f:
+        json.dump(record, f, indent=2)
+
+    total_cat = sum(len(v) for v in cats.values())
+    print(f"  saved {len(paths)} cutouts and {total_cat} catalog sources.")
+    return record
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ingest real SPHEREx data.")
     parser.add_argument("--collection", default="spherex_qr2",
@@ -587,46 +898,14 @@ def main():
 
     names = args.targets or list(TARGETS)
     for name in names:
-        meta = TARGETS[name]
-        print(f"\n=== {name} ({meta['common']}) ===")
-        paths, epochs, n_rows, n_epochs = download_spherex_cutouts(
-            meta["ra"], meta["dec"],
-            radius_deg=args.radius,
-            collection=args.collection,
-            size_deg=args.size,
-            bands=tuple(args.bands),
-            epoch_mode=args.epochs,
-            overwrite=args.overwrite,
-        )
-        cats = ({"gaia": [], "wise": [], "vsx": []} if args.skip_catalogs
-                else download_catalogs(meta["ra"], meta["dec"]))
-
-        if not paths:
+        record = ingest_target(
+            name, collection=args.collection, radius_deg=args.radius,
+            size_deg=args.size, bands=tuple(args.bands),
+            epoch_mode=args.epochs, overwrite=args.overwrite,
+            skip_catalogs=args.skip_catalogs)
+        if record is None:
             print("  nothing downloaded -- skipping this target.")
             continue
-
-        sia2_rows = query_sia2(meta["ra"], meta["dec"], radius_deg=args.radius,
-                               collection=args.collection)  # cached VOTable
-        sources = describe_sources(paths, epochs, sia2_rows,
-                                   args.collection, args.size)
-
-        record = {
-            "target": name,
-            "meta": meta,
-            "paths": paths,
-            "epochs": epochs,
-            "sources": sources,
-            "catalogs": cats,
-            "collection": args.collection,
-            "cutout_size_deg": args.size,
-            "sia2_rows": n_rows,
-            "n_epochs": n_epochs,
-        }
-        with open(os.path.join(CACHE, f"{name}_meta.json"), "w") as f:
-            json.dump(record, f, indent=2)
-
-        total_cat = sum(len(v) for v in cats.values())
-        print(f"  saved {len(paths)} cutouts and {total_cat} catalog sources.")
         time.sleep(1)
 
     print("\nAll targets processed. Ready for step2.")

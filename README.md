@@ -42,10 +42,10 @@ download per (epoch, detector). Each takes ~1 min at IRSA's ~100 KB/s, so a full
 five-target ingest is a ~1 hour job that resumes from cache if it is interrupted
 (`Ctrl-C` is safe; re-running skips finished files).
 
-The thirteen bonus fields described further down add another ~60 cutouts (~320 MB),
-which is why a complete `data_cache/` is ~880 MB of FITS. Those directories are
-gitignored -- the repository ships the catalogue JSONs and the pre-rendered
-`site/`, not the pixels.
+The thirteen bonus fields described further down add more cutouts. Cache size
+depends on the ingest options; this workspace currently has 264 FITS cutouts
+(about 1.39 GB). The FITS files are gitignored -- a clean clone has the catalogue
+metadata but not the image pixels.
 
 
 **Every epoch is used.** `app.py` co-adds each epoch separately and runs ZOGY on
@@ -101,23 +101,23 @@ To make a field **permanent**, add it to `TARGETS` in `step1_ingest.py` and
 re-run (it then lives in `data_cache/` and ships in the static build), or drop
 cutouts plus a `<Name>_meta.json` into `data_cache/` by hand.
 
-### Live mode -- no downloads at all
+### Live mode -- fresh on-demand archive requests
 
 The dashboard can also skip `data_cache/` entirely: it asks IRSA for the cutout,
 parses the FITS **from the HTTP response in memory**, and never writes a byte to
-disk. In the UI it is the checkbox **"Live from IRSA (no cache, no download)"**;
+disk. In the UI it is the checkbox **"Fetch fresh SPHEREx data from IRSA (selected field)"**;
 over HTTP it is a query parameter:
 
 ```bash
 curl 'http://localhost:8000/api/dashboard?target=WISE_0855&source=live'
-curl 'http://localhost:8000/api/dashboard?target=WISE_0855&source=live&live_slots=2'   # quick demo
+curl 'http://localhost:8000/api/dashboard?target=WISE_0855&source=live&live_slots=2'   # limit to two slots
 ```
 
 ```
 GET /api/dashboard
-  source=cache|cache      read data_cache/ (default, ~10 ms)
-  source=live             SIA2 cone -> IRSA cutout service -> RAM -> pipeline
-  live_slots=N            0 = every slot; 2 = first two (fast demo)
+  source=cache            read data_cache/ and run the pipeline (default)
+  source=live             fresh SIA2 query -> IRSA cutouts -> RAM -> pipeline
+  live_slots=N            0 = every slot; otherwise prioritizes matched epochs/bands
   live_size=0.2           cutout width in degrees
   live_epochs=firstlast   or "all"
 ```
@@ -131,21 +131,42 @@ bytes.
 
 | | cached files | live streaming |
 |---|---|---|
-| first response | ~1 s | **30-90 s** (parallel IRSA fetches) |
-| repeat response | ~1 s | **~1.3 s** (TTL cache in RAM, default 30 min) |
-| disk used | ~200 MB | **0 bytes** |
-| freshness | as of the last ingest | always current |
+| response time | seconds, workload-dependent | tens of seconds or longer on a cold fetch |
+| repeat live response | n/a | SIA2 and cutouts are fetched again for every run |
+| disk used | depends on local cache | **0 bytes for fetched cutouts** |
+| freshness | as of the last ingest | no local metadata or cutout cache is used |
 | works offline | yes | no |
 
-Tuning knobs: `SPHEREX_LIVE_TTL` (seconds, default 1800) and
-`SPHEREX_LIVE_BANDS` (default `SPHEREx-D1,SPHEREx-D4`). Live results are
-identical in shape to cached ones, and their provenance rows are labelled
-`live:<obs_id>` with the same IRSA link, so you can still trace every pixel.
+`SPHEREX_LIVE_BANDS` selects the initial detector bands (default
+`SPHEREx-D1,SPHEREx-D4`); if they cannot cover two epochs, live mode tries all
+six detectors. Browser and API responses are marked no-store, and live requests
+bypass the local SIA2 XML cache as well as any process-memory cutout cache.
+Provenance rows are labelled `live:<obs_id>` and include the IRSA link.
 
-Honest limits: IRSA's cutout service takes ~1 min per cutout and it throttles
-bursty clients, so a live five-target demo is not something to do in front of a
-judge unless the RAM cache is already warm. That is exactly why the cached path
-is the default and the static build exists.
+Honest limits: IRSA's cutout service can take tens of seconds or longer and may
+throttle bursts. Every live run waits on a fresh SIA2 query, the selected
+cutouts, and the scientific pipeline. This is neither a continuous stream nor
+capable of a reliable 200 ms end-to-end response. 200 ms is below network
+round-trip time to a remote archive for many clients, before transferring
+multi-megabyte FITS cutouts or processing them. A cached/precomputed display can
+be fast, but it is not fresh archive synchronization.
+
+The all-sky mosaic is a separate, cache-derived coverage view. In live mode the
+UI hides those cached tiles rather than presenting them as fresh; opening a
+specific field still fetches that field from IRSA. `GET /api/mosaic?source=live`
+returns HTTP 501 because a fresh all-sky mosaic is not implemented. Do not
+interpret a successful plain `/api/mosaic` response as live archive data.
+
+The numeric `live_slots` option is a work cap for demonstrations, not a way to
+request a scientifically valid tiny sample: the selector now prioritizes
+matching detector bands across epochs and spreads remaining slots across epochs.
+At least one band must still be valid in two epochs; otherwise the API reports
+a coverage error.
+
+The pipeline only compares like-for-like observations: at least two epochs must
+share a detector band. It reports an explicit coverage error instead of
+subtracting different bands or inventing a second epoch. Some target positions
+may therefore be listed in the all-sky map but have no comparable thumbnail.
 
 ---
 
@@ -171,8 +192,14 @@ shapes (live FastAPI or pre-rendered static files):
   process to go and fetch data at query time, so on the pre-rendered static build
   they are *disabled and labelled as such* (`Live from IRSA -- needs a backend`,
   with an explanatory line underneath) rather than failing silently. The other 19
-  fields, the maps, the tables, the charts and the recovery grids are all plain
-  JSON in `site/api/` and work with no server at all.
+  fields, the maps, the tables, the charts and the generated recovery grids are
+  plain JSON in `site/api/` and work with no server at all. Static values are a
+  snapshot from the last export, not a live calculation.
+  **Run Pipeline** requests the selected target again (cache mode reads local
+  cutouts; live mode fetches/reuses IRSA cutouts). **Recovery Grid** computes the
+  injection test on the server, or reads its pre-rendered result on a static
+  site. **Copy Share Link** includes the selected target and live-mode choice;
+  if browser clipboard access is blocked it shows a manual-copy prompt.
 * **/02 Command Dashboard** -- four metric cards (detections, unaccounted,
   max SNR, baseline days), the interactive map, the detections table and the
   **image sources & provenance** table.
@@ -183,7 +210,10 @@ shapes (live FastAPI or pre-rendered static files):
   RA/Dec chart (`/api/mosaic`), each tile a down-sampled significance thumbnail
   with its detection count; click a tile to open that field. Fields are drawn
   magnified (a 9' field is 0.3 px at true scale) and the caption says so.
-* **Diagnostics charts** -- four live charts: the significance histogram (noise
+* **Target history** -- the NEOWISE panel displays archival AllWISE/NEOWISE
+  photometry when available; these historical measurements are not live SPHEREx
+  detections or an on-map NEOWISE symbol.
+* **Diagnostics charts** -- four charts: the significance histogram (noise
   peak vs real sources), noise per epoch, detections per epoch pair, and the
   injection-recovery curve.
 * **Interactive map** (`static/app.js`, ~1.1k lines of vanilla canvas code)
@@ -265,41 +295,39 @@ python step1_ingest.py --targets Andromeda_M31 Orion_M42 Pleiades_M45 Crab_M1 \
                        --epochs firstlast --bands SPHEREX-D1 SPHEREX-D4
 ```
 
-These are demonstration fields, not brief deliverables: they get 2 bands x 2
-epochs (4 cutouts) rather than 12-18, so they exercise the pipeline but cannot
-carry the science. What they actually produce (from `site/api/*.json`):
+These are demonstration fields, not brief deliverables. The command above is a
+compact two-band example; the following values are from the current local cache
+export, which can include more detectors and epochs. Coverage varies by target:
 
-| Field | exposures | epochs | detections | KNOWN | CANDIDATE | max SNR |
+| Field | exposures | epochs | detections | KNOWN | CANDIDATE | max SNR / status |
 |---|---|---|---|---|---|---|
-| Andromeda (M31) | 4 | 2 | 3 | 2 | 1 | 33.6 |
-| Orion Nebula (M42) | 4 | 2 | 0 | 0 | 0 | -- |
-| Pleiades (M45) | 4 | 2 | 6 | 6 | 0 | 23.0 |
-| Crab Nebula (M1) | 4 | 2 | 10 | 10 | 0 | 28.1 |
-| Whirlpool (M51) | 4 | 2 | 4 | 3 | 1 | 27.6 |
-| Sagittarius A* | 2 | 2 | 7 | 7 | 0 | 12.3 |
-| Proxima Centauri | 4 | 2 | 6 | 4 | 2 | 18.7 |
-| TRAPPIST-1 | 2 | 2 | 0 | 0 | 0 | -- |
-| Betelgeuse | 2 | 2 | 2 | 2 | 0 | 5.1 |
-| Sirius | 6 | 2 | 10 | 10 | 0 | 8.8 |
-| Sombrero (M104) | 6 | 2 | 3 | 3 | 0 | 37.6 |
-| Ring Nebula (M57) | 4 | 2 | 2 | 1 | 1 | 23.8 |
-| Quasar 3C 273 | 6 | 2 | 4 | 3 | 1 | 24.3 |
+| Andromeda (M31) | 18 | 3 | 10 | 10 | 0 | 15.0 |
+| Orion Nebula (M42) | 12 | 2 | 0 | 0 | 0 | -- |
+| Pleiades (M45) | 12 | 2 | 6 | 4 | 2 | 41.2 |
+| Crab Nebula (M1) | 12 | 2 | 7 | 7 | 0 | 8.6 |
+| Whirlpool (M51) | 18 | 3 | 7 | 7 | 0 | 32.3 |
+| Sagittarius A* | -- | -- | -- | -- | -- | unavailable: no shared detector band |
+| Proxima Centauri | 12 | 2 | 3 | 3 | 0 | 17.2 |
+| TRAPPIST-1 | 18 | 3 | 10 | 9 | 1 | 41.7 |
+| Betelgeuse | -- | -- | -- | -- | -- | unavailable: one recorded epoch |
+| Sirius | 12 | 2 | 7 | 7 | 0 | 8.5 |
+| Sombrero (M104) | 19 | 4 | 10 | 10 | 0 | 27.9 |
+| Ring Nebula (M57) | 14 | 3 | 10 | 10 | 0 | 30.7 |
+| Quasar 3C 273 | 18 | 3 | 5 | 4 | 1 | 45.8 |
 
-Read that table honestly and it says something real: in crowded or nebular
-fields the differences almost all land on **catalogued** stars (M1 10/10, Sgr A*
-7/7, M45 6/6), because the residual structure is the PSF of known sources, not new
-objects -- the triage is doing its job. Three fields return nothing usable: M42 is a
-smooth wall of gas with no compact difference; TRAPPIST-1 only has 2 usable
-cutouts (one band, two epochs) because IRSA kept timing out on that position; and
-Betelgeuse saturates the detector so completely that after flagging there are
-almost no valid pixels left -- the pipeline now reports *"noise estimate
-degenerate"* rather than printing an absurd 1e+06 as if it were a measurement
-(see `usable()` in `app.py`). A fourth object, the **Large Magellanic Cloud**, was
-tried and dropped: every QR2 row inside a 9' box at Dec -69.8 falls in a single
-visit, so there is no second epoch to subtract (it is one commented-out line in
-`TARGETS`).
-The single-star brief targets, with 12-18 cutouts over 2-3 epochs, are where the
-`CANDIDATE` verdicts are meaningful.
+This export contains 18 field entries; 16 have comparable difference maps. Two
+remain visible but honestly unavailable: Betelgeuse's current local metadata
+records only one epoch, while Sgr A* has different detector bands in its two
+epochs. An isolated IRSA retry found no usable first-epoch Sgr A* D2 cutout; the
+candidate was outside the delivered image. The cached SIA2 listing shows more
+Betelgeuse coverage, and a separate temporary ingest validated eight cutouts
+across two epochs, but those were not merged into the existing user cache.
+Regenerate this snapshot after deliberately refreshing that cache. The numbers
+above describe this local export, not a live or continuous survey.
+
+The **Large Magellanic Cloud** was also tried and dropped: every QR2 row inside a
+9' box at Dec -69.8 falls in a single visit, so there is no second epoch to
+subtract (it is one commented-out line in `TARGETS`).
 
 
 ---
@@ -314,6 +342,8 @@ pip install -r requirements.txt
 
 # 2. Fetch real data (needs internet + optional IRSA account, see below)
 python step1_ingest.py                   # writes data_cache/*.fits and *_meta.json
+python step7_neowise.py                  # optional: WISE 2010-2024 history per
+                                         # target + detection -> *_neowise.json
 
 # 3. Run the pipeline end to end
 python step2_coadd.py
@@ -326,6 +356,11 @@ python step6_injection.py
 uvicorn app:app --reload --port 8000     # then open http://localhost:8000
 ```
 
+That command uses the local cache by default. To view the published private
+Cloud Storage snapshot on localhost, set `SPHEREX_SNAPSHOT_BUCKET` and
+authenticate with Google Application Default Credentials before starting
+Uvicorn; see [Use the Cloud snapshot from localhost](cloud/README.md#use-the-cloud-snapshot-from-localhost).
+
 Offline / rehearsal mode (synthetic cache + all charts):
 
 ```bash
@@ -337,7 +372,7 @@ SPHEREX_CACHE=data_cache_demo uvicorn app:app --port 8000
 Deploy:
 
 ```bash
-python export_static.py                     # -> site/  (Netlify / Vercel / Pages)
+python export_static.py                     # -> site/  (Netlify / Pages)
 docker build -t spherex-lens . && docker run -p 8000:8000 spherex-lens   # Render/Railway/Fly
 ```
 
@@ -370,7 +405,7 @@ See [Deployment](#deployment) for the full matrix of hosts.
    is just a shortcut for "select that target and run the pipeline".
 
 Nothing is computed in the browser except pixels-to-colours and hit testing, so
-the static build (Netlify/Vercel) and the live server behave identically.
+the static build (Netlify) and the live server behave identically.
 
 ---
 
@@ -381,9 +416,11 @@ the static build (Netlify/Vercel) and the live server behave identically.
 | Product | Archive | Endpoint |
 |---|---|---|
 | SPHEREx Level-2 images/cutouts (QR2, QR3) | NASA/IPAC IRSA | SIA2: `https://irsa.ipac.caltech.edu/SIA` · TAP: `https://irsa.ipac.caltech.edu/TAP` |
-| Gaia DR3 | VizieR (CDS) | catalog `I/355/gaiadr3` |
-| AllWISE | VizieR (CDS) | catalog `II/328/allwise` |
-| AAVSO VSX | VizieR (CDS) | catalog `B/vsx/vsx` |
+| Gaia DR3 | IRSA TAP (fallback: VizieR) | table `gaia.gaia_dr3_source` · VizieR `I/355/gaiadr3` |
+| AllWISE | IRSA TAP (fallback: VizieR) | table `allwise_p3as_psd` · VizieR `II/328/allwise` (not on the Harvard mirror) |
+| AAVSO VSX | VizieR (Harvard → CDS → NAOJ) | catalog `B/vsx/vsx` (type, period, amplitude, OID) |
+| NEOWISE-R single exposures | IRSA TAP (`step7_neowise.py`) | table `neowiser_p1bs_psd`, one upload-join per target |
+| AllWISE per-exposure photometry | IRSA TAP (`step7_neowise.py`) | table `allwise_p3as_mep` |
 | JPL Small-Body Database | NASA/JPL SSD | REST: `https://ssd-api.jpl.nasa.gov/sbdb.api` |
 
 Everything is public. Registering at
@@ -414,7 +451,9 @@ python step1_ingest.py --collection spherex_qr3 --size 0.15
    `s_region`), then downloads a **cutout** of the best one;
 4. **validates** each cutout -- target at least 12 px inside the array and
    fewer than 50 % of pixels flagged -- and moves to the next candidate if not;
-5. queries the three VizieR catalogs (trying CDS, Harvard and NAOJ mirrors);
+5. queries Gaia DR3 and AllWISE on IRSA TAP (complete cones, brightest
+   first) and VSX on VizieR (trying the Harvard, CDS and NAOJ mirrors in
+   that order; Gaia/AllWISE fall back to VizieR if IRSA fails);
 6. writes `data_cache/<Target>_meta.json`.
 
 > **Two gotchas this script exists to handle.** The IRSA SIA2 endpoint only
@@ -780,15 +819,19 @@ stack (numpy/scipy/astropy/reproject) that static hosts cannot run:
 | Shape | What runs | Hosts |
 |---|---|---|
 | **Full app** (FastAPI + live pipeline) | `uvicorn app:app` in a container | Render, Railway, Fly.io, Google Cloud Run, any Docker host / VPS |
-| **Static site** (pre-rendered JSON) | `site/` with `api/*.json` | Netlify, Vercel, Cloudflare Pages, GitHub Pages, S3 |
+| **Static site** (pre-rendered JSON) | `site/` with `api/*.json` | Netlify, Cloudflare Pages, GitHub Pages, S3 |
 
 Both are generated from the same code and look identical in the browser.
 
 ### A. Full app in a container (recommended for a live demo)
 
 Everything needed is in the repo already: `Dockerfile`, `.dockerignore`,
-`Procfile`, `render.yaml`, `fly.toml`. The cached FITS cutouts are copied into
-the image, so the container is self-contained (no IRSA access at runtime).
+`Procfile`, `render.yaml`, `fly.toml`. The FITS cutouts are gitignored, so a
+clean clone contains metadata but not the image pixels. FITS files are excluded
+from Docker build contexts; mount a populated `data_cache/` if you want to use
+cached mode inside a local container. Otherwise use live mode with IRSA access.
+Metadata paths are normalized so Windows-generated cache manifests work inside
+Linux containers.
 
 ```bash
 docker build -t spherex-lens .
@@ -798,6 +841,13 @@ docker run -p 8000:8000 spherex-lens
 
 **Render** -- push the repo, then *New + -> Blueprint*: `render.yaml` already
 declares a free Docker web service with `healthCheckPath: /api/targets`.
+The free tier and upstream IRSA availability are not guaranteed; cold live
+requests can take tens of seconds, and this service does not promise 200 ms
+fresh-data synchronization. The API has no built-in authentication. CORS is
+disabled by default and can be explicitly allowlisted with
+`SPHEREX_CORS_ORIGINS=https://your-frontend.example`; CORS is not an access
+control, so protect `/api/field` with a trusted proxy/authentication or rate
+limits before exposing it to untrusted clients.
 
 **Railway** -- *New Project -> Deploy from repo*; it detects the `Procfile`
 (`uvicorn app:app --host 0.0.0.0 --port $PORT`) and builds with Nixpacks. Add
@@ -816,6 +866,11 @@ fly deploy                              # -> https://spherex-lens.fly.dev
 gcloud run deploy spherex-lens --source . --port 8000 --allow-unauthenticated
 ```
 
+That command deploys only the interactive app; it does not create the
+scheduled refresh pipeline or durable snapshots. For the agreed 12-hour,
+registered-field architecture, use the [Google Cloud deployment guide](cloud/README.md)
+and Terraform configuration in `cloud/terraform/`.
+
 **Any VPS** --
 
 ```bash
@@ -827,14 +882,14 @@ uvicorn app:app --host 0.0.0.0 --port 8000        # put nginx/caddy in front
 All of these expose the same API (`/api/targets`, `/api/dashboard`,
 `/api/recovery`) and serve the dashboard at `/`.
 
-### B. Static site (Netlify / Vercel / Pages)
+### B. Static site (Netlify / Pages)
 
 `export_static.py` runs the whole pipeline once per target and writes every API
 response as a file, then flips the dashboard into static mode
 (`<body data-mode="static">`), so no Python is needed at runtime:
 
 ```bash
-python export_static.py                       # -> site/  (18 fields, ~27 MB JSON)
+python export_static.py                       # -> site/  (18 fields; current snapshot ~58 MB JSON)
 python export_static.py --no-recovery         # faster: skip the recovery grids
 python export_static.py --targets WISE_0855 R_Draconis
 ```
@@ -854,9 +909,6 @@ Deploy it:
 # Netlify  (netlify.toml already sets publish = "site")
 netlify deploy --prod --dir site
 
-# Vercel   (vercel.json sets outputDirectory = "site")
-vercel --cwd site
-
 # Cloudflare Pages
 wrangler pages deploy site --project-name spherex-lens
 
@@ -868,7 +920,7 @@ wrangler pages deploy site --project-name spherex-lens
 Because the JSON is plain files, the dashboard works identically offline --
 `python -m http.server -d site 8300` is enough to demo it on a laptop.
 
-**Why not run the pipeline on Netlify/Vercel functions?** A single
+**Why not run the pipeline on Netlify functions?** A single
 `/api/dashboard` request loads four ~5 MB FITS files, masks and reprojects them,
 runs an FFT subtraction and a 12-cell injection-recovery grid. That is seconds
 of CPU and a few hundred MB of native dependencies -- outside the limits of
@@ -877,45 +929,52 @@ serverless static platforms, which is why the static build pre-renders instead.
 250 MB unzipped would not fit numpy + scipy + astropy + reproject even if they
 did.)
 
-### C. Hybrid: static on Netlify, live pipeline behind a proxy
+### C. Hybrid: static Netlify site with a cloud snapshot API
 
-You can have both. Netlify serves the pre-rendered JSON (instant, no backend),
-and a `[[redirects]]` rule forwards `/live-api/*` to the FastAPI app running
-somewhere that does allow Python (Render/Fly/Railway/VPS):
+Netlify serves the interface. A `[[redirects]]` rewrite forwards short
+snapshot reads from `/live-api/*` to Cloud Run:
 
 ```toml
 # netlify.toml
 [[redirects]]
   from = "/live-api/*"
-  to = "https://spherex-lens.onrender.com/api/:splat"
+  to = "https://YOUR_CLOUD_RUN_URL/api/:splat"
   status = 200
   force = true
 ```
 
-```bash
-python export_static.py --api-base /live-api   # writes <body data-api-base="/live-api">
+```powershell
+python export_static.py --api-base /live-api `
+  --pipeline-api-base https://YOUR_CLOUD_RUN_URL/api
 netlify deploy --prod --dir site
 ```
 
-What the deployed site then does:
+With the cloud backend configured, the deployed site uses the published
+snapshot API for registered fields, targets, recovery grids and the mosaic.
+`Open any field` and the explicit live toggle fetch on demand from IRSA:
 
 | Interaction | Path taken |
 |---|---|
-| Load a pre-rendered field | `api/dashboard-<Target>.json` -- static, instant |
-| A field that was not pre-rendered | falls back to `/live-api/dashboard?target=...` |
-| "Live from IRSA" toggle | always `/live-api/dashboard?...&source=live` |
-| "Open any field" (RA/Dec) | `/live-api/field?ra=&dec=` -> IRSA, on the spot |
+| Registered-field dashboard | `/live-api/dashboard?target=...` -- published snapshot |
+| Registered-field target list, recovery, mosaic | `/live-api/<route>` -- published snapshot |
+| "Live from IRSA" toggle | direct Cloud Run `/api/dashboard/stream` -- fresh IRSA data |
+| "Open any field" (RA/Dec) | direct Cloud Run `/api/field/stream` -- fresh IRSA data |
 
-Without `--api-base` the site stays 100 % static and the field box says so. The
-proxy keeps CORS out of the picture (same origin), and the first request after
-idle may take ~30 s on a free Render instance while the container wakes up.
+Netlify proxy rewrites time out after 26 seconds, so long IRSA requests use the
+direct Cloud Run URL. Set the exact Netlify site origin in
+`cloud/terraform/terraform.tfvars` as `netlify_origin`; it must not end in `/`.
+CORS only permits the browser origin and is not authentication. Without
+`--api-base` the registered-field site stays static; without
+`--pipeline-api-base`, fresh requests fall back to the proxy and remain subject
+to its timeout. This cloud deployment is not guaranteed free; see
+[cloud/README.md](cloud/README.md) for costs, setup and security limitations.
 
-You can skip the rebuild entirely: a static page with no `data-api-base` probes
-`/live-api/targets` once at load, and if the redirect answers it switches itself
-into hybrid mode (the field hint then reads *"live proxy detected"*). So the
-minimum Netlify-only change is the `[[redirects]]` block, nothing else.
+The static page can detect an available `/live-api` rewrite, but a deploy with
+the direct pipeline base configured is required for long-running live progress.
 
-
+Command to rebuild image
+cd C:\Users\User\spherex-lens\cloud\terraform
+terraform apply -var-file=terraform.tfvars -var=deploy_runtime=true
 ---
 
 ## Repository layout
@@ -941,11 +1000,11 @@ spherex-lens/
 ├── make_figures.py          # optional: renders figures/ from the cache
 ├── EXPLAINER.md             # plain-language guide to the whole project
 ├── live_ingest.py          # optional: stream cutouts from IRSA into RAM (no disk)
-├── export_static.py         # optional: pre-renders site/ for Netlify/Vercel
+├── export_static.py         # optional: pre-renders site/ for Netlify
 ├── site/                    # static build output (index.html + api/*.json)
 ├── Dockerfile               # full app container (Render/Railway/Fly/Cloud Run)
 ├── docker-compose.yml       # local container run
-├── Procfile / render.yaml / fly.toml / netlify.toml / vercel.json
+├── Procfile / render.yaml / fly.toml / netlify.toml
 ├── requirements.txt
 └── README.md
 ```
@@ -1001,4 +1060,3 @@ spherex-lens/
 7. Molliere et al. 2019, *petitRADTRANS*, A&A 627, A67
 8. Zackay, Ofek & Gal-Yam 2016, *Proper Image Subtraction (ZOGY)*, ApJ 830, 27
 9. Zackay & Ofek 2017, *How to Coadd Images. I.*, ApJ 836, 187
-

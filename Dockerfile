@@ -1,34 +1,36 @@
-# SPHEREx Discovery Portal -- container image for the full FastAPI app.
+# SPHEREx Discovery Portal -- container image for running the API locally.
+#
+# There is no local data cache: the app reads the published Cloud snapshot,
+# which the Cloud Run job refreshes from IRSA every 12 hours.  The container
+# therefore needs the bucket name and Google credentials:
 #
 #   docker build -t spherex-lens .
-#   docker run -p 8000:8000 spherex-lens
+#   docker run -p 8000:8000 ^
+#     -e SPHEREX_SNAPSHOT_BUCKET=spherex-lens-spherex-snapshots ^
+#     -e GOOGLE_CLOUD_PROJECT=spherex-lens ^
+#     -e GOOGLE_APPLICATION_CREDENTIALS=/gcp/adc.json ^
+#     -v "%APPDATA%\gcloud\application_default_credentials.json:/gcp/adc.json:ro" ^
+#     spherex-lens
 #
-# The cached FITS cutouts (~21 MB per target) are baked into the image so the
-# container is self-contained and needs no network at runtime.
+# The production image is Dockerfile.cloud (built by cloud/cloudbuild.yaml).
 
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    SPHEREX_CACHE=data_cache \
+    SPHEREX_CACHE=/tmp/spherex-data \
     PORT=8000
 
 WORKDIR /app
 
-# All heavy dependencies (numpy, scipy, astropy, reproject) ship manylinux
-# wheels, so no compiler toolchain is needed.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 
 COPY app.py step1_ingest.py step2_coadd.py step3_zogy.py step4_triage.py \
-     step5_spectrum.py step6_injection.py make_demo_data.py make_figures.py \
-     export_static.py ./
+     step5_spectrum.py step6_injection.py step7_neowise.py live_ingest.py \
+     catalog_tools.py snapshot_store.py cloud_refresh.py ./
 COPY static ./static
-COPY data_cache ./data_cache
-COPY data_cache_demo ./data_cache_demo
-COPY figures ./figures
-COPY figures_real ./figures_real
 
 EXPOSE 8000
 

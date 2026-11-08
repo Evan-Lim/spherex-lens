@@ -1,0 +1,23 @@
+# Cloud Run image: the scheduled worker restores only the cache objects it needs
+# from private Cloud Storage; local FITS caches are intentionally not bundled.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    SPHEREX_CACHE=/tmp/spherex-data \
+    PORT=8080
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+COPY app.py step1_ingest.py step2_coadd.py step3_zogy.py step4_triage.py \
+     step5_spectrum.py step6_injection.py step7_neowise.py live_ingest.py \
+     catalog_tools.py snapshot_store.py cloud_refresh.py ./
+COPY static ./static
+
+EXPOSE 8080
+
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]

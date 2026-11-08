@@ -1,0 +1,23 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.cloud
+      - -t
+      - ${_IMAGE}
+      - .
+  # Smoke test: fail the build (not the Cloud Run rollout) when a module the
+  # API or the refresh worker imports is missing from requirements.txt.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - -e
+      - SPHEREX_SNAPSHOT_BUCKET=import-check
+      - ${_IMAGE}
+      - python
+      - -c
+      - import app, cloud_refresh; print("import check ok")
+images:
+  - ${_IMAGE}
