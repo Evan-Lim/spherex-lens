@@ -3630,15 +3630,16 @@ function chartTheme() {
   if (THEME) return THEME;
   const css = getComputedStyle(document.documentElement);
   const v = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
+  // P8 s2: chart-specific tokens, falling back to the general ones
   THEME = {
-    bg: v('--panel-solid', '#0e1424'),
-    grid: v('--line', 'rgba(148,163,184,.16)'),
-    text: v('--text-soft', '#b4c0d3'),
-    muted: v('--muted', '#8592a8'),
-    blue: v('--blue', '#4c8dff'),
-    green: v('--green', '#2fd47a'),
-    red: v('--red', '#ff5a3c'),
-    amber: v('--amber', '#c98a4b'),
+    bg: v('--chart-bg', v('--panel-solid', '#0e1424')),
+    grid: v('--chart-grid', v('--line', 'rgba(148,163,184,.16)')),
+    text: v('--chart-text', v('--text-soft', '#b4c0d3')),
+    muted: v('--chart-text', v('--muted', '#8592a8')),
+    blue: v('--chart-blue', v('--blue', '#4c8dff')),
+    green: v('--chart-green', v('--green', '#2fd47a')),
+    red: v('--chart-red', '#ff5a3c'),
+    amber: v('--chart-amber', v('--amber', '#c98a4b')),
     purple: v('--purple', '#a78bfa'),
     font: '13px "IBM Plex Mono", ui-monospace, Menlo, monospace',  /* P6 s2: canvas chart text 13px */
   };

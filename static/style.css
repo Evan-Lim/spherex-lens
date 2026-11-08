@@ -5,36 +5,53 @@
    ========================================================================== */
 
 :root {
-  /* surfaces (P7: deep navy page, lighter blue-grey cards, white borders) */
-  --bg: #0a1226;                 /* deep navy page */
-  --bg-2: #0d1730;
-  --panel: #16223d;              /* big panels (Target Control, Command Dashboard) */
-  --panel-solid: #16223d;
-  --raise: #1e2c4b;              /* component cards inside panels */
-  --raise-2: #253658;            /* table header, input fields, hover */
-  --line: rgba(255,255,255,.22); /* card borders, 1.5px */
-  --line-strong: rgba(255,255,255,.38); /* inputs, secondary buttons */
+  /* surfaces (P8: Figma slate window, translucent grey boxes, white borders) */
+  --bg: #161c2b;                 /* page: darker than the panels */
+  --bg-2: #161c2b;
+  --panel: #3e4960;              /* big panels = Figma window colour */
+  --panel-solid: #3e4960;
+  --raise: rgba(217,217,217,.10);   /* boxes inside panels (reads #4e586d) */
+  --raise-2: rgba(217,217,217,.18); /* table header, inputs, hover */
+  --raise-solid: #4e586d;        /* where a solid colour is needed (canvas, sticky header base) */
+  --line: rgba(255,255,255,.45); /* box borders, 1.5px */
+  --line-panel: #e1e1e1;         /* big panel border, 2px */
+  --line-soft: rgba(255,255,255,.18); /* table row dividers */
+  --line-strong: rgba(255,255,255,.55);
   --grid: rgba(255,255,255,.06);
+  --chip: #d9d9d9;               /* secondary buttons / chips (Figma button grey) */
+  --chip-text: #1b1b1b;
+  --hl: #9cc4ff;                 /* light blue: active states, accent bar, links, focus */
+  --hl-soft: #3f4d67;            /* solid dark-blue tint: --hl text on it 5.1:1 (a translucent tint gave 3.3:1) */
+  --map-bg: #0b1020;             /* the science map keeps a dark surround */
 
   /* text */
   --text: #ffffff;
-  --text-soft: #d6deec;
-  --muted: #a9b6cc;              /* 6.8:1 on --raise, 5.9:1 on --raise-2 */
+  --text-soft: #e3e7ef;
+  --muted: #d5dbe7;              /* 5.1:1 on #4e586d */
 
-  /* red is reserved: primary action per area, alerts, CANDIDATE, Unaccounted */
+  /* red: primary actions (fill) and alerts (text) only */
   --nasa-red: #d42a12;           /* primary action fill (white text 5.1:1) */
-  --nasa-red-hover: #b52310;     /* spec gave #e8361c: white on it is 4.2:1, so hover goes darker (6.4:1) */
+  --nasa-red-hover: #b52310;     /* darker on hover keeps white text at 6.4:1 */
   --accent: var(--nasa-red);
   --accent-hover: var(--nasa-red-hover);
-  --accent-text: var(--blue);    /* links and quiet highlights: never red */
-  --focus: #ffffff;              /* 2px white focus ring + 2px offset */
+  --accent-text: var(--hl);      /* links */
+  --focus: var(--hl);            /* focus ring on slate */
+
+  /* chart canvases (read once by chartTheme() in app.js) */
+  --chart-bg: var(--raise-solid);
+  --chart-grid: rgba(255,255,255,.15);
+  --chart-text: var(--text-soft);
+  --chart-blue: #7fb2ff;
+  --chart-green: #5fe0a0;
+  --chart-red: #ff8a75;
+  --chart-amber: #e0b07a;
 
   /* metric colours keep their meaning */
   --nasa-blue: #0b3d91;          /* legacy name, no longer used for fills */
   --blue: #5ea8ff;
   --blue-soft: rgba(94,168,255,.14);
-  --red: #ff5a3c;                /* red as text/border on navy */
-  --red-soft: rgba(255,90,60,.14);
+  --red: #ffb4a6;                /* alert TEXT on slate (light coral) */
+  --red-soft: rgba(255,90,60,.25);
   --green: #34d399;
   --green-soft: rgba(52,211,153,.14);
   --amber: #d19a62;              /* used as BROWN for the Baseline card */
@@ -2691,3 +2708,214 @@ tbody tr:hover td, .table-wrap tbody tr:hover td, tbody tr.selected td { backgro
 .module-desc, .panel-sub { font-size: 15px; }
 .chart figcaption { font-size: 20px; font-weight: 700; }
 body { font-size: 16px; }
+
+
+/* ==========================================================================
+   P8a -- Figma slate colour system, logo, light metric cards, Actions gaps
+   (SPHEREX-LENS_P8_SPEC.md s1, s2, s3, s6b). Loaded last.
+   ========================================================================== */
+
+/* ---- logo ------------------------------------------------------------------ */
+.brand-logo { display: block; width: 32px; height: 32px; flex: none; }
+
+/* ---- page and big panels ----------------------------------------------------- */
+html, body, .chrome { background: var(--bg); }
+.chrome { border-bottom: 1.5px solid var(--line-soft); }
+.panel {
+  background: var(--panel);
+  border: 2px solid var(--line-panel);
+  border-radius: 24px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.35);
+}
+.section { border-top: 1.5px solid var(--line-soft); }
+
+/* ---- boxes inside panels: translucent grey, 1.5px white border, radius 20 --- */
+.mono-box, .verdict-box, .map-info, .chart, .table-wrap, .cloud-refresh-panel, .cards {
+  background-color: var(--raise);
+  border: 1.5px solid var(--line);
+  border-radius: 20px;
+}
+.mono-box, .verdict-box, .chart, .cards { padding: 20px; }
+.map-info { padding: 14px 20px; }
+.modal .cloud-refresh-panel { border: none; background: transparent; }
+.modal, .guide-sheet { background: var(--panel); border: 2px solid var(--line-panel); border-radius: 24px; }
+/* the science map keeps its dark surround inside the white-bordered box */
+.map-wrap { background-color: var(--map-bg); border: 1.5px solid var(--line); border-radius: 20px; }
+/* nested boxes inside a box use --raise-2 */
+.map-chip, .archive-chip, .map-chip-stack { background: var(--raise-2); border-color: var(--line); color: var(--text); }
+.map-chip-stack .mi-k { color: var(--text-soft); }
+.map-info-tag { background: var(--hl-soft); color: var(--hl); border-color: var(--hl); }
+
+/* ---- module titles: white with a 4px light-blue accent bar ------------------ */
+.section-label {
+  color: var(--text);
+  border-left: 4px solid var(--hl);
+  padding-left: 12px;
+}
+.module-desc { color: var(--text-soft); }
+.hint-inline { color: var(--muted); }
+
+/* ---- secondary buttons and chips: Figma grey fill, dark text, no border ----- */
+.btn-secondary, .btn-ghost, .history-btn, .zoom-group button, label.btn-secondary {
+  background: var(--chip);
+  color: var(--chip-text);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+}
+.btn-secondary:hover, .btn-ghost:hover, .history-btn:hover, .zoom-group button:hover {
+  background: #c4c4c4;
+  color: var(--chip-text);
+  border-color: transparent;
+}
+.btn-ghost.active { background: #ffffff; color: var(--chip-text); border-color: var(--hl); }
+.zoom-group { background: var(--raise); border: 1.5px solid var(--line); border-radius: 12px; }
+.zoom-group button { min-height: 36px; }
+#zoom-label { color: var(--text); }
+button.status-pill { border-radius: 12px; }
+
+/* ---- primary buttons: NASA red, white text ----------------------------------- */
+.btn-primary, #btn-field, #btn-recovery, #btn-cloud-refresh {
+  background: var(--nasa-red);
+  color: #ffffff;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+}
+.btn-primary:not(:disabled):hover,
+#btn-field:not(:disabled):hover, #btn-recovery:not(:disabled):hover,
+#btn-cloud-refresh:not(:disabled):hover { background: var(--nasa-red-hover); }
+
+/* ---- Actions: Run 48px, Copy 44px, 16px apart, checkbox 16px below (s6b) ---- */
+#btn-run { height: 48px; min-height: 48px; margin: 0; }
+#btn-export { height: 44px; min-height: 44px; margin: 16px 0 0; }
+#toggle-live-wrap { margin-top: 16px; }
+
+/* ---- segmented: white fill + slate text when active, white text otherwise --- */
+.segmented { background: var(--raise); border: 1.5px solid var(--line); border-radius: 12px; }
+.seg { color: var(--text); border-radius: 9px; }
+.seg-pill { background: #ffffff; border-radius: 9px; }
+.seg.active, .segmented.has-pill .seg.active { color: #3e4960; }
+.segmented:not(.has-pill) .seg.active { background: #ffffff; }
+.seg:not(.active):hover { background: var(--raise-2); color: var(--text); }
+
+/* ---- inputs and checkboxes --------------------------------------------------- */
+.control-select, .control-input {
+  background: var(--raise-2);
+  border: 1.5px solid var(--line);
+  color: var(--text);
+  border-radius: 12px;
+}
+.control-input::placeholder { color: var(--text-soft); }
+.control-select option { background: var(--raise-solid); color: var(--text); }
+input[type="checkbox"] { background: var(--raise-2); border: 1.5px solid var(--line); }
+input[type="checkbox"]:checked, input[type="checkbox"]:checked:hover { background: #ffffff; border-color: #ffffff; }
+input[type="checkbox"]::after { border-color: #3e4960; }
+
+/* ---- tables -------------------------------------------------------------------- */
+/* sticky header needs an opaque colour: --raise-2 over the --raise box over --panel */
+thead th { background: #667080; color: var(--text); border-bottom: 1.5px solid var(--line); }
+tbody td { border-bottom: 1px solid var(--line-soft); color: var(--text); }
+.kv-table th, .kv-table td { border-bottom: 1px dashed var(--line-soft); }
+.kv-table th { color: var(--muted); }
+.kv-table td { color: var(--text); }
+.table-wrap tbody tr:nth-child(even) td { background: rgba(255,255,255,.03); }
+tbody tr:hover td, .table-wrap tbody tr:hover td, tbody tr.selected td { background: var(--raise-2); }
+tbody tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--hl); }
+
+/* ---- badges on slate: 25% tint, white text, 1px border in the hue ------------
+   The tint is mixed over a dark slate base, not left translucent, so white
+   text keeps >= 4.5:1 on zebra and hover rows too. */
+.badge, .cat-chip, .epoch-chip, .verdict-known, .verdict-candidate {
+  --hue: #a8b0c0;
+  background: color-mix(in srgb, var(--hue) 25%, #2b3346);
+  border: 1px solid var(--hue);
+  color: #ffffff;
+}
+.badge-known, .badge-dipole, .cat-chip.wise, .verdict-known { --hue: #34d399; }
+.badge-candidate, .verdict-candidate { --hue: #ff5a3c; }
+.badge-static, .badge-monopole, .cat-chip.vsx { --hue: #d19a62; }
+.badge-variable, .cat-chip.gaia, .epoch-chip.e2 { --hue: #5ea8ff; }
+.badge-mover { --hue: #c4b5fd; }
+
+/* ---- links -------------------------------------------------------------------- */
+a, a:visited, a:hover, .sources-table td a, .sources-table td a:visited,
+.verdict-detail a, .kv-table a { color: var(--hl); }
+
+/* ---- field metrics: light tints, deep same-hue text, faint icon (s3) -------
+   Text colours: the spec's red, green and brown shades gave 5.1-5.6:1 on their
+   tints (P8 asks >= 7:1), so those three are darkened in the same hue. */
+.cards { gap: 16px; }
+.card {
+  position: relative;
+  overflow: hidden;
+  border: none;
+  border-radius: 22px;
+  padding: 20px;
+  --ink: #1d3f9a;
+  color: var(--ink);
+  filter: none;
+}
+.card-blue  { background: #dbe7ff; --ink: #1d3f9a; --icon: url("assets/icons/metric-detections.svg"); }
+.card-red   { background: #ffdcd6; --ink: #85190f; --icon: url("assets/icons/metric-unaccounted.svg"); }
+.card-green { background: #d3f5e3; --ink: #064a27; --icon: url("assets/icons/metric-max-snr.svg"); }
+.card-amber { background: #f1e3cc; --ink: #5a3611; --icon: url("assets/icons/metric-baseline.svg"); }
+.card-label, .card-value, .card-hint, .card-red .card-value { color: var(--ink); opacity: 1; }
+.card-label, .card-value {
+  position: relative;
+  z-index: 1;
+  font-family: "Bitcount Grid Single", "Montserrat", var(--sans);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.card-label { font-size: 22px; line-height: 1.2; }
+.card-value { font-size: 36px; line-height: 1.15; margin-top: 8px; }
+.card-hint {
+  position: relative;
+  z-index: 1;
+  margin-top: 8px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.card-hint .keep-case { text-transform: none; }   /* sigma stays sigma */
+/* big faint icon, tinted to the text colour; decorative (pseudo-element) */
+.card::after {
+  content: "";
+  position: absolute;
+  /* tucked into the corner (clipped by the card) so wide labels like
+     "Unaccounted" do not run under the icon */
+  top: -4px;
+  right: -8px;
+  width: 56px;
+  height: 56px;
+  background: var(--ink);
+  opacity: .25;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+          mask: var(--icon) center / contain no-repeat;
+  pointer-events: none;
+}
+.card:hover { filter: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .card { transition: transform .18s ease-out; }
+  .card:hover { transform: translateY(-2px); }
+}
+
+/* ---- contrast fixes on the translucent boxes (measured, lightness only) ----- */
+/* older two-class rules (.cat-chip.gaia ...) still set coloured text: badges are white */
+.badge[class], .cat-chip[class], .epoch-chip[class],
+.verdict-known[class], .verdict-candidate[class] { color: #ffffff; }
+/* --hl text on #4e586d boxes is 4.0:1; links take a lighter tint of the same blue (5.0:1) */
+a, a:visited, a:hover, .sources-table td a, .sources-table td a:visited,
+.verdict-detail a, .kv-table a { color: #c2d9ff; }
+/* a lighter --raise-2 hover row drops light text to 3.6-4.1:1: hover/selected rows
+   darken instead; the selected row keeps its light-blue bar */
+tbody tr:hover td, .table-wrap tbody tr:hover td, tbody tr.selected td { background: rgba(8,12,24,.28); }
+.kv-table tbody tr:hover td { background: none; }
+.map-chip-stack .mi-k { color: var(--text); }
+/* Target table labels are one word (RA, Dec, Class): give the value the room so
+   "17h57m47.1s (269.4463°)" stays on one line at 16px */
+.target-table th { width: 20%; }
+.target-table td { white-space: nowrap; }
+/* off-map catalogue rows: muted colour only, no extra transparency */
+.objects-table tr.off-map td { opacity: 1; color: var(--muted); }

@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPHERExLens -- Discovery Triage</title>
+  <link rel="icon" href="assets/icons/logo-spherex-lens.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700;800&family=Montserrat:wght@700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700;800&family=Montserrat:wght@700;800&family=Bitcount+Grid+Single&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,7 +15,7 @@
   <!-- ===================== brand / status bar ===================== -->
   <header class="chrome">
     <div class="chrome-left">
-      <span class="brand-mark"></span>
+      <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="" width="32" height="32">
       <span class="brand-name">SPHERExLens</span>
     </div>
     <div class="chrome-right">
@@ -165,7 +166,7 @@
           <div class="card card-blue">
             <div class="card-label">Detections</div>
             <div class="card-value" id="card-total">0</div>
-            <div class="card-hint">above 5&sigma; &middot; this field</div>
+            <div class="card-hint">above 5<span class="keep-case">&sigma;</span> &middot; this field</div>
           </div>
           <div class="card card-red">
             <div class="card-label">Unaccounted</div>
