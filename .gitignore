@@ -29,3 +29,14 @@ cloud/terraform/terraform.tfstate
 cloud/terraform/terraform.tfstate.*
 cloud/terraform/terraform.tfvars
 cloud/terraform/crash.log
+# LaTeX build by-products (keep the .tex and the .pdf)
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.lof
+paper/*.lot
+paper/*.lol
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
