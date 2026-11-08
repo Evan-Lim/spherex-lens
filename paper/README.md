@@ -5,7 +5,7 @@ Two LaTeX documents live here, both self-contained and both compiled with `pdfla
 | File | What it is |
 |---|---|
 | `spherexlens_paper.tex` | the **33-page technical report**: problem statement, related work, data, methodology, revised code, results, validation, discussion, references, appendices, plus a 12-slide deck |
-| `slides_and_script.tex` | the **25-page presentation specification**: 23 slides for a 21:40 talk (15:45 short route), one page per slide -- bullets, figure brief, the figure itself, and the word-for-word script, plus a live-demonstration page and a backup/Q&A page |
+| `slides_and_script.tex` | the **25-page presentation specification**: 23 slides for a 21:40 talk (15:45 short route), one page per slide in the reference document's layout -- `Slide N — Title … time`, `On the slide.` bullets, `Figure / diagram.` brief, the figure itself scaled to the text width, then `Spoken script.` -- plus a live-demonstration page and a backup/Q&A page |
 
 ## Build
 
