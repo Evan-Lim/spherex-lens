@@ -56,6 +56,7 @@
 
       <div class="section">
         <div class="section-label">Target</div>
+        <p class="module-desc">Pick one of the 18 registered fields.</p>
         <select id="target-select" class="control-select">
           <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
           <option value="Barnards_Star">Barnard's Star (M4V)</option>
@@ -74,6 +75,7 @@
 
       <div class="section">
         <div class="section-label">Actions</div>
+        <p class="module-desc">Run the change-detection pipeline on the selected field, or share a link to this view.</p>
         <button id="btn-run" class="btn btn-primary">
           <span class="btn-icon">&#9635;</span> Run Pipeline
         </button>
@@ -108,7 +110,8 @@
       </div>
 
       <div class="section">
-        <div class="section-label">Triage Verdict</div>
+        <div class="section-label">Triage verdict</div>
+        <p class="module-desc">The selected detection: what it most likely is, and the evidence.</p>
         <div id="verdict-box" class="verdict-box">
           <div class="verdict-label">No detection yet</div>
         </div>
@@ -116,6 +119,7 @@
 
       <div class="section">
         <div class="section-label">Pipeline statistics</div>
+        <p class="module-desc">Numbers from the last pipeline run on this field.</p>
         <table class="kv-table stats-table">
           <tbody>
             <tr><th>Exposures</th><td id="stat-exp">--</td></tr>
@@ -138,6 +142,7 @@
 
       <div class="section section-last">
         <div class="section-label">Recovery summary</div>
+        <p class="module-desc">Injection-recovery test: plants fake sources to measure what the pipeline can find.</p>
         <button id="btn-recovery" class="btn btn-secondary btn-block">Recovery Grid</button>
         <div id="recovery-out" class="mono-box" role="status"
              aria-live="polite" aria-atomic="true">injection-recovery not run yet</div>
@@ -155,6 +160,7 @@
 
       <div class="section">
         <div class="section-label">Field metrics</div>
+        <p class="module-desc">Summary of what changed in this field between epochs.</p>
         <div class="cards">
           <div class="card card-blue">
             <div class="card-label">Detections</div>
@@ -181,6 +187,7 @@
 
       <div class="section">
         <div class="section-label">Live map</div>
+        <p class="module-desc">The field as SPHEREx saw it. Switch layers to compare the stacked image, the difference and its significance.</p>
 
         <div class="map-toolbar">
           <div class="segmented" id="view-switch">
@@ -188,9 +195,9 @@
             <button class="seg" data-view="sky">All&#8209;sky</button>
           </div>
           <div class="segmented" id="layer-switch">
-            <button class="seg" data-layer="image">Co-add</button>
-            <button class="seg" data-layer="zogy_image">Difference&nbsp;D</button>
-            <button class="seg active" data-layer="zogy_snr">Significance&nbsp;S</button>
+            <button class="seg" data-layer="image" title="All exposures stacked into one image." aria-describedby="tip-coadd">Co-add</button>
+            <button class="seg" data-layer="zogy_image" title="ZOGY difference between epochs: what changed." aria-describedby="tip-diff">Difference&nbsp;D</button>
+            <button class="seg active" data-layer="zogy_snr" title="The difference in units of noise (&sigma;). Bright = significant change." aria-describedby="tip-sig">Significance&nbsp;S</button>
           </div>
           <div class="toggles">
             <label class="toggle"><input type="checkbox" id="tog-grid" checked><span>Grid</span></label>
@@ -227,7 +234,8 @@
       </div>
 
       <div class="section">
-        <div class="section-label">Diagnostics <span class="hint-inline">signal, noise and completeness</span></div>
+        <div class="section-label">Diagnostics</div>
+        <p class="module-desc">signal, noise and completeness</p>
         <div class="chart-grid">
           <figure class="chart">
             <figcaption>Significance histogram &middot; noise peak vs real sources</figcaption>
@@ -249,7 +257,8 @@
       </div>
 
       <div class="section">
-        <div class="section-label">Target history <span class="hint-inline">Gaia + AllWISE + SPHEREx SED &middot; NEOWISE 2010&ndash;2024</span></div>
+        <div class="section-label">Target history</div>
+        <p class="module-desc">Gaia + AllWISE + SPHEREx SED &middot; NEOWISE 2010&ndash;2024</p>
         <div class="chart-grid">
           <figure class="chart">
             <figcaption>Spectral energy distribution of the target</figcaption>
@@ -264,7 +273,8 @@
       </div>
 
       <div class="section">
-        <div class="section-label">Expected movers <span class="hint-inline">catalogued motion &ge; 1 map pixel between first and last epoch</span></div>
+        <div class="section-label">Expected movers</div>
+        <p class="module-desc">catalogued motion &ge; 1 map pixel between first and last epoch</p>
         <div class="table-wrap">
           <table class="movers-table">
             <thead>
@@ -278,17 +288,19 @@
       </div>
 
       <div class="section">
-        <div class="section-label">Epoch pairs <span class="hint-inline">every epoch vs every next epoch</span></div>
+        <div class="section-label">Epoch pairs</div>
+        <p class="module-desc">every epoch vs every next epoch</p>
         <div id="pairs-out" class="mono-box">run the pipeline to compare epochs</div>
       </div>
 
       <div class="section">
-        <div class="section-label">Detections <span class="hint-inline">click a row to inspect</span></div>
+        <div class="section-label">Detections</div>
+        <p class="module-desc">click a row to inspect</p>
         <div class="table-wrap">
           <table class="detections-table">
             <thead>
               <tr>
-                <th>RA</th><th>Dec</th><th>SNR</th><th>Kind</th><th>Verdict</th><th>Match</th><th class="th-unit">&mu; (&Prime;/yr)</th>
+                <th>RA</th><th>Dec</th><th title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th>Kind</th><th>Verdict</th><th>Match</th><th class="th-unit">&mu; (&Prime;/yr)</th>
               </tr>
             </thead>
             <tbody id="detections-body">
@@ -299,9 +311,8 @@
       </div>
 
       <div class="section">
-        <div class="section-label">
-          Field catalogue <span class="hint-inline" id="objects-hint">every catalogue entry in the field</span>
-        </div>
+        <div class="section-label">Field catalogue</div>
+        <p class="module-desc" id="objects-hint">every catalogue entry in the field</p>
 
         <div class="object-toolbar">
           <div class="segmented" id="object-filter">
@@ -320,7 +331,7 @@
             <thead>
               <tr>
                 <th>Verdict</th><th>RA</th><th>Dec</th><th>Mag</th>
-                <th>Catalogues</th><th>Detected</th><th>SNR</th><th>Pair</th>
+                <th>Catalogues</th><th>Detected</th><th title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th>Pair</th>
               </tr>
             </thead>
             <tbody id="objects-body">
@@ -332,6 +343,7 @@
 
       <div class="section section-last">
         <div class="section-label">Image sources &amp; provenance</div>
+        <p class="module-desc">Every SPHEREx image used, with a link to its IRSA archive record.</p>
         <div class="archive-line" id="archive-line">
           every pixel on this page comes from a named NASA archive record
         </div>
@@ -578,6 +590,14 @@
     </section>
     <p class="modal-empty">Cloud snapshot status is not available from this server.</p>
   </dialog>
+
+  <!-- tooltip text for aria-describedby (read by screen readers, not shown) -->
+  <div hidden>
+    <span id="tip-coadd">All exposures stacked into one image.</span>
+    <span id="tip-diff">ZOGY difference between epochs: what changed.</span>
+    <span id="tip-sig">The difference in units of noise (&sigma;). Bright = significant change.</span>
+    <span id="tip-snr">Signal-to-noise ratio (&sigma;).</span>
+  </div>
 
   <script src="app.js"></script>
 </body>
