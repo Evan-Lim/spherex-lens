@@ -18,10 +18,12 @@
       <span class="brand-name">SPHERExLens</span>
     </div>
     <div class="chrome-right">
-      <span class="status-pill">
+      <button id="btn-cloud-status" class="status-pill" type="button"
+              aria-haspopup="dialog" aria-controls="cloud-dialog"
+              title="Cloud snapshot status">
         <span class="dot" id="status-dot"></span>
         <span id="status-text">STANDBY &middot; NO FIELD LOADED</span>
-      </span>
+      </button>
       <button id="btn-guide" class="btn btn-ghost">Guide</button>
       <button id="btn-demo" class="btn btn-ghost">Auto Demo</button>
       <button id="btn-reset" class="btn btn-ghost">Reset</button>
@@ -149,10 +151,7 @@
           <h1>Command Dashboard</h1>
           <p class="panel-sub">ZOGY proper subtraction &middot; epoch pairs &middot; field 9&prime;</p>
         </div>
-        <span class="panel-index">/02</span>
       </div>
-
-      <span class="tag tag-amber">&#9670; SCIENCE &amp; TRIAGE OPS</span>
 
       <div class="section">
         <div class="section-label">Field metrics</div>
@@ -181,9 +180,7 @@
       </div>
 
       <div class="section">
-        <div class="section-label">
-          Live map <span class="hint-inline" id="map-hint">run pipeline to load</span>
-        </div>
+        <div class="section-label">Live map</div>
 
         <div class="map-toolbar">
           <div class="segmented" id="view-switch">
@@ -201,7 +198,7 @@
             <label class="toggle"><input type="checkbox" id="tog-det" checked><span>Detections</span></label>
           </div>
           <div class="zoom-group">
-            <button id="btn-mosaic" title="Rebuild the all-sky tiles">&#8635; Tiles</button>
+            <button id="btn-mosaic" title="Rebuild the all-sky tiles" aria-label="Rebuild the all-sky tiles">&#8635;</button>
             <button id="zoom-out" title="Zoom out">&minus;</button>
             <span id="zoom-label">1.0&times;</span>
             <button id="zoom-in" title="Zoom in">+</button>
@@ -209,55 +206,9 @@
           </div>
         </div>
 
-        <section class="cloud-refresh-panel" aria-label="Cloud snapshot refresh" hidden>
-          <div class="cloud-refresh-summary">
-            <h2>Cloud snapshot
-              <span id="cloud-freshness" class="freshness-badge" data-state="unknown">checking</span>
-            </h2>
-            <p id="cloud-snapshot-time">Checking the published snapshot…</p>
-            <p id="cloud-next-refresh" class="cloud-refresh-policy"></p>
-            <p id="offline-copy-status" class="offline-copy-status" role="status"
-               aria-live="polite" hidden></p>
-            <details class="cloud-refresh-details">
-              <summary>Refresh scope and supporting data</summary>
-              <p>Fetching fresh IRSA checks all 18 registered fields. Changed fields are reprocessed, then the new Cloud snapshot is published. Catalogs follow a 7-day cadence; NEOWISE/AllWISE history updates when detections change or history is missing.</p>
-              <p id="cloud-support-freshness"></p>
-            </details>
-          </div>
-          <form id="cloud-refresh-form" class="cloud-refresh-form" hidden>
-            <label for="cloud-refresh-token">Operator token
-              <input id="cloud-refresh-token" class="control-input" type="password"
-                     autocomplete="new-password" autocapitalize="off"
-                     spellcheck="false" required>
-            </label>
-            <button id="btn-cloud-refresh" class="btn btn-secondary" type="submit">
-              Fetch all 18 from IRSA
-            </button>
-          </form>
-          <p id="cloud-refresh-status" class="cloud-refresh-status"
-             role="status" aria-live="polite" aria-atomic="true">
-            Checking refresh status…
-          </p>
-          <div id="cloud-refresh-progress" class="refresh-progress" hidden
-               role="progressbar" aria-label="Fields checked in this refresh"
-               aria-valuemin="0" aria-valuemax="18" aria-valuenow="0">
-            <span class="refresh-progress-bar"></span>
-          </div>
-          <div id="cloud-field-board" class="field-board" hidden>
-            <p class="field-board-caption" id="cloud-field-caption">Per-field result</p>
-            <ol id="cloud-field-grid" class="field-grid" aria-labelledby="cloud-field-caption"></ol>
-            <ul class="field-legend" aria-label="Legend">
-              <li data-state="checking">checking</li>
-              <li data-state="updated">updated</li>
-              <li data-state="unchanged">unchanged</li>
-              <li data-state="retained">kept previous</li>
-              <li data-state="failed">failed</li>
-              <li data-state="queued">queued</li>
-            </ul>
-          </div>
-        </section>
+        <div class="map-info" id="map-hint">run pipeline to load</div>
 
-        <div class="map-wrap">
+        <div class="map-wrap" title="drag to pan &middot; wheel to zoom &middot; click a marker">
           <canvas id="canvas-map"></canvas>
           <div class="map-readout mono" id="map-readout">RA --&middot;--- &nbsp; Dec --&middot;--- &nbsp; --</div>
           <div class="map-scalebar"><span id="scalebar-line"></span><span id="scalebar-text">--</span></div>
@@ -272,7 +223,6 @@
           <span class="legend-item"><i class="sw sw-target"></i> target / expected mover</span>
           <span class="legend-item"><i class="sw sw-dipole"></i> dipole (mover)</span>
           <span class="legend-item"><i class="sw sw-monopole"></i> monopole (variable)</span>
-          <span class="legend-item hint-inline">drag to pan &middot; wheel to zoom &middot; click a marker</span>
         </div>
       </div>
 
@@ -280,20 +230,20 @@
         <div class="section-label">Diagnostics <span class="hint-inline">signal, noise and completeness</span></div>
         <div class="chart-grid">
           <figure class="chart">
-            <canvas id="chart-hist" width="380" height="150"></canvas>
             <figcaption>Significance histogram &middot; noise peak vs real sources</figcaption>
+            <canvas id="chart-hist" width="380" height="150"></canvas>
           </figure>
           <figure class="chart">
-            <canvas id="chart-noise" width="380" height="150"></canvas>
             <figcaption>Noise per epoch (&sigma;, MJy/sr)</figcaption>
+            <canvas id="chart-noise" width="380" height="150"></canvas>
           </figure>
           <figure class="chart">
-            <canvas id="chart-pairs" width="380" height="150"></canvas>
             <figcaption>Detections per epoch pair</figcaption>
+            <canvas id="chart-pairs" width="380" height="150"></canvas>
           </figure>
           <figure class="chart">
-            <canvas id="chart-recovery" width="380" height="150"></canvas>
             <figcaption>Injection recovery (run Recovery Grid)</figcaption>
+            <canvas id="chart-recovery" width="380" height="150"></canvas>
           </figure>
         </div>
       </div>
@@ -302,15 +252,15 @@
         <div class="section-label">Target history <span class="hint-inline">Gaia + AllWISE + SPHEREx SED &middot; NEOWISE 2010&ndash;2024</span></div>
         <div class="chart-grid">
           <figure class="chart">
-            <canvas id="chart-sed" width="380" height="150"></canvas>
             <figcaption>Spectral energy distribution of the target</figcaption>
+            <canvas id="chart-sed" width="380" height="150"></canvas>
           </figure>
           <figure class="chart">
-            <canvas id="chart-neowise" width="380" height="150"></canvas>
             <figcaption>Infrared light curve (AllWISE + NEOWISE visits)</figcaption>
+            <canvas id="chart-neowise" width="380" height="150"></canvas>
           </figure>
         </div>
-        <div id="history-out" class="mono-box" style="white-space:pre-line;margin-top:8px">run the pipeline to load</div>
+        <div id="history-out" class="mono-box history-notes">run the pipeline to load</div>
       </div>
 
       <div class="section">
@@ -318,7 +268,7 @@
         <div class="table-wrap">
           <table class="movers-table">
             <thead>
-              <tr><th>Object</th><th>&mu; (&Prime;/yr)</th><th>Shift (&Prime;)</th><th>Mag</th><th>SPHEREx saw it</th><th>RA, Dec (now)</th></tr>
+              <tr><th>Object</th><th class="th-unit">&mu; (&Prime;/yr)</th><th>Shift (&Prime;)</th><th>Mag</th><th>SPHEREx saw it</th><th>RA, Dec (now)</th></tr>
             </thead>
             <tbody id="movers-body">
               <tr><td colspan="6" class="empty">Run the pipeline to list expected movers</td></tr>
@@ -338,7 +288,7 @@
           <table class="detections-table">
             <thead>
               <tr>
-                <th>RA</th><th>Dec</th><th>SNR</th><th>Kind</th><th>Verdict</th><th>Match</th><th>&mu; (&Prime;/yr)</th>
+                <th>RA</th><th>Dec</th><th>SNR</th><th>Kind</th><th>Verdict</th><th>Match</th><th class="th-unit">&mu; (&Prime;/yr)</th>
               </tr>
             </thead>
             <tbody id="detections-body">
@@ -389,7 +339,7 @@
           <table class="sources-table">
             <thead>
               <tr>
-                <th>Epoch</th><th>Det</th><th>&lambda; (&micro;m)</th><th>Observation</th>
+                <th>Epoch</th><th>Det</th><th class="th-unit">&lambda; (&micro;m)</th><th>Observation</th>
                 <th>UTC date</th><th>Pixels</th><th>Size</th><th>Archive record</th>
               </tr>
             </thead>
@@ -574,6 +524,60 @@
       </div>
     </div>
   </div>
+
+  <!-- ====================== cloud snapshot dialog ====================== -->
+  <dialog id="cloud-dialog" class="modal" aria-label="Cloud snapshot">
+    <button id="cloud-dialog-close" class="btn btn-ghost modal-close" type="button"
+            aria-label="Close the cloud snapshot dialog">&times;</button>
+    <section class="cloud-refresh-panel" aria-label="Cloud snapshot refresh" hidden>
+      <div class="cloud-refresh-summary">
+        <h2>Cloud snapshot
+          <span id="cloud-freshness" class="freshness-badge" data-state="unknown">checking</span>
+        </h2>
+        <p id="cloud-snapshot-time">Checking the published snapshot…</p>
+        <p id="cloud-next-refresh" class="cloud-refresh-policy"></p>
+        <p id="offline-copy-status" class="offline-copy-status" role="status"
+           aria-live="polite" hidden></p>
+        <details class="cloud-refresh-details">
+          <summary>Refresh scope and supporting data</summary>
+          <p>Fetching fresh IRSA checks all 18 registered fields. Changed fields are reprocessed, then the new Cloud snapshot is published. Catalogs follow a 7-day cadence; NEOWISE/AllWISE history updates when detections change or history is missing.</p>
+          <p id="cloud-support-freshness"></p>
+        </details>
+      </div>
+      <form id="cloud-refresh-form" class="cloud-refresh-form" hidden>
+        <label for="cloud-refresh-token">Operator token
+          <input id="cloud-refresh-token" class="control-input" type="password"
+                 autocomplete="new-password" autocapitalize="off"
+                 spellcheck="false" required>
+        </label>
+        <button id="btn-cloud-refresh" class="btn btn-secondary" type="submit">
+          Fetch all 18 from IRSA
+        </button>
+      </form>
+      <p id="cloud-refresh-status" class="cloud-refresh-status"
+         role="status" aria-live="polite" aria-atomic="true">
+        Checking refresh status…
+      </p>
+      <div id="cloud-refresh-progress" class="refresh-progress" hidden
+           role="progressbar" aria-label="Fields checked in this refresh"
+           aria-valuemin="0" aria-valuemax="18" aria-valuenow="0">
+        <span class="refresh-progress-bar"></span>
+      </div>
+      <div id="cloud-field-board" class="field-board" hidden>
+        <p class="field-board-caption" id="cloud-field-caption">Per-field result</p>
+        <ol id="cloud-field-grid" class="field-grid" aria-labelledby="cloud-field-caption"></ol>
+        <ul class="field-legend" aria-label="Legend">
+          <li data-state="checking">checking</li>
+          <li data-state="updated">updated</li>
+          <li data-state="unchanged">unchanged</li>
+          <li data-state="retained">kept previous</li>
+          <li data-state="failed">failed</li>
+          <li data-state="queued">queued</li>
+        </ul>
+      </div>
+    </section>
+    <p class="modal-empty">Cloud snapshot status is not available from this server.</p>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

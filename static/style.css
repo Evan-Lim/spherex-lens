@@ -1965,3 +1965,272 @@ input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
 .verdict-table { margin-top: 8px; }
 .verdict-table td { text-align: left; font-family: var(--sans); }
 .stats-table td { font-variant-numeric: tabular-nums; }
+
+
+/* ==========================================================================
+   P3 -- main panel: map info strip, cloud dialog, charts, notes, links
+   ========================================================================== */
+
+/* ---- links: readable blue on dark, visited the same ---------------------- */
+a, a:visited { color: var(--blue); text-decoration: none; }
+a:hover, a:focus-visible { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+.sources-table td a, .sources-table td a:visited {
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+/* ---- checkbox labels: sans, normal case, no box (same as other controls) -- */
+.toggle, .toggle.toggle-live {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-soft);
+  gap: 10px;
+}
+.toggle.toggle-live {
+  display: flex;
+  margin-top: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  line-height: 1.4;
+}
+.toggle:hover { color: var(--text); }
+.toggle input:checked + span { color: var(--text); font-weight: 600; }
+.toggles { gap: 16px; }
+
+/* ---- map info strip (4.2) ------------------------------------------------ */
+.map-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  min-height: 44px;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+.map-info-tag {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(205,255,113,.45);
+  background: rgba(205,255,113,.10);
+  color: var(--signal);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.map-chip {
+  padding: 3px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,.03);
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+.map-chip-strong { color: var(--text); font-weight: 700; }
+.map-chip-plain { border-color: transparent; background: none; padding-left: 2px; }
+.map-chip-stack {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 14px;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+}
+.map-chip-stack .mi-line { grid-column: 1 / -1; color: var(--text); font-weight: 600; }
+.map-chip-stack .mi-k { color: var(--muted); }
+.map-chip-stack .mi-v { font-family: var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ---- map toolbar: one row at desktop width, tools grouped on the right ---- */
+.map-toolbar { gap: 10px; }
+.map-toolbar .seg { padding: 0 12px; }
+.map-toolbar .toggles { gap: 12px; }
+.map-toolbar .toggle { gap: 7px; font-size: 14px; }
+.zoom-group { flex: none; }
+#zoom-label { min-width: 44px; }
+#zoom-fit { padding: 0 10px; }
+#btn-mosaic { font-size: 18px; }
+/* checkbox lines up with the first line of a two-line label */
+.toggle.toggle-live { align-items: flex-start; }
+.toggle.toggle-live input { margin-top: 1px; }
+
+/* ---- charts (4.4): title above, drawn at on-screen size ------------------ */
+.chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.chart { padding: 12px 12px 10px; }
+.chart figcaption {
+  padding: 0 2px 10px;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0;
+  color: var(--text);
+}
+.chart canvas { width: 100%; height: 190px; border-radius: var(--r-sm); }
+@media (max-width: 1279px) {
+  .chart-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- NEOWISE notes (4.5), epoch pairs, archive line (4.6) ---------------- */
+.history-notes { margin-top: 12px; padding: 6px 16px; font-family: var(--sans); }
+.notes-table th { width: 30%; }
+.notes-table td { font-size: 14px; color: var(--text); }
+.notes-table td.kv-full {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+#pairs-out { padding: 4px 0; overflow-x: auto; }
+.pair-row {
+  padding: 8px 14px;
+  white-space: pre;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}
+.pair-row:last-child { border-bottom: none; }
+.pair-row:nth-child(even) { background: rgba(255,255,255,.02); }
+.archive-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 12px;
+  font-family: var(--sans);
+  font-size: 14px;
+  letter-spacing: 0;
+  color: var(--text-soft);
+}
+.archive-chip {
+  padding: 3px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,.03);
+  font-variant-numeric: tabular-nums;
+}
+/* uppercase would turn μ/λ/µ into capital Greek letters and yr into YR */
+thead th.th-unit { text-transform: none; letter-spacing: .02em; }
+.object-toolbar { gap: 12px; margin-bottom: 12px; }
+.object-toolbar .hint-inline { margin-left: 0; }
+
+/* ---- top-bar pill as a button -------------------------------------------- */
+button.status-pill {
+  appearance: none;
+  border-style: solid;
+  border-width: 1px;
+  font-family: var(--mono);
+  line-height: 1;
+}
+button.status-pill:hover { border-color: var(--blue); }
+
+/* ---- cloud snapshot dialog (4.3) ----------------------------------------- */
+.modal {
+  width: min(960px, calc(100vw - 32px));
+  max-width: 960px;
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  overflow: auto;
+  color: var(--text);
+  background: rgba(14, 20, 36, .94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+}
+.modal::backdrop { background: rgba(2, 4, 10, .72); backdrop-filter: blur(6px); }
+.modal-close {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 40px; padding: 0;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+  z-index: 2;
+}
+.modal .cloud-refresh-panel {
+  margin: 0;
+  padding: 26px 28px 28px;
+  gap: 14px 24px;
+  align-items: start;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.modal .cloud-refresh-summary { padding-right: 48px; }
+.modal .cloud-refresh-summary h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+.modal .cloud-refresh-summary p, .modal .cloud-refresh-details,
+.modal .cloud-refresh-status { font-size: 15px; line-height: 1.55; }
+.modal .cloud-refresh-form { align-self: end; }
+.modal .cloud-refresh-status { padding-top: 12px; }
+.modal .field-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.modal .field-cell {
+  min-height: 36px;
+  padding: 4px 14px 4px 12px;
+  gap: 8px;
+  border-radius: var(--r-pill);
+  border-left-width: 1px;
+  border-color: var(--cell-edge);
+  font-size: 14px;
+}
+.modal .field-cell::before {
+  content: "";
+  flex: none;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--cell-ink);
+}
+.modal .field-cell[data-state="queued"]::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+.modal .field-legend { font-size: 14px; gap: 6px 16px; }
+.modal .field-legend li::before { border-radius: 50%; }
+.modal-empty { display: none; margin: 0; padding: 28px 72px 28px 28px; color: var(--text-soft); font-size: 15px; }
+.modal:has(.cloud-refresh-panel[hidden]) .modal-empty { display: block; }
+@media (max-width: 640px) {
+  .modal .cloud-refresh-panel { padding: 22px 16px; }
+}
+
+/* ---- sliding indicators: segmented groups + guide tabs (1.5.3, 4.7) ------ */
+.guide-tabs { position: relative; }
+.guide-tabs.has-pill .guide-tab.active { border-bottom-color: transparent; }
+.tab-pill {
+  position: absolute;
+  left: 0; bottom: -1px;
+  height: 2px;
+  width: 0;
+  background: var(--signal);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.seg-pill { transition: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .seg-pill.pill-ready, .tab-pill.pill-ready { transition: transform .26s ease, width .26s ease; }
+}
+.guide-sheet { background: rgba(14, 20, 36, .94); backdrop-filter: blur(12px); }
+.guide-body { padding: 22px 28px 10px; }
+.guide-gloss dd, .guide-note { font-size: 16px; line-height: 1.6; }
+
+/* spec 5: nothing under 13px, subscripts included (σ1, p_chance, M_G) */
+sub, sup { font-size: max(13px, .75em); line-height: 0; }
+
+/* ---- main-panel responsiveness ------------------------------------------- */
+@media (max-width: 899px) {
+  .zoom-group { margin-left: 0; }
+  .map-chip-stack { grid-template-columns: minmax(0, 1fr); }
+}
