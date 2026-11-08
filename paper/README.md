@@ -1,29 +1,44 @@
 # The report (`paper/`)
 
-`spherexlens_paper.tex` is a single self-contained LaTeX file containing:
+Two LaTeX documents live here, both self-contained and both compiled with `pdflatex`:
 
-* **Part I — technical report** (problem statement, related work, data, methodology, revised code,
-  results, validation, discussion, limitations, conclusion, references, appendices).
-* **Part II — presentation**: a 12-slide deck for an 8-minute talk, where every slide is reproduced
-  as a card with its *real* chart (Ti*k*Z/pgfplots or a rendered figure from `figures_real/`), plus
-  the complete word-for-word script with per-slide timings.
+| File | What it is |
+|---|---|
+| `spherexlens_paper.tex` | the **33-page technical report**: problem statement, related work, data, methodology, revised code, results, validation, discussion, references, appendices, plus a 12-slide deck |
+| `slides_and_script.tex` | the **25-page presentation specification**: 23 slides for a 21:40 talk (15:45 short route), one page per slide -- bullets, figure brief, the figure itself, and the word-for-word script, plus a live-demonstration page and a backup/Q&A page |
 
 ## Build
 
 ```bash
 cd paper
-pdflatex spherexlens_paper.tex
-pdflatex spherexlens_paper.tex      # second pass: table of contents + refs
+pdflatex spherexlens_paper.tex   && pdflatex spherexlens_paper.tex
+pdflatex slides_and_script.tex   && pdflatex slides_and_script.tex
 ```
 
-Output: `spherexlens_paper.pdf` (33 pages, ~1.9 MB). Requires TeX Live with
-`tikz`, `pgfplots`, `tcolorbox`, `listings`, `booktabs`, `longtable`, `fancyhdr`, `hyperref`.
+Outputs: `spherexlens_paper.pdf` (~1.9 MB) and `slides_and_script.pdf` (~0.74 MB).
+Requires TeX Live with `tikz`, `pgfplots`, `tcolorbox`, `listings`, `booktabs`, `longtable`,
+`fancyhdr`, `hyperref`.
 
-The four photographic figures are read from `../figures_real/` (produced by
-`python make_figures.py --real`); every other chart is generated from numbers taken from
-`site/api/*.json`, so nothing in the document is a placeholder.
+Four photographic figures are read from `../figures_real/` (produced by
+`python make_figures.py --real`); every other chart in both documents is generated from numbers
+taken from `site/api/*.json`, so nothing is a placeholder.
 
-## What is where
+## Presentation structure (`slides_and_script.pdf`)
+
+| Pages | Content |
+|---|---|
+| 1 | title, deck map (page / slide / visual / time / 15-min route) and production rules |
+| 2–12 | why it matters: difference imaging, problem statement, focus + RQs, prior art I–II, SPHEREx data, archive mechanics, architecture, theory I–II (masking/co-add, ZOGY) |
+| 13–17 | theory III–VI (detection statistics, dipole vs monopole, triage, spectra) and validation |
+| 18–20 | technical implementation: code layout, three deployment shapes, front end |
+| 21–22 | results I–II (18 fields, the 17 candidates) |
+| 23 | **live demonstration** -- six numbered steps mapped onto the actual screen |
+| 24 | conclusion, contributions, references |
+| 25 | backup: five anticipated questions + pre-flight checklist |
+
+Timings printed on each page are speaking time. The full route is 21:40; the 16 slides marked ✓
+in the deck map form a 15:45 route.
+
 
 | Pages | Content |
 |---|---|
