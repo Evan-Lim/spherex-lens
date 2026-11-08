@@ -2094,7 +2094,8 @@ function renderVerdict(det) {
   const info = cat ? CATEGORY_INFO[cat] : null;
   let html = `<div class="verdict-head">${categoryBadge(det)}` +
     (info ? `<span class="verdict-hint">${fmt.escape(info.hint)}</span>` : '') + '</div>';
-  const line = (label, value) => `<div class="verdict-detail">${label} <b>${value}</b></div>`;
+  let rows = '';
+  const line = (label, value) => { rows += `<tr><th>${label}</th><td>${value}</td></tr>`; };
 
   if ((det.reasons || []).length) {
     html += '<ul class="verdict-reasons">' +
@@ -2102,14 +2103,14 @@ function renderVerdict(det) {
   }
   const keys = Object.keys(det.matches || {});
   if (keys.length) {
-    html += line('Matched:', keys.map((k) => {
+    line('Matched', keys.map((k) => {
       const m = det.matches[k];
       const name = m.source && (m.source.name || m.source.designation);
       const p = m.p_chance != null ? ` p<sub>chance</sub>=${m.p_chance.toFixed(2)}` : '';
       return `${k}${name ? ` (${fmt.escape(name)})` : ''} ${m.sep_arcsec.toFixed(1)}\u2033${p}`;
-    }).join(', '));
+    }).join('<br>'));
   } else if (!cat) {
-    html += '<div class="verdict-detail">No catalog match \u00b7 follow-up recommended</div>';
+    line('Match', 'No catalog match \u00b7 follow-up recommended');
   }
   const v = det.vsx;
   if (v) {
@@ -2118,33 +2119,34 @@ function renderVerdict(det) {
     if (v.cycles_in_baseline != null) s += ` (${v.cycles_in_baseline} cycles in baseline)`;
     if (v.amplitude_mag != null) s += ` \u00b7 amp ${v.amplitude_mag} mag ${fmt.escape(v.passband || '')}`;
     if (v.url) s += ` \u00b7 <a href="${fmt.escape(v.url)}" target="_blank" rel="noopener">AAVSO \u2197</a>`;
-    html += line('VSX:', s);
+    line('VSX', s);
   }
-  if (det.delta_mag != null) html += line('SPHEREx \u0394mag:', `${det.delta_mag > 0 ? '+' : ''}${det.delta_mag}`);
+  if (det.delta_mag != null) line('SPHEREx \u0394mag', `${det.delta_mag > 0 ? '+' : ''}${det.delta_mag}`);
   const g = det.gaia;
   if (g && (g.distance_pc || g.var_flag === 'VARIABLE')) {
     const parts = [];
     if (g.distance_pc) parts.push(`${fmt.num(g.distance_pc, 1)} pc${g.nearby ? ' (nearby)' : ''}`);
     if (g.abs_g != null) parts.push(`M<sub>G</sub> ${g.abs_g}`);
     if (g.var_flag === 'VARIABLE') parts.push('Gaia VARIABLE');
-    html += line('Gaia:', parts.join(' \u00b7 '));
+    line('Gaia', parts.join(' \u00b7 '));
   }
   const w = det.wise;
-  if (w && w.w1_w2 != null) html += line('AllWISE W1\u2212W2:', `${w.w1_w2} \u00b7 ${fmt.escape(w.colour_class || '')}`);
+  if (w && w.w1_w2 != null) line('AllWISE W1\u2212W2', `${w.w1_w2} \u00b7 ${fmt.escape(w.colour_class || '')}`);
   const mc = det.motion_check;
   if (mc) {
-    html += line('Motion:', `${fmt.escape(mc.catalogue)} ${fmt.num(mc.pm_masyr / 1000, 2)}\u2033/yr \u2192 ` +
+    line('Motion', `${fmt.escape(mc.catalogue)} ${fmt.num(mc.pm_masyr / 1000, 2)}\u2033/yr \u2192 ` +
       `${fmt.num(mc.predicted_arcsec, 1)}\u2033 predicted vs ${mc.measured_arcsec != null ? fmt.num(mc.measured_arcsec, 1) : '--'}\u2033 \u00b7 ${fmt.escape(mc.status || '')}`);
   }
   const n = det.neowise;
   if (n && n.n_visits) {
     const w1 = n.w1 || {};
-    html += line('NEOWISE:', `${n.n_visits} visits \u00b7 W1 amp ${w1.amplitude ?? '--'} mag, ` +
+    line('NEOWISE', `${n.n_visits} visits \u00b7 W1 amp ${w1.amplitude ?? '--'} mag, ` +
       `\u03c7\u00b2\u1d63 ${w1.chi2_red ?? '--'} \u00b7 ${n.variable ? 'VARIABLE' : 'stable'}` +
       (n.pm_significant ? ` \u00b7 pm ${fmt.num(n.pm_total_masyr / 1000, 2)}\u2033/yr` : ''));
   }
-  html += `<div class="verdict-detail">RA <b>${fmt.num(det.ra, 5)}</b> \u00b7 Dec <b>${fmt.num(det.dec, 5)}</b></div>`;
-  html += `<div class="verdict-detail">SNR <b>${fmt.num(det.snr, 1)}\u03c3</b> \u00b7 ${fmt.escape(det.kind)} \u00b7 confidence <b>${fmt.escape(det.confidence || '--')}</b></div>`;
+  line('Position', `RA ${fmt.num(det.ra, 5)} \u00b7 Dec ${fmt.num(det.dec, 5)}`);
+  line('Detection', `SNR ${fmt.num(det.snr, 1)}\u03c3 \u00b7 ${fmt.escape(det.kind)} \u00b7 confidence ${fmt.escape(det.confidence || '--')}`);
+  html += `<table class="kv-table verdict-table"><tbody>${rows}</tbody></table>`;
   box.innerHTML = html;
 }
 

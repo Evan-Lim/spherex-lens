@@ -1378,22 +1378,19 @@ body.sky-mode #canvas-map { cursor: crosshair; }
    ========================================================================== */
 
 /* ---- page: nebula + starfield, pure CSS ---------------------------------- */
-html { background-color: var(--bg); background-image: none; }
-body {
-  font-size: var(--fs-base);
-  line-height: 1.5;
+/* nebula lives on <html> so the starfield (body::before, z-index -1) paints above it */
+html {
   background-color: var(--bg);
   background-image:
-    radial-gradient(circle at 23px 41px,  rgba(255,255,255,.55) 0 1px,   transparent 1.6px),
-    radial-gradient(circle at 97px 133px, rgba(255,255,255,.40) 0 1px,   transparent 1.5px),
-    radial-gradient(circle at 181px 67px, rgba(255,255,255,.60) 0 1.2px, transparent 1.8px),
-    radial-gradient(circle at 59px 211px, rgba(255,255,255,.35) 0 1px,   transparent 1.5px),
     radial-gradient(60% 50% at 8% 0%,    rgba(11,61,145,.24), transparent 70%),
     radial-gradient(50% 40% at 100% 100%, rgba(252,61,33,.08), transparent 70%),
     linear-gradient(180deg, var(--bg-2), var(--bg));
-  background-size: 197px 197px, 251px 251px, 313px 313px, 401px 401px,
-                   100% 100%, 100% 100%, 100% 100%;
   background-attachment: fixed;
+}
+body {
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  background: transparent;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1839,3 +1836,132 @@ tbody tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--signal); }
   .card { animation: none; }
 }
 .status-pill .dot { color: inherit; }
+
+
+/* ---- starfield: fixed layer, random dots in 4 incommensurate tiles ----- */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 26px 20px, rgba(255,255,255,0.61) 0 0.93px, transparent 1.63px),
+    radial-gradient(circle at 117px 438px, rgba(255,255,255,0.56) 0 0.91px, transparent 1.61px),
+    radial-gradient(circle at 45px 654px, rgba(255,255,255,0.53) 0 0.63px, transparent 1.33px),
+    radial-gradient(circle at 459px 351px, rgba(255,255,255,0.63) 0 0.98px, transparent 1.68px),
+    radial-gradient(circle at 985px 584px, rgba(255,255,255,0.36) 0 0.78px, transparent 1.48px),
+    radial-gradient(circle at 423px 594px, rgba(255,255,255,0.59) 0 0.57px, transparent 1.27px),
+    radial-gradient(circle at 313px 12px, rgba(255,255,255,0.48) 0 0.70px, transparent 1.40px),
+    radial-gradient(circle at 954px 19px, rgba(255,255,255,0.38) 0 0.81px, transparent 1.51px),
+    radial-gradient(circle at 947px 482px, rgba(255,255,255,0.50) 0 1.03px, transparent 1.73px),
+    radial-gradient(circle at 165px 815px, rgba(255,255,255,0.54) 0 0.94px, transparent 1.64px),
+    radial-gradient(circle at 333px 627px, rgba(255,255,255,0.43) 0 1.03px, transparent 1.73px),
+    radial-gradient(circle at 209px 404px, rgba(255,255,255,0.60) 0 0.94px, transparent 1.64px),
+    radial-gradient(circle at 392px 812px, rgba(255,255,255,0.52) 0 0.67px, transparent 1.37px),
+    radial-gradient(circle at 351px 318px, rgba(255,255,255,0.32) 0 1.25px, transparent 1.95px),
+    radial-gradient(circle at 150px 440px, rgba(255,255,255,0.46) 0 1.25px, transparent 1.95px),
+    radial-gradient(circle at 306px 427px, rgba(255,255,255,0.40) 0 1.33px, transparent 2.03px),
+    radial-gradient(circle at 1014px 750px, rgba(255,255,255,0.50) 0 1.07px, transparent 1.77px),
+    radial-gradient(circle at 1120px 419px, rgba(255,255,255,0.29) 0 1.26px, transparent 1.96px),
+    radial-gradient(circle at 754px 663px, rgba(255,255,255,0.61) 0 0.62px, transparent 1.32px),
+    radial-gradient(circle at 117px 303px, rgba(255,255,255,0.40) 0 1.18px, transparent 1.88px),
+    radial-gradient(circle at 224px 309px, rgba(255,255,255,0.56) 0 0.93px, transparent 1.63px),
+    radial-gradient(circle at 875px 103px, rgba(255,255,255,0.47) 0 1.23px, transparent 1.93px),
+    radial-gradient(circle at 264px 977px, rgba(255,255,255,0.52) 0 0.64px, transparent 1.34px),
+    radial-gradient(circle at 1000px 1081px, rgba(255,255,255,0.26) 0 0.55px, transparent 1.25px),
+    radial-gradient(circle at 432px 123px, rgba(255,255,255,0.64) 0 1.06px, transparent 1.76px),
+    radial-gradient(circle at 375px 371px, rgba(255,255,255,0.32) 0 1.47px, transparent 2.17px),
+    radial-gradient(circle at 884px 654px, rgba(255,255,255,0.64) 0 0.71px, transparent 1.41px),
+    radial-gradient(circle at 939px 711px, rgba(255,255,255,0.45) 0 0.79px, transparent 1.49px),
+    radial-gradient(circle at 566px 470px, rgba(255,255,255,0.30) 0 0.95px, transparent 1.65px),
+    radial-gradient(circle at 944px 882px, rgba(255,255,255,0.31) 0 0.97px, transparent 1.67px),
+    radial-gradient(circle at 201px 794px, rgba(255,255,255,0.43) 0 0.95px, transparent 1.65px),
+    radial-gradient(circle at 695px 758px, rgba(255,255,255,0.30) 0 0.80px, transparent 1.50px),
+    radial-gradient(circle at 470px 247px, rgba(255,255,255,0.29) 0 0.55px, transparent 1.25px),
+    radial-gradient(circle at 1315px 331px, rgba(255,255,255,0.39) 0 0.64px, transparent 1.34px),
+    radial-gradient(circle at 836px 15px, rgba(255,255,255,0.56) 0 0.58px, transparent 1.28px),
+    radial-gradient(circle at 338px 23px, rgba(255,255,255,0.40) 0 0.76px, transparent 1.46px),
+    radial-gradient(circle at 1025px 955px, rgba(255,255,255,0.49) 0 0.56px, transparent 1.26px),
+    radial-gradient(circle at 196px 518px, rgba(255,255,255,0.56) 0 0.57px, transparent 1.27px),
+    radial-gradient(circle at 407px 694px, rgba(255,255,255,0.54) 0 0.69px, transparent 1.39px),
+    radial-gradient(circle at 1121px 173px, rgba(255,255,255,0.29) 0 1.26px, transparent 1.96px),
+    radial-gradient(circle at 369px 510px, rgba(255,255,255,0.42) 0 1.44px, transparent 2.14px),
+    radial-gradient(circle at 892px 548px, rgba(255,255,255,0.54) 0 0.60px, transparent 1.30px),
+    radial-gradient(circle at 1276px 1324px, rgba(255,255,255,0.41) 0 0.69px, transparent 1.39px),
+    radial-gradient(circle at 1679px 236px, rgba(255,255,255,0.54) 0 1.13px, transparent 1.83px),
+    radial-gradient(circle at 517px 506px, rgba(255,255,255,0.58) 0 0.84px, transparent 1.54px),
+    radial-gradient(circle at 906px 1290px, rgba(255,255,255,0.53) 0 1.08px, transparent 1.78px),
+    radial-gradient(circle at 1647px 719px, rgba(255,255,255,0.52) 0 0.56px, transparent 1.26px),
+    radial-gradient(circle at 93px 1339px, rgba(255,255,255,0.48) 0 0.62px, transparent 1.32px),
+    radial-gradient(circle at 1526px 286px, rgba(255,255,255,0.61) 0 1.05px, transparent 1.75px),
+    radial-gradient(circle at 261px 283px, rgba(255,255,255,0.38) 0 0.84px, transparent 1.54px),
+    radial-gradient(circle at 1040px 795px, rgba(255,255,255,0.37) 0 0.99px, transparent 1.69px),
+    radial-gradient(circle at 606px 1285px, rgba(255,255,255,0.31) 0 0.69px, transparent 1.39px),
+    radial-gradient(circle at 905px 578px, rgba(255,255,255,0.32) 0 0.58px, transparent 1.28px),
+    radial-gradient(circle at 357px 1466px, rgba(255,255,255,0.61) 0 0.64px, transparent 1.34px),
+    radial-gradient(circle at 1394px 1337px, rgba(255,255,255,0.60) 0 0.60px, transparent 1.30px),
+    radial-gradient(circle at 1059px 1436px, rgba(255,255,255,0.30) 0 0.57px, transparent 1.27px);
+  background-size: 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 997px 883px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1223px 1087px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1511px 1319px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px, 1741px 1553px;
+}
+
+
+/* ==========================================================================
+   P2 -- left panel: checkboxes, Open-any-field row, kv tables
+   ========================================================================== */
+
+/* ---- dark checkboxes: dark box, strong border, lime tick ----------------- */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  background: var(--panel-solid);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 5px;
+  cursor: pointer;
+  accent-color: var(--signal);
+}
+input[type="checkbox"]::after {
+  content: "";
+  width: 9px;
+  height: 5px;
+  margin-top: -2px;
+  border-left: 2.5px solid var(--signal);
+  border-bottom: 2.5px solid var(--signal);
+  transform: rotate(-45deg) scale(0);
+}
+input[type="checkbox"]:checked { border-color: var(--signal); background: rgba(205,255,113,.08); }
+input[type="checkbox"]:checked::after { transform: rotate(-45deg) scale(1); }
+input[type="checkbox"]:hover { border-color: var(--blue); }
+input[type="checkbox"]:checked:hover { border-color: var(--signal); }
+input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: no-preference) {
+  input[type="checkbox"]::after { transition: transform .12s ease-out; }
+}
+
+/* ---- Open any field: 3 equal columns, short placeholders ----------------- */
+.field-add-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.field-add-row .control-input { width: 100%; padding: 0 10px; text-overflow: ellipsis; }
+.field-add-row input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.field-add-row input[type="number"]::-webkit-outer-spin-button,
+.field-add-row input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.btn-block { display: flex; width: 100%; justify-content: center; margin-top: 4px; }
+.section-field #field-hint { margin-top: 8px; white-space: normal; }
+#recovery-out { margin-top: 10px; }
+
+/* ---- kv tables in the left panel ----------------------------------------- */
+.target-table { margin-top: 10px; }
+.target-table td, .stats-table td { text-align: right; }
+.verdict-table { margin-top: 8px; }
+.verdict-table td { text-align: left; font-family: var(--sans); }
+.stats-table td { font-variant-numeric: tabular-nums; }

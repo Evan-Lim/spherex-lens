@@ -16,7 +16,6 @@
     <div class="chrome-left">
       <span class="brand-mark"></span>
       <span class="brand-name">SPHERExLens</span>
-      <span class="brand-sub">NEXUS&nbsp;//&nbsp;SPHEREX-QR2</span>
     </div>
     <div class="chrome-right">
       <span class="status-pill">
@@ -36,12 +35,22 @@
       <div class="panel-head">
         <div>
           <h1>Target Control</h1>
-          <p class="panel-sub">18 registered fields &middot; live SPHEREx archive</p>
         </div>
-        <span class="panel-index">/01</span>
       </div>
 
-      <span class="tag tag-blue">&#9670; ARCHIVE ACCESS</span>
+      <div class="section section-field">
+        <div class="section-label">Open any field</div>
+        <div class="field-add-row">
+          <input id="field-ra" class="control-input" type="number" step="0.001"
+                 placeholder="RA&deg;" aria-label="Right ascension in degrees">
+          <input id="field-dec" class="control-input" type="number" step="0.001"
+                 placeholder="Dec&deg;" aria-label="Declination in degrees">
+          <input id="field-name" class="control-input" type="text"
+                 placeholder="Name" aria-label="Field name (optional)">
+        </div>
+        <button id="btn-field" class="btn btn-secondary btn-block">Load field from IRSA</button>
+        <div class="hint-inline" id="field-hint">fetches from IRSA, runs the pipeline; results are kept in History</div>
+      </div>
 
       <div class="section">
         <div class="section-label">Target</div>
@@ -52,11 +61,13 @@
           <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
           <option value="R_Draconis">R Draconis (Mira)</option>
         </select>
-        <dl class="kv" id="target-meta">
-          <div><dt>RA</dt><dd id="kv-ra">--</dd></div>
-          <div><dt>Dec</dt><dd id="kv-dec">--</dd></div>
-          <div><dt>Class</dt><dd id="kv-type">--</dd></div>
-        </dl>
+        <table class="kv-table target-table" id="target-meta">
+          <tbody>
+            <tr><th>RA</th><td id="kv-ra">--</td></tr>
+            <tr><th>Dec</th><td id="kv-dec">--</td></tr>
+            <tr><th>Class</th><td id="kv-type">--</td></tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="section">
@@ -64,7 +75,6 @@
         <button id="btn-run" class="btn btn-primary">
           <span class="btn-icon">&#9635;</span> Run Pipeline
         </button>
-        <button id="btn-recovery" class="btn btn-secondary">Recovery Grid</button>
         <button id="btn-export" class="btn btn-secondary">Copy Share Link</button>
         <label class="toggle toggle-live" id="toggle-live-wrap">
           <input type="checkbox" id="tog-live">
@@ -77,19 +87,6 @@
         <div class="action-feedback">
           <span id="action-message" role="status" aria-live="polite" aria-atomic="true"></span>
           <span id="action-time" aria-hidden="true"></span>
-        </div>
-        <div class="field-add">
-          <div class="section-label" style="margin:8px 0 5px">Open any field</div>
-          <div class="field-add-row">
-            <input id="field-ra" class="control-input" type="number" step="0.001"
-                   placeholder="RA (deg)">
-            <input id="field-dec" class="control-input" type="number" step="0.001"
-                   placeholder="Dec (deg)">
-            <input id="field-name" class="control-input" type="text"
-                   placeholder="name (optional)">
-          </div>
-          <button id="btn-field" class="btn btn-secondary">Load field from IRSA</button>
-          <div class="hint-inline" id="field-hint">fetches from IRSA, runs the pipeline; results are kept in History</div>
         </div>
       </div>
 
@@ -117,24 +114,29 @@
 
       <div class="section">
         <div class="section-label">Pipeline statistics</div>
-        <div class="stat-row"><span>Exposures</span><b id="stat-exp">--</b></div>
-        <div class="stat-row"><span>Epochs</span><b id="stat-epochs">--</b></div>
-        <div class="stat-row"><span>Baseline</span><b id="stat-baseline">--</b></div>
-        <div class="stat-row"><span>Noise &sigma;<sub>1</sub></span><b id="stat-sigma">--</b></div>
-        <div class="stat-row"><span>5&sigma; depth</span><b id="stat-depth">--</b></div>
-        <div class="stat-row"><span>Field / pixel</span><b id="stat-fov">--</b></div>
-        <div class="stat-row"><span>Gaia &middot; WISE &middot; VSX</span><b id="stat-cats">--</b></div>
-        <div class="stat-row" title="Gaia stars centroided in the co-add, at the SPHEREx epoch"><span>Astrometry vs Gaia</span><b id="stat-astrometry">--</b></div>
-        <div class="stat-row" title="catalogued stars that should have moved at least one map pixel"><span>Expected movers</span><b id="stat-movers">--</b></div>
-        <div class="stat-row" title="CANDIDATE, STATIC CHANGED, or a known source behaving unexpectedly"><span>Worth a look &#9733;</span><b id="stat-priority">--</b></div>
-        <div class="stat-row"><span>Dipoles &middot; mono</span><b id="stat-kinds">--</b></div>
-        <div class="stat-row"><span>Detections</span><b id="stat-detect">0</b></div>
-        <div class="stat-row"><span>Unknown</span><b id="stat-unknown">0</b></div>
-        <div class="stat-row"><span>SNR (max)</span><b id="stat-snr">--</b></div>
+        <table class="kv-table stats-table">
+          <tbody>
+            <tr><th>Exposures</th><td id="stat-exp">--</td></tr>
+            <tr><th>Epochs</th><td id="stat-epochs">--</td></tr>
+            <tr><th>Baseline</th><td id="stat-baseline">--</td></tr>
+            <tr><th>Noise &sigma;<sub>1</sub></th><td id="stat-sigma">--</td></tr>
+            <tr><th>5&sigma; depth</th><td id="stat-depth">--</td></tr>
+            <tr><th>Field / pixel</th><td id="stat-fov">--</td></tr>
+            <tr><th>Gaia &middot; WISE &middot; VSX</th><td id="stat-cats">--</td></tr>
+            <tr title="Gaia stars centroided in the co-add, at the SPHEREx epoch"><th>Astrometry vs Gaia</th><td id="stat-astrometry">--</td></tr>
+            <tr title="catalogued stars that should have moved at least one map pixel"><th>Expected movers</th><td id="stat-movers">--</td></tr>
+            <tr title="CANDIDATE, STATIC CHANGED, or a known source behaving unexpectedly"><th>Worth a look &#9733;</th><td id="stat-priority">--</td></tr>
+            <tr><th>Dipoles &middot; mono</th><td id="stat-kinds">--</td></tr>
+            <tr><th>Detections</th><td id="stat-detect">0</td></tr>
+            <tr><th>Unknown</th><td id="stat-unknown">0</td></tr>
+            <tr><th>SNR (max)</th><td id="stat-snr">--</td></tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="section section-last">
         <div class="section-label">Recovery summary</div>
+        <button id="btn-recovery" class="btn btn-secondary btn-block">Recovery Grid</button>
         <div id="recovery-out" class="mono-box" role="status"
              aria-live="polite" aria-atomic="true">injection-recovery not run yet</div>
       </div>
