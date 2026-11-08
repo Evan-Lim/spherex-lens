@@ -5,70 +5,90 @@
    ========================================================================== */
 
 :root {
-  /* surfaces (P8: Figma slate window, translucent grey boxes, white borders) */
-  --bg: #161c2b;                 /* page: darker than the panels */
-  --bg-2: #161c2b;
-  --panel: #3e4960;              /* big panels = Figma window colour */
-  --panel-solid: #3e4960;
-  --raise: rgba(217,217,217,.10);   /* boxes inside panels (reads #4e586d) */
-  --raise-2: rgba(217,217,217,.18); /* table header, inputs, hover */
-  --raise-solid: #4e586d;        /* where a solid colour is needed (canvas, sticky header base) */
-  --line: rgba(255,255,255,.45); /* box borders, 1.5px */
-  --line-panel: #e1e1e1;         /* big panel border, 2px */
-  --line-soft: rgba(255,255,255,.18); /* table row dividers */
-  --line-strong: rgba(255,255,255,.55);
-  --grid: rgba(255,255,255,.06);
-  --chip: #d9d9d9;               /* secondary buttons / chips (Figma button grey) */
-  --chip-text: #1b1b1b;
-  --hl: #9cc4ff;                 /* light blue: active states, accent bar, links, focus */
-  --hl-soft: #3f4d67;            /* solid dark-blue tint: --hl text on it 5.1:1 (a translucent tint gave 3.3:1) */
-  --map-bg: #0b1020;             /* the science map keeps a dark surround */
+  /* ---- P9 Figma Make palette: ink · paper · red ---------------------------- */
+  --ink: #050505;                /* header, Command Dashboard */
+  --ink-2: #101012;              /* map workspace, dark cards */
+  --ink-3: #151518;              /* dark hover / selected row / table header */
+  --paper: #f7f7f5;              /* page (warm off-white) */
+  --beige: #e9e9e4;              /* beige bands */
+  --white: #ffffff;              /* Target Control panel */
+  --line-light: #cfcfcb;         /* borders on light surfaces */
+  --line-light-2: #d7d7d2;
+  --line-dark: #323236;          /* borders on dark surfaces */
+  --line-dark-2: #26262a;
+  --mint: #7dd3a7;
+  --text-on-light: #050505;  --muted-on-light: #55555a;   /* 6.9:1 on paper */
+  --text-on-dark: #ffffff;   --muted-on-dark: #9a9a9f;    /* >= 6:1 on ink */
+
+  /* ---- role tokens: LIGHT values here (page, Target Control). The black
+     areas (header, Command Dashboard, dialogs) re-scope the same names to
+     dark values in the P9a block, so every rule keeps using var(--text). */
+  --bg: var(--paper);
+  --bg-2: var(--paper);
+  --panel: var(--white);
+  --panel-solid: var(--white);
+  --raise: var(--paper);         /* boxes inside a panel */
+  --raise-2: #efefea;            /* inputs, hover, nested boxes */
+  --raise-solid: var(--paper);
+  --line: var(--line-light-2);
+  --line-panel: var(--line-light);
+  --line-soft: var(--line-light-2);
+  --line-strong: #6b6b70;        /* control outlines on light: 5.3:1 (UI needs 3:1) */
+  --grid: rgba(5,5,5,.05);
+  --chip: var(--white);          /* secondary buttons on light: white + ink border */
+  --chip-text: var(--ink);
+  --hl: #1d5fd0;                 /* links / active on light */
+  --hl-soft: #e3ecfb;
+  --map-bg: var(--ink);          /* the science map keeps a dark surround */
 
   /* text */
-  --text: #ffffff;
-  --text-soft: #e3e7ef;
-  --muted: #d5dbe7;              /* 5.1:1 on #4e586d */
+  --text: var(--text-on-light);
+  --text-soft: #2b2b2f;
+  --muted: var(--muted-on-light);
 
-  /* red: primary actions (fill) and alerts (text) only */
-  --nasa-red: #d42a12;           /* primary action fill (white text 5.1:1) */
-  --nasa-red-hover: #b52310;     /* darker on hover keeps white text at 6.4:1 */
+  /* red: primary actions (fill) and alerts. The spec's #f64137 with white
+     text is 3.6:1; its own fallback #d92b25 (4.9:1) is used for fills. */
+  --red-figma: #f64137;          /* kicker numbers, red edges, chart red */
+  --nasa-red: #d92b25;           /* primary action fill, white text 4.9:1 */
+  --nasa-red-hover: #b8221c;     /* hover goes darker: 6.4:1 */
+  --red-hover: var(--nasa-red-hover);
   --accent: var(--nasa-red);
   --accent-hover: var(--nasa-red-hover);
   --accent-text: var(--hl);      /* links */
-  --focus: var(--hl);            /* focus ring on slate */
+  --focus: #288bff;              /* focus ring: 3.6:1 on white, 6:1 on ink */
 
-  /* chart canvases (read once by chartTheme() in app.js) */
-  --chart-bg: var(--raise-solid);
-  --chart-grid: rgba(255,255,255,.15);
-  --chart-text: var(--text-soft);
-  --chart-blue: #7fb2ff;
-  --chart-green: #5fe0a0;
-  --chart-red: #ff8a75;
-  --chart-amber: #e0b07a;
+  /* chart canvases (read once by chartTheme() in app.js; charts sit on ink) */
+  --chart-bg: var(--ink-2);
+  --chart-grid: rgba(255,255,255,.08);
+  --chart-text: var(--muted-on-dark);
+  --chart-blue: #288bff;
+  --chart-green: var(--mint);
+  --chart-red: #f64137;
+  --chart-amber: #e0a85a;
 
-  /* metric colours keep their meaning */
-  --nasa-blue: #0b3d91;          /* legacy name, no longer used for fills */
-  --blue: #5ea8ff;
-  --blue-soft: rgba(94,168,255,.14);
-  --red: #ffb4a6;                /* alert TEXT on slate (light coral) */
-  --red-soft: rgba(255,90,60,.25);
-  --green: #34d399;
-  --green-soft: rgba(52,211,153,.14);
-  --amber: #d19a62;              /* used as BROWN for the Baseline card */
-  --amber-soft: rgba(209,154,98,.16);
-  --signal: #ffffff;             /* lime and indigo accents retired */
-  --purple: #c4b5fd;             /* KNOWN MOVER badge text */
+  /* metric / badge hues keep their meaning */
+  --nasa-blue: #0b3d91;          /* legacy name, unused */
+  --blue: #288bff;
+  --blue-soft: rgba(40,139,255,.15);
+  --red: #b3261e;                /* alert TEXT on light (6.6:1 on paper) */
+  --red-soft: rgba(246,65,55,.15);
+  --green: #1f7a4f;              /* on light */
+  --green-soft: rgba(125,211,167,.15);
+  --amber: #8a5a17;              /* on light */
+  --amber-soft: rgba(224,168,90,.15);
+  --signal: var(--ink);
+  --purple: #b9a3ff;             /* KNOWN MOVER */
 
-  /* shape + depth (P5: no glow; --r-pill kept as a name, now a 6px chip radius) */
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 6px;
+  /* shape + depth: cards/panels 12, buttons 8, chips 6; no decorative shadows */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 12px; --r-pill: 6px;
   --shadow: 0 0 #0000;
   --glow-blue: 0 0 #0000;
 
-  /* type (IBM Plex: loaded from Google Fonts in index.html; the system
-     stacks are the offline fallback, so the page never needs the network) */
-  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+  /* type: Inter + DM Mono (Google Fonts in index.html); system stacks are
+     the offline fallback */
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
           Roboto, Helvetica, Arial, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+  --mono: "DM Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
           Consolas, "Liberation Mono", monospace;
   --fs-base: 16px;      /* was 14px */
   --fs-small: 14px;     /* hints, captions -- nothing smaller than 13px anywhere */
@@ -2850,15 +2870,15 @@ a, a:visited, a:hover, .sources-table td a, .sources-table td a:visited,
   border: none;
   border-radius: 22px;
   padding: 20px;
-  --ink: #1d3f9a;
-  color: var(--ink);
+  --card-ink: #1d3f9a;
+  color: var(--card-ink);
   filter: none;
 }
-.card-blue  { background: #dbe7ff; --ink: #1d3f9a; --icon: url("assets/icons/metric-detections.svg"); }
-.card-red   { background: #ffdcd6; --ink: #85190f; --icon: url("assets/icons/metric-unaccounted.svg"); }
-.card-green { background: #d3f5e3; --ink: #064a27; --icon: url("assets/icons/metric-max-snr.svg"); }
-.card-amber { background: #f1e3cc; --ink: #5a3611; --icon: url("assets/icons/metric-baseline.svg"); }
-.card-label, .card-value, .card-hint, .card-red .card-value { color: var(--ink); opacity: 1; }
+.card-blue  { background: #dbe7ff; --card-ink: #1d3f9a; }
+.card-red   { background: #ffdcd6; --card-ink: #85190f; }
+.card-green { background: #d3f5e3; --card-ink: #064a27; }
+.card-amber { background: #f1e3cc; --card-ink: #5a3611; }
+.card-label, .card-value, .card-hint, .card-red .card-value { color: var(--card-ink); opacity: 1; }
 .card-label, .card-value {
   position: relative;
   z-index: 1;
@@ -2879,22 +2899,7 @@ a, a:visited, a:hover, .sources-table td a, .sources-table td a:visited,
   letter-spacing: .04em;
 }
 .card-hint .keep-case { text-transform: none; }   /* sigma stays sigma */
-/* big faint icon, tinted to the text colour; decorative (pseudo-element) */
-.card::after {
-  content: "";
-  position: absolute;
-  /* tucked into the corner (clipped by the card) so wide labels like
-     "Unaccounted" do not run under the icon */
-  top: -4px;
-  right: -8px;
-  width: 56px;
-  height: 56px;
-  background: var(--ink);
-  opacity: .25;
-  -webkit-mask: var(--icon) center / contain no-repeat;
-          mask: var(--icon) center / contain no-repeat;
-  pointer-events: none;
-}
+/* P9 s5: the corner icons are removed */
 .card:hover { filter: none; }
 @media (prefers-reduced-motion: no-preference) {
   .card { transition: transform .18s ease-out; }
@@ -2919,3 +2924,300 @@ tbody tr:hover td, .table-wrap tbody tr:hover td, tbody tr.selected td { backgro
 .target-table td { white-space: nowrap; }
 /* off-map catalogue rows: muted colour only, no extra transparency */
 .objects-table tr.off-map td { opacity: 1; color: var(--muted); }
+
+
+/* ==========================================================================
+   P9a -- Figma Make "ink · paper · red": tokens, fonts, surfaces, header,
+   metric cards (SPHEREX-LENS_P9_SPEC.md s1-s5). Loaded last.
+   ========================================================================== */
+
+/* ---- dark surfaces re-scope the role tokens -------------------------------
+   :root holds the LIGHT values (paper page, white Target Control). Header,
+   Command Dashboard and the dialogs get the dark values under the same
+   names, so every existing rule picks the right text colour for its surface. */
+.chrome, .panel-main, .modal, .guide-sheet {
+  --bg: var(--ink);
+  --panel: var(--ink);
+  --panel-solid: var(--ink);
+  --raise: var(--ink-2);
+  --raise-2: var(--ink-3);
+  --raise-solid: var(--ink-2);
+  --line: var(--line-dark);
+  --line-panel: var(--line-dark);
+  --line-soft: var(--line-dark-2);
+  --line-strong: #6e6e74;        /* input outlines on ink: 4.0:1 (#4a4a4f gave 2.3:1) */
+  --grid: rgba(255,255,255,.05);
+  --chip: transparent;
+  --chip-text: var(--white);
+  --hl: #6fb1ff;                 /* links / active on dark */
+  --hl-soft: #10233f;
+  --accent-text: #6fb1ff;
+  --text: var(--text-on-dark);
+  --text-soft: #d4d4d8;
+  --muted: var(--muted-on-dark);
+  --blue: #6fb1ff;
+  --red: #ff8a80;                /* alert text on dark */
+  --green: var(--mint);
+  --amber: #e0a85a;
+  --signal: var(--white);
+  color: var(--text);
+}
+
+/* ---- fonts: Inter for UI and headings, DM Mono for numbers / labels -------- */
+/* tabular figures off for prose: in Inter "tnum" also widens the hyphen
+   ("change - detection"); numbers are DM Mono, already fixed-width */
+body { font-family: var(--sans); color: var(--text); background: var(--paper); font-variant-numeric: normal; }
+.brand-name, .panel-head h1, .section-label, .chart figcaption, #guide-title,
+.modal .cloud-refresh-summary h2, .guide-head h2 {
+  font-family: var(--sans);
+}
+.panel-head h1, .section-label, .chart figcaption, #guide-title,
+.modal .cloud-refresh-summary h2 {
+  font-weight: 800;
+  letter-spacing: -.04em;
+}
+.panel-head h1 { font-size: 34px; line-height: 1.15; }
+.section-label { font-size: 24px; line-height: 1.2; border-left: none; padding-left: 0; }
+.chart figcaption { font-size: 20px; }
+
+/* kicker above a panel title: DM Mono 13px uppercase + a red number */
+.kicker {
+  margin: 0 0 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.kicker b { color: var(--nasa-red); font-weight: 500; margin-left: .4em; }  /* 4.9:1 on white */
+.panel-main .kicker b { color: var(--red-figma); }                            /* 5.6:1 on ink */
+
+/* ---- page ------------------------------------------------------------------- */
+html { background: var(--paper); }
+.footer, .footer .mono { color: var(--muted-on-light); }
+
+/* ---- header: bigger than everything below (s4) ------------------------------ */
+.chrome {
+  height: 84px;
+  min-height: 84px;
+  padding: 0 32px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--line-dark);
+}
+.chrome-left { gap: 14px; }
+.brand-logo { width: 44px; height: 44px; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.brand-name { font-size: 26px; font-weight: 800; letter-spacing: -.03em; color: var(--white); }
+.brand-tag {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 13px;               /* spec says 12px; s3 minimum is 13px */
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted-on-dark);
+}
+.chrome-right { gap: 12px; }
+button.status-pill, .status-pill {
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line-dark);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--white);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+button.status-pill:hover { background: var(--ink-3); border-color: #4a4a4f; }
+.status-pill .dot { background: var(--mint); box-shadow: 0 0 0 3px rgba(125,211,167,.18); }
+.status-pill.busy .dot { background: #e0a85a; box-shadow: 0 0 0 3px rgba(224,168,90,.2); }
+.status-pill.error .dot { background: #f64137; box-shadow: 0 0 0 3px rgba(246,65,55,.2); }
+.status-pill.busy, .status-pill.error { color: var(--white); background: transparent; border-color: var(--line-dark); }
+.chrome .btn-ghost {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+  background: transparent;
+  border: 1px solid #4a4a4f;
+  border-radius: 8px;
+  color: var(--white);
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 700;
+}
+.chrome .btn-ghost:hover { background: var(--ink-3); border-color: #4a4a4f; color: var(--white); }
+/* every other ghost button (e.g. the guide's close ×): the P8a #c4c4c4 hover
+   left white text at 1.7:1 on the dark sheet */
+.btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line-strong); }
+.btn-ghost:hover { background: var(--raise-2); color: var(--text); border-color: var(--line-strong); }
+.chrome .btn-ghost.active { background: transparent; border-color: #f64137; color: var(--white); }
+
+/* ---- panels: radius 12, 1px border, no decorative shadow ---------------------- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line-panel);
+  border-radius: 12px;
+  box-shadow: none;
+}
+.panel-left { --line-panel: var(--line-light); }
+.section { border-top: 1px solid var(--line-soft); }
+
+/* ---- boxes inside panels: --raise, 1px border, radius 12 ---------------------- */
+.mono-box, .verdict-box, .map-info, .chart, .table-wrap, .cloud-refresh-panel {
+  background-color: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.map-wrap { background-color: var(--map-bg); border: 1px solid var(--line); border-radius: 12px; }
+.modal, .guide-sheet {
+  background: var(--ink-2);
+  border: 1px solid var(--line-dark);
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.45);   /* the one soft shadow: dialogs */
+}
+.modal .cloud-refresh-panel { background: transparent; border: none; }
+.modal::backdrop, .guide { background: rgba(5,5,5,.6); }
+
+/* ---- buttons ------------------------------------------------------------------ */
+.btn, .history-btn { font-family: var(--sans); border-radius: 8px; }
+.btn-primary, #btn-field, #btn-recovery, #btn-cloud-refresh {
+  background: var(--nasa-red);
+  color: var(--white);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.btn-primary:not(:disabled):hover,
+#btn-field:not(:disabled):hover, #btn-recovery:not(:disabled):hover,
+#btn-cloud-refresh:not(:disabled):hover { background: var(--nasa-red-hover); }
+/* secondary: on light = white + ink border; on dark = transparent + grey border */
+.btn-secondary, label.btn-secondary, .history-btn, .zoom-group button {
+  background: var(--chip);
+  color: var(--chip-text);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+.panel-left .btn-secondary, .panel-left label.btn-secondary, .panel-left .history-btn { border-color: var(--ink); }
+.btn-secondary:hover, .history-btn:hover, .zoom-group button:hover {
+  background: var(--raise-2);
+  color: var(--chip-text);
+  border-color: var(--line-strong);
+}
+.panel-left .btn-secondary:hover, .panel-left .history-btn:hover { border-color: var(--ink); }
+.zoom-group { background: var(--raise); border: 1px solid var(--line); border-radius: 8px; }
+#zoom-label { color: var(--text); font-family: var(--mono); }
+
+/* ---- segmented (dark only): #1c1c1f group, white active + ink text ----------- */
+.segmented { background: #1c1c1f; border: 1px solid #3a3a3e; border-radius: 8px; }
+.seg { color: var(--white); border-radius: 6px; font-family: var(--sans); }
+.seg-pill { background: var(--white); border-radius: 6px; }
+.seg.active, .segmented.has-pill .seg.active { color: var(--ink); }
+.segmented:not(.has-pill) .seg.active { background: var(--white); }
+.seg:not(.active):hover { background: var(--ink-3); color: var(--white); }
+/* Inter is wider than Plex: keep the map toolbar on one row at 1440 until P9c
+   rebuilds it as the full-width grid (P8 s4) */
+.map-toolbar .seg { padding: 0 8px; }
+.map-toolbar .toggles { gap: 8px; }
+#zoom-label { min-width: 36px; }
+
+/* ---- inputs, selects, checkboxes ----------------------------------------------- */
+.control-select, .control-input {
+  background: var(--white);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+}
+.panel-main .control-input, .modal .control-input { background: var(--ink-3); }
+.control-input::placeholder { color: var(--muted); }
+.control-select option { background: var(--white); color: var(--ink); }
+input[type="checkbox"] { background: var(--white); border: 1.5px solid var(--line-strong); }
+input[type="checkbox"]:checked, input[type="checkbox"]:checked:hover { background: var(--ink); border-color: var(--ink); }
+input[type="checkbox"]::after { border-color: var(--white); }
+.panel-main input[type="checkbox"] { background: var(--ink-3); }
+.panel-main input[type="checkbox"]:checked { background: #288bff; border-color: #288bff; }
+
+/* ---- module text -------------------------------------------------------------- */
+.section-label { color: var(--text); }
+.module-desc { color: var(--text-soft); }
+.hint-inline, .history-meta, .history-usage { color: var(--muted); }
+.panel-sub { color: var(--muted); }
+
+/* ---- tables (dark): header ink-3 DM Mono, rows transparent, red edge on select */
+thead th {
+  background: var(--ink-3);
+  color: var(--muted-on-dark);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line-dark);
+}
+thead th.th-unit { text-transform: none; }
+tbody td { color: var(--text); border-bottom: 1px solid var(--line-soft); }
+.table-wrap tbody tr:nth-child(even) td { background: transparent; }
+tbody tr:hover td, .table-wrap tbody tr:hover td, tbody tr.selected td { background: var(--ink-3); }
+tbody tr:hover td:first-child, tbody tr.selected td:first-child { box-shadow: inset 2px 0 0 #f64137; }
+.kv-table tbody tr:hover td { background: none; }
+.kv-table tbody tr:hover td:first-child { box-shadow: none; }
+.kv-table th { color: var(--muted); font-family: var(--sans); }
+.kv-table td { color: var(--text); }
+.kv-table th, .kv-table td { border-bottom: 1px dashed var(--line-soft); }
+
+/* ---- chips and badges: DM Mono 13px, 1px border, radius 6 (s11) ----------------
+   On dark: 15% tint fill + light text. On light (Target Control): same tint,
+   ink text. */
+.badge, .cat-chip, .epoch-chip, .verdict-known, .verdict-candidate,
+.map-chip, .archive-chip, .map-info-tag {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;              /* DM Mono ships 400/500 only: no faked bold */
+  border-radius: 6px;
+}
+.badge, .cat-chip, .epoch-chip, .verdict-known, .verdict-candidate {
+  --hue: #9a9a9f;
+  background: color-mix(in srgb, var(--hue) 15%, var(--raise));
+  border: 1px solid var(--hue);
+}
+.badge[class], .cat-chip[class], .epoch-chip[class],
+.verdict-known[class], .verdict-candidate[class] { color: var(--text); }
+.badge-candidate, .verdict-candidate { --hue: #f64137; }
+.badge-known, .badge-dipole, .cat-chip.wise, .verdict-known { --hue: #7dd3a7; }
+.badge-variable, .cat-chip.gaia, .cat-chip.vsx, .epoch-chip.e2 { --hue: #288bff; }
+.badge-mover { --hue: #b9a3ff; }
+.badge-static, .badge-monopole { --hue: #e0a85a; }
+.badge-artefact { --hue: #9a9a9f; }
+.map-chip, .archive-chip, .map-chip-stack { background: var(--ink-3); border-color: var(--line-dark); color: var(--text); }
+.map-info-tag { background: var(--hl-soft); color: var(--hl); border-color: #2b5ea8; }
+
+/* ---- links: on light #1d5fd0, on dark #6fb1ff; underline on hover ------------- */
+a, a:visited, .sources-table td a, .sources-table td a:visited,
+.verdict-detail a, .kv-table a { color: var(--accent-text); text-decoration: none; }
+a:hover, a:focus-visible { color: var(--accent-text); text-decoration: underline; }
+
+/* ---- focus --------------------------------------------------------------------- */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---- field metrics: pastel cards on ink, no icons (s5) -------------------------- */
+.cards { background: none; border: none; padding: 0; }
+.card, .card:hover {
+  border-radius: 18px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08);   /* outline on the ink panel */
+}
+.card-label, .card-value { font-family: "Bitcount Grid Single", var(--sans); }
+.card-label { font-size: 22px; }
+.card-value { font-size: 40px; }
+.card-hint {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* epoch-pair rows are numbers: DM Mono (P9 s3), original column spacing kept */
+.pair-row { font-family: var(--mono); font-size: 15px; white-space: pre; word-spacing: 0; font-variant-numeric: normal; }

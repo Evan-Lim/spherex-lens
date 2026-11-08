@@ -3641,7 +3641,7 @@ function chartTheme() {
     red: v('--chart-red', '#ff5a3c'),
     amber: v('--chart-amber', v('--amber', '#c98a4b')),
     purple: v('--purple', '#a78bfa'),
-    font: '13px "IBM Plex Mono", ui-monospace, Menlo, monospace',  /* P6 s2: canvas chart text 13px */
+    font: '13px "DM Mono", ui-monospace, Menlo, monospace',  /* P9 s3/s9: DM Mono 13px */
   };
   return THEME;
 }

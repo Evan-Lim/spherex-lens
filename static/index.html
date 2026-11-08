@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/icons/logo-spherex-lens.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700;800&family=Montserrat:wght@700;800&family=Bitcount+Grid+Single&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&family=Bitcount+Grid+Single&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,8 +15,11 @@
   <!-- ===================== brand / status bar ===================== -->
   <header class="chrome">
     <div class="chrome-left">
-      <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="" width="32" height="32">
-      <span class="brand-name">SPHERExLens</span>
+      <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="" width="44" height="44">
+      <span class="brand-text">
+        <span class="brand-name">SPHERExLens</span>
+        <span class="brand-tag">Discovery triage</span>
+      </span>
     </div>
     <div class="chrome-right">
       <button id="btn-cloud-status" class="status-pill" type="button"
@@ -37,6 +40,7 @@
     <section class="panel panel-left">
       <div class="panel-head">
         <div>
+          <p class="kicker" aria-hidden="true">Target control <b>01</b></p>
           <h1>Target Control</h1>
         </div>
       </div>
@@ -154,6 +158,7 @@
     <section class="panel panel-main">
       <div class="panel-head">
         <div>
+          <p class="kicker" aria-hidden="true">Science &amp; triage <b>02</b></p>
           <h1>Command Dashboard</h1>
           <p class="panel-sub">ZOGY proper subtraction &middot; epoch pairs &middot; field 9&prime;</p>
         </div>
