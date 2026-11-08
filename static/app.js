@@ -3360,7 +3360,52 @@ function attachSlider(group, itemSelector, pillClass) {
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => sync(true));
 }
 
+// P10a: one-line summaries on the closed Target Control cards. They only read
+// what renderStats() and the recovery code already wrote into the page.
+function syncTcSummaries() {
+  const t = (id) => (($(id) && $(id).textContent) || '').trim();
+  const stats = $('tc-stats-sum');
+  if (stats) {
+    const exp = t('stat-exp');
+    stats.textContent = exp && exp !== '--'
+      ? `${exp} exposures · ${t('stat-epochs')} epochs · SNR max ${t('stat-snr')}`
+      : '';
+  }
+  const rec = $('tc-recovery-sum');
+  if (rec) rec.textContent = t('recovery-out').split('\n')[0];
+}
+
+function attachTcSummaries() {
+  const mo = new MutationObserver(syncTcSummaries);
+  ['stat-exp', 'stat-epochs', 'stat-snr', 'recovery-out'].forEach((id) => {
+    const el = $(id);
+    if (el) mo.observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  syncTcSummaries();
+}
+
+// P10a: the map box is now sized by its column (square, capped at 80vh), so
+// re-fit the field whenever that box changes size, not only on window resize.
+function attachMapFit() {
+  const wrap = document.querySelector('.map-wrap');
+  if (!wrap || !('ResizeObserver' in window)) return;
+  let last = '';
+  let raf = 0;
+  new ResizeObserver(() => {
+    const size = `${wrap.clientWidth}x${wrap.clientHeight}`;
+    if (size === last) return;
+    last = size;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      if (state.data && state.viewMode !== 'sky') { fitView(); updateZoomLabel(); }
+      draw();
+    });
+  }).observe(wrap);
+}
+
 function attachMotion() {
+  attachTcSummaries();
+  attachMapFit();
   ['view-switch', 'layer-switch', 'object-filter'].forEach((id) =>
     attachSlider($(id), '.seg', 'seg-pill'));
   attachSlider($('guide-tabs'), '.guide-tab', 'tab-pill');

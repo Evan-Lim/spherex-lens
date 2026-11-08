@@ -45,7 +45,8 @@
         </div>
       </div>
 
-      <div class="section section-field">
+      <div class="tc-row tc-primary">
+      <div class="section section-field tc-card">
         <div class="section-label">Open any field</div>
         <div class="field-add-row">
           <input id="field-ra" class="control-input" type="number" step="0.001"
@@ -59,7 +60,7 @@
         <div class="hint-inline" id="field-hint">fetches from IRSA, runs the pipeline; results are kept in History</div>
       </div>
 
-      <div class="section">
+      <div class="section tc-card">
         <div class="section-label">Target</div>
         <p class="module-desc">Pick one of the 18 registered fields.</p>
         <select id="target-select" class="control-select">
@@ -78,7 +79,7 @@
         </table>
       </div>
 
-      <div class="section">
+      <div class="section tc-card tc-actions">
         <div class="section-label">Actions</div>
         <p class="module-desc">Run the change-detection pipeline on the selected field, or share a link to this view.</p>
         <button id="btn-run" class="btn btn-primary">
@@ -99,8 +100,12 @@
         </div>
       </div>
 
-      <div class="section history-section">
-        <div class="section-label">History <span id="history-usage" class="history-usage"></span></div>
+      </div>
+
+      <div class="tc-row tc-secondary">
+        <details class="tc-more history-section" id="tc-history">
+          <summary class="tc-sum"><span class="tc-sum-title">History</span><span id="history-usage" class="history-usage tc-sum-meta"></span></summary>
+          <div class="tc-more-body">
         <input id="history-search" class="control-input" type="search"
                placeholder="Search name, or RA, Dec" aria-label="Search saved results">
         <p id="history-empty" class="hint-inline history-empty"></p>
@@ -112,18 +117,11 @@
           </label>
         </div>
         <p id="history-note" class="hint-inline" role="status" aria-live="polite"></p>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Triage verdict</div>
-        <p class="module-desc">The selected detection: what it most likely is, and the evidence.</p>
-        <div id="verdict-box" class="verdict-box">
-          <div class="verdict-label">No detection yet</div>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Pipeline statistics</div>
+          </div>
+        </details>
+        <details class="tc-more tc-stats-card" id="tc-stats">
+          <summary class="tc-sum"><span class="tc-sum-title">Pipeline statistics</span><span class="tc-sum-meta" id="tc-stats-sum"></span></summary>
+          <div class="tc-more-body">
         <p class="module-desc">Numbers from the last pipeline run on this field.</p>
         <table class="kv-table stats-table">
           <tbody>
@@ -143,14 +141,17 @@
             <tr><th>SNR (max)</th><td id="stat-snr">--</td></tr>
           </tbody>
         </table>
-      </div>
-
-      <div class="section section-last">
-        <div class="section-label">Recovery summary</div>
+          </div>
+        </details>
+        <details class="tc-more tc-recovery-card" id="tc-recovery">
+          <summary class="tc-sum"><span class="tc-sum-title">Recovery summary</span><span class="tc-sum-meta" id="tc-recovery-sum"></span></summary>
+          <div class="tc-more-body">
         <p class="module-desc">Injection-recovery test: plants fake sources to measure what the pipeline can find.</p>
         <button id="btn-recovery" class="btn btn-secondary btn-block">Recovery Grid</button>
         <div id="recovery-out" class="mono-box" role="status"
              aria-live="polite" aria-atomic="true">injection-recovery not run yet</div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -195,6 +196,8 @@
         <div class="section-label">Live map</div>
         <p class="module-desc">The field as SPHEREx saw it. Switch layers to compare the stacked image, the difference and its significance.</p>
 
+        <div class="map-layout">
+        <div class="map-col">
         <div class="map-toolbar">
           <div class="segmented" id="view-switch">
             <button class="seg active" data-view="field">Field</button>
@@ -236,6 +239,15 @@
           <span class="legend-item"><i class="sw sw-target"></i> target / expected mover</span>
           <span class="legend-item"><i class="sw sw-dipole"></i> dipole (mover)</span>
           <span class="legend-item"><i class="sw sw-monopole"></i> monopole (variable)</span>
+        </div>
+        </div>
+      <aside class="verdict-col" aria-label="Triage verdict">
+        <div class="section-label verdict-title">Triage verdict</div>
+        <p class="module-desc">The selected detection: what it most likely is, and the evidence.</p>
+        <div id="verdict-box" class="verdict-box">
+          <div class="verdict-label">No detection yet</div>
+        </div>
+      </aside>
         </div>
       </div>
 
