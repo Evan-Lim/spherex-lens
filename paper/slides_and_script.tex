@@ -152,37 +152,28 @@ rendered charts from \code{figures_real/}. The deck and the 33-page report there
 the two headline numbers set large beside them.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  % three panels
-  \foreach \x/\lab in {0/{epoch 1},4.7/{epoch 2 (216 d later)},9.4/{difference}}{
-    \draw[rule,fill=white] (\x,0) rectangle (\x+3.4,2.6);
-    \node[above] at (\x+1.7,2.62) {\lab};
-  }
-  % static stars
-  \foreach \x/\y in {0.45/2.15,1.05/0.75,2.55/2.25,2.95/0.55,0.75/1.05,2.95/1.65}{
-    \fill[slate!55] (\x,\y) circle (0.055);
-    \fill[slate!55] (\x+4.7,\y) circle (0.055);
-    \fill[slate!25] (\x+9.4,\y) circle (0.055);
-  }
-  % the moving source
-  \fill[good] (1.55,1.55) circle (0.13);
-  \node[below,text=good,font=\scriptsize] at (1.55,1.36) {target};
-  \fill[good] (4.7+2.05,1.55) circle (0.13);
-  \draw[->,thick,good] (4.7+1.60,1.55) -- (4.7+1.90,1.55);
-  % difference panel
-  \fill[good] (9.4+2.05,1.55) circle (0.15);
-  \fill[bad] (9.4+1.55,1.55) circle (0.15);
-  \node[below,text=muted,font=\scriptsize,align=center] at (9.4+1.80,1.15) {dipole: it moved};
-  % captions under the panels
-  \node[below,text=muted,font=\scriptsize] at (1.7,-0.10) {the sky as it was};
-  \node[below,text=muted,font=\scriptsize] at (6.4,-0.10) {the sky six months later};
-  \node[below,text=muted,font=\scriptsize] at (11.1,-0.10) {only the change survives};
-  % hero numbers
-  \draw[accent,thick] (14.4,0) rectangle (17.0,1.25);
-  \node[align=center] at (15.7,0.78) {\Huge\bfseries 88};
-  \node[align=center,font=\scriptsize] at (15.7,0.24) {detections over 18 fields};
-  \draw[good,thick] (14.4,-1.5) rectangle (17.0,-0.25);
-  \node[align=center] at (15.7,-0.72) {\LARGE\bfseries 71 / 17};
-  \node[align=center,font=\scriptsize] at (15.7,-1.26) {known / candidate};
+  % three panels, generous gutters
+  \foreach \x/\lab in {0/{epoch 1},5.7/{epoch 2, 216 days later},11.4/{the difference}}{\draw[rule,thick,fill=white] (\x,3.0) rectangle (\x+4.6,6.6); \node[above=2pt] at (\x+2.3,6.6) {\lab};}
+  \foreach \x/\y in {0.7/6.0,1.5/4.0,3.6/6.1,4.0/3.5,1.0/4.9,4.0/5.1}{\fill[slate!55] (\x,\y) circle (0.06); \fill[slate!55] (\x+5.7,\y) circle (0.06); \fill[slate!18] (\x+11.4,\y) circle (0.06);}
+  % moving source: epoch 1, epoch 2, difference
+  \fill[good] (2.05,5.0) circle (0.14);
+  \fill[good] (5.7+2.55,5.0) circle (0.14);
+  \draw[-{Stealth[length=5pt]},thick,good] (5.7+2.10,5.0) -- (5.7+2.42,5.0);
+  \fill[bad] (11.4+1.95,5.0) circle (0.14);
+  \fill[good] (11.4+2.55,5.0) circle (0.14);
+  \node[anchor=north,font=\scriptsize,text=muted] at (11.4+2.25,4.78) {dipole};
+  % captions under each panel, on one line each
+  \node[anchor=north,font=\scriptsize,text=muted] at (2.3,2.9) {the sky as it was};
+  \node[anchor=north,font=\scriptsize,text=muted] at (5.7+2.3,2.9) {the sky six months later};
+  \node[anchor=north,font=\scriptsize,text=muted] at (11.4+2.3,2.9) {only the change survives};
+  % hero numbers, own row
+  \draw[accent,thick] (2.0,0.5) rectangle (5.2,2.1);
+  \node at (3.6,1.55) {\Huge\bfseries 88};
+  \node[font=\scriptsize] at (3.6,0.85) {detections};
+  \draw[good,thick] (6.4,0.5) rectangle (9.6,2.1);
+  \node at (8.0,1.55) {\LARGE\bfseries 71 / 17};
+  \node[font=\scriptsize] at (8.0,0.85) {known / candidate};
+  \node[anchor=west,font=\scriptsize,text=muted,text width=5.6cm] at (10.4,1.30) {18 fields, 128 archive cutouts, one pipeline of six stages};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Good morning. NASA's SPHEREx satellite photographs the whole sky in a hundred
@@ -209,31 +200,23 @@ each step is built the way it is.
 small panel for a variable, and a labelled haze for the systematics that survive subtraction.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  \foreach \x/\lab in {0/{visit 1},4.9/{visit 2},9.8/{difference},14.7/{a variable}}{
-    \draw[rule,fill=white] (\x,0) rectangle (\x+3.9,3.0);
-    \node[above] at (\x+1.95,3.02) {\lab};
-  }
-  \foreach \x/\y in {0.5/2.5,1.2/1.0,2.9/2.6,3.3/0.7,0.8/1.7,3.3/1.9}{
-    \fill[slate!55] (\x,\y) circle (0.06);
-    \fill[slate!55] (\x+4.9,\y) circle (0.06);
-    \fill[slate!18] (\x+9.8,\y) circle (0.06);
-  }
-  % moving source
-  \fill[good] (1.35,1.75) circle (0.15);
-  \fill[good] (4.9+2.55,1.75) circle (0.15);
-  \draw[->,thick,good] (4.9+1.55,1.75) -- (4.9+2.35,1.75);
-  % difference: dipole
-  \fill[good] (9.8+2.55,1.9) circle (0.16);
-  \fill[bad] (9.8+1.55,1.9) circle (0.16);
-  \draw[->,thick] (9.8+1.72,1.62) -- (9.8+2.38,1.62);
-  \node[below,font=\scriptsize] at (9.8+2.05,1.45) {$s\,\Delta_{\rm px}$};
-  % variable: monopole
-  \fill[warn] (14.7+1.95,1.5) circle (0.22);
-  \node[below,text=muted,font=\scriptsize,align=center] at (14.7+1.95,1.05) {single lobe\\$=$ brightened};
-  % haze label under the difference panel
-  \node[below,text=muted,font=\scriptsize,align=center] at (9.8+1.95,0.55) {grey haze $=$ PSF mismatch,\\detector state, astrometry};
-  \node[below,text=muted,font=\scriptsize,align=center] at (1.95,0.55) {one source, one position};
-  \node[below,text=muted,font=\scriptsize,align=center] at (4.9+1.95,0.55) {same source, moved};
+  \foreach \x/\lab in {0/{visit 1},4.3/{visit 2},8.6/{difference},12.9/{a variable}}{\draw[rule,thick,fill=white] (\x,3.0) rectangle (\x+3.7,6.4); \node[above=2pt] at (\x+1.85,6.4) {\lab};}
+  \foreach \x/\y in {0.5/5.8,1.2/3.8,3.0/5.9,3.2/3.4,0.9/4.7,3.2/4.8}{\fill[slate!55] (\x,\y) circle (0.06); \fill[slate!55] (\x+4.3,\y) circle (0.06); \fill[slate!20] (\x+8.6,\y) circle (0.06);}
+  \fill[good] (1.35,4.7) circle (0.14);
+  \fill[good] (4.3+2.35,4.7) circle (0.14);
+  \draw[-{Stealth[length=5pt]},thick,good] (4.3+1.55,4.7) -- (4.3+2.20,4.7);
+  \fill[bad] (8.6+1.35,4.9) circle (0.15);
+  \fill[good] (8.6+2.05,4.9) circle (0.15);
+  \node[anchor=north,font=\scriptsize,text=muted] at (8.6+1.70,4.62) {$s\,\Delta_{\rm px}$};
+  \fill[warn] (12.9+1.85,4.5) circle (0.22);
+  \node[anchor=north,font=\scriptsize,text=muted] at (12.9+1.85,4.10) {single lobe};
+  \node[anchor=north,font=\scriptsize,text=muted] at (1.85,2.9) {one source};
+  \node[anchor=north,font=\scriptsize,text=muted] at (4.3+1.85,3.8) {it has moved};
+  \node[anchor=north,font=\scriptsize,text=muted] at (8.6+1.85,3.8) {a dipole};
+  \node[anchor=north,font=\scriptsize,text=muted] at (12.9+1.85,3.8) {a monopole};
+  % the haze note, its own row
+  \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=15.0cm,font=\scriptsize] at (8.2,1.6)
+    {\textbf{what the difference image also contains, and why it is not a discovery:} PSF mismatch between visits, detector state, astrometric shifts. These survive the subtraction as a grey haze, and they outnumber the real changes.};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Why bother with the second photograph at all? Because a single image tells you
@@ -313,19 +296,13 @@ out, seventy-one explained, seventeen not.
 status underneath, and a footer strip listing what is explicitly out of scope.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  card/.style={draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=3.5cm}]
-  \node[card] (a) at (2.0,1.6) {\large\bfseries 1\quad Calibration\\[3pt]
-    Is $S$ unit-variance where\\nothing changed?\\[3pt] \textcolor{good}{\bfseries answered: yes}};
-  \node[card] (b) at (6.4,1.6) {\large\bfseries 2\quad Morphology\\[3pt]
-    Can a dipole be told from\\a monopole at 3\arcsec?\\[3pt] \textcolor{good}{\bfseries answered: yes, with caveats}};
-  \node[card] (c) at (10.8,1.6) {\large\bfseries 3\quad Identity\\[3pt]
-    What fraction is already\\in a catalogue?\\[3pt] \textcolor{good}{\bfseries answered: 81\%}};
-  \node[card] (d) at (15.2,1.6) {\large\bfseries 4\quad Completeness\\[3pt]
-    What did we miss, and\\can it be measured?\\[3pt] \textcolor{bad}{\bfseries answered: not yet}};
-  \node[draw=slate,thick,fill=white,align=center,inner sep=5pt,text width=16.4cm,font=\small] at (8.6,-0.9)
-    {\textbf{out of scope, stated rather than discovered:} photometry below the PSF \;\textbullet\;
-     light curves from many epochs \;\textbullet\; a machine-learning real/bogus classifier \;\textbullet\;
-     arcsecond astrometry};
+  card/.style={draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=3.0cm}]
+  \node[card] (a) at (2.0,4.6) {\large\bfseries 1\par\vspace{2pt}Calibration\par\vspace{3pt}\normalsize Is $S$ unit-variance where nothing changed?\par\vspace{4pt}\textcolor{good}{\bfseries answered: yes}};
+  \node[card] (b) at (6.0,4.6) {\large\bfseries 2\par\vspace{2pt}Morphology\par\vspace{3pt}\normalsize Can a dipole be told from a monopole at 3\arcsec?\par\vspace{4pt}\textcolor{good}{\bfseries answered: yes, with caveats}};
+  \node[card] (c) at (10.0,4.6) {\large\bfseries 3\par\vspace{2pt}Identity\par\vspace{3pt}\normalsize What fraction is already in a catalogue?\par\vspace{4pt}\textcolor{good}{\bfseries answered: 81\%}};
+  \node[card] (d) at (14.0,4.6) {\large\bfseries 4\par\vspace{2pt}Completeness\par\vspace{3pt}\normalsize What did we miss, and can it be measured?\par\vspace{4pt}\textcolor{bad}{\bfseries answered: not yet}};
+  \node[draw=slate,thick,fill=white,align=left,inner sep=6pt,text width=14.4cm,font=\small] at (8.0,1.5)
+    {\textbf{out of scope, stated rather than discovered:} photometry below the PSF; light curves from many epochs; a machine-learning real/bogus classifier; arcsecond astrometry};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} I want to be explicit about what is and is not in scope, because a small project
@@ -355,32 +332,27 @@ real/bogus classifier, no arcsecond astrometry. Stated up front rather than disc
 contrasting ``fit until the curves agree'' with ``convolve both to a common PSF''.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  \draw[-{Stealth[length=7pt]},thick,rule] (0,0) -- (16.6,0);
+  \draw[-{Stealth[length=7pt]},thick,rule] (0.2,4.9) -- (16.2,4.9);
   \foreach \x/\yr/\la/\lb/\col in {
-    1.4/1998/{Alard \& Lupton}/{ISM: kernel fit}/accent,
-    5.8/2008/{Bramich}/{discrete DIA}/accent,
-    10.2/2016/{ZOGY}/{optimal, closed form}/good,
-    14.6/2022/{SFFT}/{space-based}/slate}{
-    \fill[\col] (\x,0) circle (0.12);
-    \node[above=6pt,text=\col,align=center] at (\x,0.18) {\bfseries \yr\par \la\par \lb};
-  }
-  % kernel-fit sketch under 1998
-  \begin{scope}[shift={(1.4,-2.6)}]
-    \draw[rule] (-1.5,-0.6) rectangle (1.5,1.5);
-    \draw[slate,dashed,thick] plot[smooth] coordinates {(-1.3,-0.4) (-0.4,0.9) (0.0,1.15) (0.6,0.1) (1.3,-0.4)};
-    \draw[accent,thick] plot[smooth] coordinates {(-1.3,-0.4) (-0.5,0.6) (-0.1,1.35) (0.4,0.35) (1.3,-0.4)};
-    \node[below=3pt,text=muted,font=\scriptsize,align=center] at (0,-0.7) {fit $K$ until the curves agree\\depends on the brightest stars};
-  \end{scope}
-  % proper-subtraction sketch under ZOGY
-  \begin{scope}[shift={(10.2,-2.6)}]
-    \draw[rule] (-1.5,-0.6) rectangle (1.5,1.5);
-    \draw[good,thick] plot[smooth] coordinates {(-1.3,-0.4) (-0.55,0.3) (0.0,1.35) (0.55,0.3) (1.3,-0.4)};
-    \draw[bad,thick,dashed] plot[smooth] coordinates {(-1.3,-0.4) (-0.55,0.3) (0.0,1.35) (0.55,0.3) (1.3,-0.4)};
-    \node[below=3pt,text=muted,font=\scriptsize,align=center] at (0,-0.7) {convolve both to a common PSF\par in Fourier space: no fit at all};
-  \end{scope}
-  % why it matters
-  \node[draw=good,thick,fill=good2,align=left,inner sep=5pt,text width=4.2cm,font=\scriptsize] at (14.6,-2.4)
-    {\textbf{why this one}\\ closed form, and an analytic null distribution $\Rightarrow$ a real false-positive budget};
+    1.8/1998/{Alard \& Lupton}/{ISM: kernel fit}/accent,
+    6.4/2008/{Bramich}/{discrete DIA}/accent,
+    11.0/2016/{ZOGY}/{optimal, closed form}/good,
+    15.2/2022/{SFFT}/{space-based}/slate}{
+    \fill[\col] (\x,4.9) circle (0.11);
+    \node[anchor=south,text=\col,align=center,text width=3.4cm] at (\x,5.05) {\bfseries \yr\\[1pt] \la\\[1pt] \lb};}
+  % sketch one: kernel fit
+  \draw[rule,thick,fill=white] (0.2,2.3) rectangle (3.4,4.2);
+  \draw[slate,dashed,thick] plot[smooth] coordinates {(0.4,2.5) (1.2,3.6) (1.8,3.9) (2.4,3.1) (3.2,2.5)};
+  \draw[accent,thick] plot[smooth] coordinates {(0.4,2.5) (1.3,3.3) (1.8,4.0) (2.3,3.3) (3.2,2.5)};
+  \node[anchor=north,font=\scriptsize,text=muted,text width=3.2cm,align=center] at (1.8,2.2) {kernel fitting depends on the brightest stars};
+  % sketch two: proper subtraction
+  \draw[rule,thick,fill=white] (9.4,2.3) rectangle (12.6,4.2);
+  \draw[good,thick] plot[smooth] coordinates {(9.6,2.5) (10.4,3.3) (11.0,4.0) (11.6,3.3) (12.4,2.5)};
+  \draw[bad,thick,dashed] plot[smooth] coordinates {(9.6,2.5) (10.4,3.3) (11.0,4.0) (11.6,3.3) (12.4,2.5)};
+  \node[anchor=north,font=\scriptsize,text=muted,text width=3.2cm,align=center] at (11.0,2.2) {no kernel is ever estimated from the data};
+  % why this one
+  \node[draw=good,thick,fill=good2,align=left,inner sep=6pt,text width=3.6cm,font=\scriptsize] at (14.6,3.0)
+    {\textbf{why this one}\\[3pt] closed form, and an analytic null distribution\\[3pt] $\Rightarrow$ a real false-positive budget};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Subtraction was solved in stages, and the stages matter for what I could assume.
@@ -412,26 +384,28 @@ measured, and that is what lets me defend a five-sigma threshold later.
 how much of those four ideas each body of work actually ships as something a reader can open.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  n/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=2.6cm},
-  ar/.style={-{Stealth[length=6pt]},thick,draw=slate}]
-  \node[n] (d) at (1.5,2.4) {detect\\a difference};
-  \node[n] (v) at (5.0,2.4) {veto\\catalogues, ML};
-  \node[n] (h) at (8.5,2.4) {human\\triage surface};
+  n/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.0cm},
+  ar/.style={-{Stealth[length=6pt]},draw=slate,thick}]
+  \node[n] (d) at (2.0,6.4) {detect\\a difference};
+  \node[n] (v) at (7.0,6.4) {veto\\catalogues, ML};
+  \node[n] (h) at (12.0,6.4) {human\\triage surface};
   \draw[ar] (d) -- (v);
   \draw[ar] (v) -- (h);
-  \draw[ar,dashed] (h.south) -- ++(0,-0.9) -| (d.south);
-  \node[below=12pt,text=muted,font=\scriptsize] at (5.0,0.9) {the loop every survey runs};
-  \begin{scope}[shift={(11.4,-0.6)}]
-    \begin{axis}[width=6.6cm,height=5.0cm,xbar,bar width=7pt,xmin=0,xmax=108,
-      xlabel={\% of the four ideas shipped},xlabel style={font=\scriptsize},
-      symbolic y coords={{Alard 1998},{Bramich 2008},{ZOGY 2016},{SFFT 2022},{ZTF, DES},{this work}},
+  \draw[ar,dashed] (h.south) -- (12.0,5.5) -- (2.0,5.5) -- (d.south);
+  \node[font=\scriptsize,text=muted,anchor=south west] at (4.2,5.56) {the loop every survey runs};
+  \begin{scope}[shift={(0.4,0.2)}]
+    \begin{axis}[width=10.2cm,height=4.2cm,xbar,bar width=8pt,xmin=0,xmax=118,
+      xlabel={\% of the four ideas shipped as something a reader can open},xlabel style={font=\scriptsize},
+      symbolic y coords={{Alard 1998},{Bramich 2008},{ZOGY 2016},{SFFT 2022},{ZTF and DES},{this work}},
       ytick=data,tick label style={font=\scriptsize,text=slate},axis line style={slate},
       grid=major,grid style={rule!70},nodes near coords,nodes near coords style={font=\scriptsize,text=slate},
       enlarge y limits=0.14]
-    \addplot[fill=slate!40,draw=slate] coordinates {(25,{Alard 1998}) (25,{Bramich 2008}) (25,{ZOGY 2016}) (50,{SFFT 2022}) (75,{ZTF, DES})};
-    \addplot[fill=good!55,draw=good] coordinates {(100,{this work})};
+    \addplot[fill=slate!30,draw=slate] coordinates {(25,{Alard 1998}) (25,{Bramich 2008}) (25,{ZOGY 2016}) (50,{SFFT 2022}) (75,{ZTF and DES})};
+    \addplot[fill=good!45,draw=good] coordinates {(100,{this work})};
     \end{axis}
   \end{scope}
+  \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=3.4cm,font=\scriptsize] at (14.4,2.0)
+    {\textbf{the gap}\\[3pt] not an algorithm: an inspectable, reproducible instance for SPHEREx};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Everything since the 1990s runs the same loop, and it is worth naming as a loop:
@@ -463,25 +437,18 @@ page, including the parts that fail. That is what this is.
 used highlighted, and the three extensions that make difference imaging possible underneath.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  % focal plane: six detectors
-  \foreach \i/\x/\lab in {1/0/{D1},2/2.9/{D2},3/5.8/{D3},4/8.7/{D4},5/11.6/{D5},6/14.5/{D6}}{
-    \draw[accent,thick,fill=accent2] (\x,3.0) rectangle (\x+2.3,5.2);
-    \node at (\x+1.15,4.1) {\large\bfseries \lab};}
-  \node[below,text=muted,font=\scriptsize,align=center] at (8.4,2.92)
-    {six detectors: one low-resolution spectrum at every position on the sky};
-  % wavelength axis
-  \draw[-{Stealth[length=7pt]},thick,slate] (0,1.6) -- (16.8,1.6);
-  \foreach \w/\x in {0.75/0.3,1.0/2.2,2.0/5.4,3.0/8.6,4.0/11.8,5.0/15.0}{
-    \draw[slate] (\x,1.6) -- (\x,1.35); \node[below,font=\scriptsize] at (\x,1.32) {\w};}
-  \node[right,font=\scriptsize] at (15.0,1.32) {\textmu m};
-  \foreach \x/\lab in {0.75/{D1},5.0/{D2},11.9/{D4}}{
-    \fill[good!45] (\x,1.6) rectangle (\x+0.5,2.15);
-    \node[above=2pt,text=good,font=\scriptsize\bfseries] at (\x+0.25,2.15) {\lab};}
-  \node[text=good,font=\scriptsize] at (8.4,2.45) {green: the bands used here};
-  % extensions
-  \foreach \x/\ttl/\txt in {0/{IMAGE}/{calibrated flux},5.7/{FLAGS}/{32 quality bits},11.4/{VAR + WCS-WAVE}/{$\sigma^2$ and $\lambda$ per pixel}}{
-    \node[draw=rule,thick,fill=white,align=center,inner sep=5pt,text width=4.4cm] at (\x+2.6,0.2)
-      {{\bfseries \ttl}\\ \scriptsize \txt};}
+  \foreach \lab/\x in {D1/0,D2/2.7,D3/5.4,D4/8.1,D5/10.8,D6/13.5}{\draw[accent,thick,fill=accent2] (\x,5.4) rectangle (\x+2.4,7.2); \node at (\x+1.2,6.3) {\large\bfseries \lab};}
+  \node[anchor=north,font=\scriptsize,text=muted] at (8.0,5.3) {six detectors: one low-resolution spectrum at every position};
+  \draw[-{Stealth[length=7pt]},thick,slate] (0.2,3.4) -- (15.6,3.4);
+  \foreach \w/\x in {0.75/0.4,1.0/2.4,2.0/6.3,3.0/9.6,4.0/12.9,5.0/15.4}{\draw[slate] (\x,3.4) -- (\x,3.1); \node[anchor=north,font=\scriptsize] at (\x,3.05) {\w};}
+  \node[anchor=north,font=\scriptsize] at (16.2,3.05) {\textmu m};
+  \fill[good!45] (0.55,3.4) rectangle (1.05,3.95); \node[anchor=south,font=\scriptsize\bfseries,text=good] at (0.8,3.95) {D1};
+  \fill[good!45] (5.85,3.4) rectangle (6.35,3.95); \node[anchor=south,font=\scriptsize\bfseries,text=good] at (6.1,3.95) {D2};
+  \fill[good!45] (13.2,3.4) rectangle (13.7,3.95); \node[anchor=south,font=\scriptsize\bfseries,text=good] at (13.45,3.95) {D4};
+  \node[anchor=south,font=\scriptsize,text=good] at (9.6,3.98) {the bands used here};
+  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (2.6,1.6) {\textbf{IMAGE}\\ \scriptsize calibrated flux};
+  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (8.0,1.6) {\textbf{FLAGS}\\ \scriptsize 32 quality bits};
+  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (13.4,1.6) {\textbf{VAR and WCS-WAVE}\\ \scriptsize $\sigma^2$ and $\lambda$ per pixel};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} A word on the instrument, because the shape of the data drives everything
@@ -742,13 +709,13 @@ six-tenths of a second for a one-hundred-and-eighty-pixel frame.
 scale, with the three operating points marked and the working threshold drawn as a vertical line.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-\begin{axis}[width=15.4cm,height=6.6cm,
+\begin{axis}[width=15.4cm,height=6.4cm,
   xlabel={threshold $\tau$ [$\sigma$]},ylabel={expected false pixels per frame},
   xlabel style={font=\small},ylabel style={font=\small},
-  ymode=log,xmin=2.5,xmax=7.5,ymin=1e-6,ymax=2000,
+  ymode=log,xmin=2.5,xmax=7.5,ymin=1e-6,ymax=1e5,
   grid=both,grid style={rule!70},axis line style={slate},
   tick label style={font=\small,text=slate},
-  legend style={font=\small,draw=rule,at={(0.02,0.97)},anchor=north west}]
+  legend style={font=\small,draw=rule,at={(0.5,-0.30)},anchor=north,legend columns=2}]
 \addplot[thick,accent,mark=none] coordinates {
   (2.5,201.2) (2.6,151.0) (2.7,112.3) (2.8,82.8) (2.9,60.5) (3.0,43.7)
   (3.2,22.26) (3.4,10.92) (3.6,5.16) (3.8,2.34) (4.0,1.026) (4.2,0.4324)
@@ -757,11 +724,11 @@ scale, with the three operating points marked and the working threshold drawn as
 \addlegendentry{$N^2\Phi(-\tau)$ with $N^2=32\,400$}
 \addplot[only marks,mark=*,mark size=3.0pt,bad] coordinates {(3,219) (4,11.4) (5,0.018)};
 \addlegendentry{operating points}
-\draw[dashed,slate,thick] (axis cs:5,1e-6) -- (axis cs:5,2000);
-\node[font=\small,text=slate,anchor=south,rotate=90] at (axis cs:4.86,2e-3) {working threshold};
-\node[font=\small,text=bad,anchor=west] at (axis cs:3.06,219) {219};
-\node[font=\small,text=bad,anchor=west] at (axis cs:4.06,11.4) {11};
-\node[font=\small,text=bad,anchor=west] at (axis cs:5.06,0.018) {0.018};
+\draw[dashed,slate,thick] (axis cs:5,1e-6) -- (axis cs:5,1e5);
+\node[font=\small,text=slate,anchor=south,rotate=90] at (axis cs:4.88,1e-4) {working threshold};
+\node[font=\small,text=bad,anchor=south west] at (axis cs:3.02,240) {219};
+\node[font=\small,text=bad,anchor=south west] at (axis cs:4.02,13) {11};
+\node[font=\small,text=bad,anchor=south west] at (axis cs:5.04,0.021) {0.018};
 \end{axis}
 \end{tikzpicture}}
 
@@ -793,28 +760,24 @@ detections real -- it only rules out the least interesting failure mode.
 arcsec per year, beside the monopole case, and one worked example underneath.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  % dipole panel
-  \draw[rule,thick,fill=white] (0,0) rectangle (5.4,3.3);
-  \foreach \x/\y in {0.5/2.9,4.8/2.8,0.7/0.6,4.6/0.7,2.7/3.0,1.6/2.6}{\fill[slate!45] (\x,\y) circle (0.06);}
-  \fill[bad] (2.35,1.45) circle (0.24);
-  \fill[good] (3.15,1.95) circle (0.24);
-  \draw[-{Stealth[length=6pt]},thick,slate] (2.45,1.5) -- (3.05,1.9);
-  \node[font=\scriptsize,above right,text=slate] at (2.6,1.72) {$\Delta_{\rm px}\approx2$};
-  \node[font=\scriptsize,text=bad,anchor=east] at (2.05,1.35) {before};
-  \node[font=\scriptsize,text=good,anchor=west] at (3.45,2.05) {now};
-  \node[below,text=muted,font=\scriptsize,align=center] at (2.7,-0.1) {dipole: the same flux, displaced};
-  % monopole panel
-  \draw[rule,thick,fill=white] (6.6,0) rectangle (9.6,3.3);
-  \foreach \x/\y in {6.9/2.8,9.3/2.7,6.95/0.6,9.25/0.7,8.1/3.0}{\fill[slate!45] (\x,\y) circle (0.06);}
-  \fill[warn] (8.1,1.6) circle (0.30);
-  \node[below,text=muted,font=\scriptsize,align=center] at (8.1,-0.1) {monopole: no partner at all};
-  % worked example
-  \node[draw=accent,thick,fill=accent2,align=left,inner sep=6pt,text width=6.2cm,font=\scriptsize] at (9.1,4.2)
-    {\textbf{worked example}\\ Barnard's Star: 2\,px over 216\,days\\
-     $\Rightarrow \mu\approx25\arcsec$/yr measured, $\sim$10 expected\\
-     the peak-separation estimator is biased high by the PSF width};
-  \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=6.2cm,font=\scriptsize] at (9.1,-1.6)
-    {\textbf{R Draconis, same test}: 6 of 7 detections are monopoles,\\ i.e.\ a Mira pulsing, exactly as it should be};
+  \draw[rule,thick,fill=white] (0.3,2.6) rectangle (6.1,6.6);
+  \node[anchor=north,font=\scriptsize] at (3.2,6.5) {a dipole: the same flux, displaced};
+  \foreach \x/\y in {0.8/6.0,5.6/6.0,0.9/3.2,5.5/3.2,3.0/6.05,1.7/5.6}{\fill[slate!45] (\x,\y) circle (0.06);}
+  \fill[bad] (2.6,4.3) circle (0.22);
+  \fill[good] (3.7,4.9) circle (0.22);
+  \draw[-{Stealth[length=6pt]},thick,slate] (2.75,4.35) -- (3.55,4.85);
+  \node[anchor=north,font=\scriptsize,text=slate] at (3.05,3.86) {2 pixels apart in 216 days};
+  \node[anchor=east,font=\scriptsize,text=bad] at (2.28,4.25) {before};
+  \node[anchor=south,font=\scriptsize,text=good] at (3.70,5.22) {now};
+  \draw[rule,thick,fill=white] (6.9,2.6) rectangle (10.3,6.6);
+  \node[anchor=north,font=\scriptsize] at (8.6,6.5) {a monopole};
+  \foreach \x/\y in {7.2/6.0,10.0/6.0,7.3/3.2,9.9/3.2}{\fill[slate!45] (\x,\y) circle (0.06);}
+  \fill[warn] (8.6,4.6) circle (0.28);
+  \node[anchor=north,font=\scriptsize,text=muted] at (8.6,4.2) {no partner};
+  \node[draw=accent,thick,fill=accent2,align=left,inner sep=6pt,text width=5.2cm,font=\scriptsize] at (13.6,5.7)
+    {\textbf{worked example}\\[4pt] Barnard's Star: 2 pixels over 216 days\\[3pt] measured 25 arcsec per year, about 10 expected\\[3pt] the estimator is biased high by roughly one PSF width};
+  \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=5.2cm,font=\scriptsize] at (13.6,3.2)
+    {\textbf{the control}\\[4pt] R Draconis: 6 of its 7 detections are monopoles, a Mira pulsing as expected};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Once there is a significance map, the morphology does the classifying, and it is
@@ -846,30 +809,26 @@ of its seven detections are monopoles, which is what a pulsating Mira should giv
 right, and underneath the failure mode that this radius creates for a high-proper-motion star.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  k/.style={draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.2cm},
-  c/.style={draw=warn,thick,fill=warn2,align=center,inner sep=5pt,text width=3.2cm},
-  m/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=2.8cm},
+  k/.style={draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.4cm},
+  c/.style={draw=warn,thick,fill=warn2,align=center,inner sep=5pt,text width=3.4cm},
+  m/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.0cm},
   ar/.style={-{Stealth[length=6pt]},draw=slate,thick}]
-  % match panel
-  \draw[rule,thick,fill=white] (0,0) rectangle (5.6,3.8);
-  \draw[warn,dashed,thick] (2.9,1.9) circle (1.35);
-  \draw[good,dashed,thick] (2.9,1.9) circle (0.34);
-  \fill[accent] (2.9,1.9) circle (0.10);
-  \foreach \x/\y in {3.15/2.15,2.55/1.6,3.9/2.6,1.6/1.2,2.2/2.5,4.0/1.3}{\fill[slate!65] (\x,\y) circle (0.06);}
-  \node[good,font=\scriptsize,anchor=south] at (2.9,2.26) {$5\arcsec$};
-  \node[warn,font=\scriptsize,anchor=north] at (2.9,0.50) {$30\arcsec$};
-  \node[below,text=muted,font=\scriptsize,align=center] at (2.8,-0.1) {detection (filled) and catalogue sources};
-  % flow
-  \node[m] (mt) at (8.4,2.4) {nearest match};
-  \node[k] (kn) at (13.0,3.3) {KNOWN\\ \scriptsize a catalogue source};
-  \node[c] (ca) at (13.0,1.4) {CANDIDATE\\ \scriptsize nothing within $30\arcsec$};
+  \draw[rule,thick,fill=white] (0.3,2.9) rectangle (6.3,6.6);
+  \node[anchor=north,font=\scriptsize] at (3.3,6.5) {the two match radii};
+  \draw[warn,dashed,thick] (3.3,4.4) circle (1.35);
+  \draw[good,dashed,thick] (3.3,4.4) circle (0.36);
+  \fill[accent] (3.3,4.4) circle (0.10);
+  \foreach \x/\y in {3.6/4.7,2.95/4.05,4.4/5.2,1.95/3.5,2.5/5.3,4.55/3.5}{\fill[slate!60] (\x,\y) circle (0.06);}
+  \node[anchor=west,font=\scriptsize,text=good] at (3.72,4.45) {5\arcsec};
+  \node[anchor=west,font=\scriptsize,text=warn] at (4.72,4.40) {30\arcsec};
+  \node[anchor=north,font=\scriptsize,text=muted] at (3.3,2.8) {filled: the detection; grey: catalogue sources};
+  \node[m] (mt) at (8.8,4.7) {nearest match};
+  \node[k] (kn) at (13.4,5.6) {KNOWN\\ \scriptsize a catalogue source};
+  \node[c] (ca) at (13.4,3.6) {CANDIDATE\\ \scriptsize nothing within $30\arcsec$};
   \draw[ar] (mt) -- node[above,font=\scriptsize,text=muted] {$<30\arcsec$} (kn);
   \draw[ar] (mt) -- node[below,font=\scriptsize,text=muted] {otherwise} (ca);
-  % failure box
-  \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=9.6cm,font=\scriptsize] at (9.6,-1.05)
-    {\textbf{the failure mode this creates}\\ Gaia positions are from 2016; the SPHEREx epoch is 2025--26.\\
-     Barnard's Star has moved $\sim$94\arcsec{} in that gap, so no match is found and the pipeline labels its own target a candidate.\\
-     The fix -- propagate catalogue positions with their proper motions -- is two lines, and is not yet in.};
+  \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=15.0cm,font=\scriptsize] at (8.2,1.15)
+    {\textbf{the failure mode this creates:} Gaia positions are from 2016 and the SPHEREx epoch is 2025--26, so Barnard's Star has moved about 94\arcsec{} and no match is found -- the pipeline labels its own target a candidate. The fix is two lines (propagate catalogue positions with their proper motions) and is not yet in.};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} A detection is not a discovery until you have asked whether something was already
@@ -902,27 +861,29 @@ and it is not yet in, which is exactly why slide twenty-two says seventeen candi
 spectra underneath showing what each index is for.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  \draw[-{Stealth[length=7pt]},thick,slate] (0.2,3.2) -- (16.4,3.2);
-  \foreach \w/\x in {0.75/0.5,1.0/2.6,2.0/6.4,3.0/10.2,4.0/14.0,5.0/16.2}{
-    \draw[slate] (\x,3.2) -- (\x,2.95); \node[below,font=\scriptsize] at (\x,2.92) {\w};}
-  \node[font=\scriptsize,anchor=west] at (16.0,2.92) {\textmu m};
-  \fill[good!45] (3.35,3.2) rectangle (3.9,3.85);
-  \node[above=2pt,text=good,font=\scriptsize\bfseries,align=center] at (3.62,3.85) {CH$_4$\\ 1.6 / 1.74};
-  \fill[accent!35] (1.4,3.2) rectangle (2.3,3.85);
-  \node[above=2pt,text=accent,font=\scriptsize\bfseries,align=center] at (1.85,3.85) {H$_2$O\\ continuum};
-  \fill[accent!35] (5.6,3.2) rectangle (6.4,3.85);
-  \node[above=2pt,text=accent,font=\scriptsize\bfseries,align=center] at (6.0,3.85) {H$_2$O\\ trough};
-  \fill[warn!35] (14.6,3.2) rectangle (15.9,3.85);
-  \node[above=2pt,text=warn,font=\scriptsize\bfseries,align=center] at (15.25,3.85) {NIR slope};
+  \draw[-{Stealth[length=7pt]},thick,slate] (0.2,5.6) -- (14.8,5.6);
+  \foreach \w/\x in {0.75/0.4,1.0/2.3,2.0/6.0,3.0/9.2,4.0/12.4,5.0/14.6}{\draw[slate] (\x,5.6) -- (\x,5.3); \node[anchor=north,font=\scriptsize] at (\x,5.28) {\w};}
+  \node[anchor=north,font=\scriptsize] at (15.4,5.28) {\textmu m};
+  \fill[accent!30] (1.5,5.6) rectangle (2.6,6.15);
+  \node[anchor=south,font=\scriptsize,align=center,text=accent] at (2.05,6.2) {H$_2$O\\ continuum};
+  \fill[good!40] (3.6,5.6) rectangle (4.2,6.15);
+  \node[anchor=south,font=\scriptsize,align=center,text=good] at (3.9,6.2) {CH$_4$\\ 1.6 / 1.74};
+  \fill[accent!30] (5.2,5.6) rectangle (6.0,6.15);
+  \node[anchor=south,font=\scriptsize,align=center,text=accent] at (5.6,6.2) {H$_2$O\\ trough};
+  \fill[warn!30] (13.4,5.6) rectangle (14.5,6.15);
+  \node[anchor=south,font=\scriptsize,align=center,text=warn] at (13.95,6.2) {NIR\\ slope};
   % three schematic spectra
-  \foreach \x/\lab/\col in {0.2/{T dwarf: deep CH$_4$}/bad,5.6/{L dwarf: water}/accent,11.0/{quasar: red slope}/warn}{
-    \draw[rule,thick,fill=white] (\x,0.2) rectangle (\x+4.6,2.4);
-    \node[below,text=\col,font=\scriptsize,align=center] at (\x+2.3,-0.05) {\lab};}
-  \draw[bad,thick] plot[smooth] coordinates {(0.5,1.9) (1.5,1.75) (2.2,1.1) (2.9,1.35) (3.5,1.05) (4.5,1.25)};
-  \draw[accent,thick] plot[smooth] coordinates {(5.9,1.65) (6.9,1.5) (7.4,1.05) (7.9,1.55) (8.6,1.45) (9.9,1.7)};
-  \draw[warn,thick] plot[smooth] coordinates {(11.3,1.0) (12.3,1.2) (13.3,1.55) (14.2,1.8) (15.4,2.15)};
-  \node[draw=rule,thick,fill=white,align=left,inner sep=5pt,text width=16.0cm,font=\scriptsize] at (8.3,-1.15)
-    {\textbf{design decision:} the classifier always prints the three indices beside its label, so a reader who disagrees with ``T dwarf'' can see the methane ratio and overrule it.};
+  \draw[rule,thick,fill=white] (0.3,1.6) rectangle (4.7,4.6);
+  \draw[bad,thick] plot[smooth] coordinates {(0.6,4.2) (1.5,4.0) (2.2,3.2) (2.9,3.5) (3.5,3.1) (4.4,3.4)};
+  \node[anchor=north,font=\scriptsize,text=bad] at (2.5,1.55) {T dwarf: deep methane};
+  \draw[rule,thick,fill=white] (5.3,1.6) rectangle (9.7,4.6);
+  \draw[accent,thick] plot[smooth] coordinates {(5.6,3.9) (6.5,3.7) (7.1,3.1) (7.6,3.7) (8.3,3.6) (9.4,3.9)};
+  \node[anchor=north,font=\scriptsize,text=accent] at (7.5,1.55) {L dwarf: water};
+  \draw[rule,thick,fill=white] (10.3,1.6) rectangle (14.7,4.6);
+  \draw[warn,thick] plot[smooth] coordinates {(10.6,2.4) (11.5,2.7) (12.4,3.2) (13.3,3.6) (14.4,4.3)};
+  \node[anchor=north,font=\scriptsize,text=warn] at (12.5,1.55) {quasar: red power law};
+  \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=14.4cm,font=\scriptsize] at (7.5,0.3)
+    {\textbf{design decision:} the classifier always prints the three indices beside its label, so a reader who disagrees with ``T dwarf'' can see the methane ratio and overrule it};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} The last piece of theory is nearly free, and it is why SPHEREx is interesting for
@@ -952,7 +913,7 @@ variance plane the injection uses against the residual structure the data actual
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   \begin{scope}
-    \begin{axis}[width=6.8cm,height=5.2cm,
+    \begin{axis}[width=6.8cm,height=5.4cm,
       view={0}{90},colormap={rec}{color=(white) color=(warn!55) color=(bad)},
       colorbar,colorbar style={font=\scriptsize,width=0.28cm},
       xlabel={$\mu$ [arcsec/yr]},ylabel={injected S/N},
@@ -970,18 +931,14 @@ variance plane the injection uses against the residual structure the data actual
       (1,20)[0.1] (2,20)[0.2] (5,20)[0.2] (10,20)[0.3]};
     \end{axis}
   \end{scope}
-  % why it fails
-  \begin{scope}[shift={(9.4,1.2)}]
-    \draw[rule,thick,fill=white] (0,2.1) rectangle (6.6,3.5);
-    \draw[accent,thick] (0.2,2.5) -- (6.4,2.5);
-    \node[text=accent,font=\scriptsize,anchor=west] at (0.3,3.25) {the variance plane (flat, and what the injection uses)};
-    \draw[rule,thick,fill=white] (0,0) rectangle (6.6,1.5);
-    \draw[bad,thick] plot[smooth] coordinates {(0.2,0.35) (0.7,1.3) (1.2,0.45) (1.7,1.15) (2.2,0.4) (2.7,1.2) (3.3,0.5) (3.9,1.25) (4.5,0.4) (5.2,1.1) (6.1,0.5)};
-    \node[text=bad,font=\scriptsize,anchor=west] at (0.3,0.20) {the real residual: PSF mismatch, not in the variance};
-    \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=6.6cm,font=\scriptsize] at (3.3,-0.9)
-      {amplitude $=\rho\,\overline{\sigma}$ sits far below the real residual, so a ``20$\sigma$'' fake source is invisible.\\
-       The test is wrong -- not the pipeline -- and until it is fixed there is no completeness number.};
-  \end{scope}
+  \draw[rule,thick,fill=white] (8.4,5.4) rectangle (15.8,6.6);
+  \draw[accent,thick] (8.6,5.8) -- (15.6,5.8);
+  \node[anchor=north west,font=\scriptsize,text=accent] at (8.6,6.5) {the variance plane: flat, and what the injection uses};
+  \draw[rule,thick,fill=white] (8.4,3.4) rectangle (15.8,4.9);
+  \draw[bad,thick] plot[smooth] coordinates {(8.6,3.70) (9.4,4.25) (10.1,3.75) (10.9,4.30) (11.7,3.70) (12.5,4.25) (13.3,3.75) (14.1,4.30) (14.9,3.70) (15.5,4.20)};
+  \node[anchor=north west,font=\scriptsize,text=bad] at (8.6,4.88) {the real residual: PSF mismatch, not in the variance};
+  \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=7.4cm,font=\scriptsize] at (12.1,1.9)
+    {amplitude $=\rho\,\overline{\sigma}$ sits far below the real residual, so a ``20$\sigma$'' fake source is invisible.\\[3pt] The test is wrong -- not the pipeline -- and until it is fixed there is no completeness number.};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} A detection chain is only as good as its completeness curve, so stage six plants
@@ -1071,33 +1028,30 @@ cannot do, and an interface that explains itself.
 the latency written underneath.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  hd/.style={draw=ink,thick,fill=white,align=center,inner sep=4pt,text width=3.4cm,font=\footnotesize\bfseries},
-  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.4cm},
-  st/.style={draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.4cm},
+  hd/.style={draw=ink,thick,fill=white,align=center,inner sep=4pt,text width=3.0cm,font=\bfseries},
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.0cm},
+  st/.style={draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.0cm},
   ar/.style={-{Stealth[length=6pt]},draw=slate,thick}]
-  \node[hd] at (2.0,5.2) {LIVE};
-  \node[hd] at (8.2,5.2) {STATIC};
-  \node[hd] at (14.4,5.2) {HYBRID};
-  % live
-  \node[bx] (b1) at (2.0,4.0) {browser};
-  \node[st] (a1) at (2.0,2.8) {FastAPI};
-  \node[bx] (i1) at (2.0,1.6) {IRSA};
+  \node[hd] at (2.2,6.6) {LIVE};
+  \node[hd] at (8.0,6.6) {STATIC};
+  \node[hd] at (13.8,6.6) {HYBRID};
+  \node[bx] (b1) at (2.2,5.5) {browser};
+  \node[st] (a1) at (2.2,4.2) {FastAPI};
+  \node[bx] (i1) at (2.2,2.9) {IRSA};
   \draw[ar] (b1) -- (a1); \draw[ar,dashed] (a1) -- (i1);
-  \node[text=muted,font=\scriptsize,align=center] at (2.0,0.7) {cold 6--25\,s\\ cached $\sim$1\,s};
-  % static
-  \node[bx] (b2) at (8.2,4.0) {browser};
-  \node[st] (a2) at (8.2,2.8) {JSON files};
-  \node[draw=rule,thick,fill=white,align=center,inner sep=5pt,text width=3.4cm] (i2) at (8.2,1.6) {no server};
+  \node[font=\scriptsize,text=muted,align=center] at (2.2,2.0) {cold 6--25 s\\[2pt] cached about 1 s};
+  \node[bx] (b2) at (8.0,5.5) {browser};
+  \node[st] (a2) at (8.0,4.2) {JSON files};
+  \node[draw=rule,thick,fill=white,align=center,inner sep=5pt,text width=3.0cm] (i2) at (8.0,2.9) {no server};
   \draw[ar] (b2) -- (a2);
-  \node[text=muted,font=\scriptsize,align=center] at (8.2,0.7) {instant\\ works offline};
-  % hybrid
-  \node[bx] (b3) at (14.4,4.0) {browser};
-  \node[st] (a3) at (14.4,2.8) {JSON $+$ proxy};
-  \node[bx] (i3) at (14.4,1.6) {FastAPI};
+  \node[font=\scriptsize,text=muted,align=center] at (8.0,2.0) {instant\\[2pt] works offline};
+  \node[bx] (b3) at (13.8,5.5) {browser};
+  \node[st] (a3) at (13.8,4.2) {JSON and a proxy};
+  \node[bx] (i3) at (13.8,2.9) {FastAPI};
   \draw[ar] (b3) -- (a3); \draw[ar,dashed] (a3) -- (i3);
-  \node[text=muted,font=\scriptsize,align=center] at (14.4,0.7) {instant, then live\\for the rest};
-  \node[draw=slate,thick,fill=white,align=center,inner sep=5pt,text width=15.6cm,font=\scriptsize] at (8.2,-0.7)
-    {the same \code{app.js} in all three: the only difference is <body data-mode> and whether a \code{/live-api} probe answers};
+  \node[font=\scriptsize,text=muted,align=center] at (13.8,2.0) {instant, then live\\[2pt] for the rest};
+  \node[draw=slate,thick,fill=white,align=center,inner sep=6pt,text width=14.6cm,font=\scriptsize] at (8.0,0.7)
+    {the same script in all three: the only difference is the page's mode attribute and whether a proxy probe answers};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} The last piece of engineering is how the result is served, and it is deliberately
@@ -1128,27 +1082,28 @@ canvas stack drawn beside it.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   % wireframe
-  \draw[rule,thick,fill=white] (0,0) rectangle (9.2,4.9);
-  \draw[rule,fill=slate!10] (0,4.5) rectangle (9.2,4.9);
-  \node[anchor=west,font=\scriptsize] at (0.15,4.70) {brand \;\textbullet\; status \;\textbullet\; GUIDE \;\textbullet\; auto demo};
-  \draw[rule,fill=white] (0.15,0.15) rectangle (3.1,4.35);
-  \node[anchor=north,font=\scriptsize] at (1.62,4.25) {/01 target control};
-  \foreach \y/\txt in {3.55/{dropdown},2.95/{run, recovery, share},2.35/{live toggle},1.75/{verdict + 11 stats}}{\draw[rule] (0.3,\y) rectangle (2.95,\y+0.42); \node[font=\scriptsize,text=muted] at (1.62,\y+0.21) {\txt};}
-  \draw[accent,thick,fill=accent2] (3.3,2.45) rectangle (9.0,4.35);
-  \node[font=\scriptsize] at (6.15,4.15) {/02 command dashboard: canvas map};
-  \draw[rule,fill=white] (3.3,0.15) rectangle (6.0,2.25);
-  \node[font=\scriptsize,text=slate] at (4.65,1.2) {detections};
-  \draw[rule,fill=white] (6.2,0.15) rectangle (9.0,2.25);
-  \node[font=\scriptsize,text=slate] at (7.6,1.2) {sources, provenance};
-  % layer stack
-  \begin{scope}[shift={(10.4,0.4)}]
-    \foreach \i/\lab/\col in {0/{significance $S$}/good,1/{difference $D$}/warn,2/{co-add}/accent}{
-      \draw[\col,thick,fill=\col!15] (0,\i*0.95+0.2) -- (0.7,\i*0.95+0.65) -- (4.6,\i*0.95+0.65) -- (3.9,\i*0.95+0.2) -- cycle;
-      \node[font=\scriptsize,text=\col,anchor=west] at (4.8,\i*0.95+0.42) {\lab};}
-    \node[font=\scriptsize,text=muted,align=center] at (2.3,-0.05) {three switchable layers};
-    \node[draw=rule,thick,fill=white,align=left,inner sep=5pt,text width=5.4cm,font=\scriptsize] at (2.7,-1.15)
-      {overlays: survey grid, Gaia and VSX crosses, dipole markers, an RA/Dec crosshair, a scale bar};
-  \end{scope}
+  \draw[rule,thick,fill=white] (0.3,1.4) rectangle (8.9,6.8);
+  \draw[rule,fill=slate!10] (0.3,6.3) rectangle (8.9,6.8);
+  \node[anchor=west,font=\scriptsize] at (0.45,6.55) {brand \;\textbullet\; status \;\textbullet\; GUIDE \;\textbullet\; auto demo};
+  \draw[rule,fill=white] (0.45,1.55) rectangle (3.30,6.15);
+  \node[anchor=north,font=\scriptsize] at (1.87,6.05) {/01 target control};
+  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,5.35) {field dropdown};
+  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,4.35) {run, recovery, share};
+  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,3.35) {live toggle};
+  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,2.35) {verdict, 11 statistics};
+  \draw[accent,thick,fill=accent2] (3.50,4.30) rectangle (8.75,6.15);
+  \node[font=\scriptsize] at (6.12,5.6) {/02 canvas map};
+  \draw[rule,fill=white] (3.50,1.55) rectangle (6.05,4.10);
+  \node[font=\scriptsize,text=slate] at (4.77,2.8) {detections};
+  \draw[rule,fill=white] (6.20,1.55) rectangle (8.75,4.10);
+  \node[font=\scriptsize,text=slate] at (7.47,2.8) {sources};
+  % layer stack with labels inside
+  \foreach \i/\lab/\col in {0/{significance $S$}/good,1/{difference $D$}/warn,2/{co-add}/accent}{
+    \draw[\col,thick,fill=\col!15] (9.6,\i*1.5+1.9) -- (10.5,\i*1.5+2.5) -- (15.4,\i*1.5+2.5) -- (14.5,\i*1.5+1.9) -- cycle;
+    \node[font=\scriptsize,text=\col] at (12.5,\i*1.5+2.2) {\lab};}
+  \node[anchor=north,font=\scriptsize,text=muted] at (12.5,1.75) {three switchable layers};
+  \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=4.8cm,font=\scriptsize] at (12.5,0.6)
+    {overlays: survey grid, Gaia and VSX crosses, dipole markers, an RA/Dec crosshair, a scale bar};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} The front end is sixteen hundred lines of plain JavaScript, with no framework and
@@ -1186,7 +1141,7 @@ targets and the thirteen famous objects, with the totals in the caption strip.
   xtick=data,x tick label style={rotate=55,anchor=east,font=\scriptsize},
   tick label style={font=\scriptsize,text=slate},axis line style={slate},
   grid=major,grid style={rule!70},enlarge x limits=0.04,
-  legend style={font=\scriptsize,draw=rule,at={(0.01,0.99)},anchor=north west},
+  legend style={font=\scriptsize,draw=rule,at={(0.5,-0.30)},anchor=north,legend columns=2},
   after end axis/.code={
     \draw[rule,dashed] (rel axis cs:0.28,0) -- (rel axis cs:0.28,1.05);
     \node[font=\scriptsize,text=muted,anchor=south] at (rel axis cs:0.13,1.06) {five brief targets};
@@ -1319,11 +1274,11 @@ beside the exact controls used, so nothing has to be hunted for on stage.
   \node[pan,minimum width=6.3cm,minimum height=1.9cm] (tab) at (8.6,1.4) {detections \;\textbullet\; image sources};
   % all-sky
   \node[pan,minimum width=3.9cm,minimum height=2.6cm] (sky) at (13.6,6.0) {all-sky view};
-  \node[cb] at (11.85,7.10) {4};
+  \node[cb] at (11.65,4.45) {4};
   % steps
   \node[pan,minimum width=3.9cm,minimum height=3.8cm] (steps) at (13.6,2.1) {};
-  \node[anchor=north,font=\scriptsize] at (13.6,3.72) {the six moves};
-  \foreach \i/\txt in {1/{pick Barnard's Star},2/{click the dipole},3/{switch layers},4/{all-sky, then Crab},5/{recovery grid},6/{open the Guide}}{\node[anchor=west,font=\scriptsize,text=muted] at (11.95,3.80-\i*0.50) {\i: \txt};}
+  \node[anchor=north,font=\scriptsize] at (13.6,3.58) {the six moves};
+  \foreach \i/\txt in {1/{pick Barnard's Star},2/{click the dipole},3/{switch layers},4/{all-sky, then Crab},5/{recovery grid},6/{open the Guide}}{\node[anchor=west,font=\scriptsize,text=muted] at (11.95,3.05-\i*0.46) {\i: \txt};}
 \end{tikzpicture}}
 
 \textbf{Spoken script.} I would like to show this working rather than describe it, so the site is open in
