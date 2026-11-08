@@ -1,7 +1,9 @@
 # Commit notes
 
-Two rounds of work. Round 2 (offline copy for students without stable
-internet) is the newest and is described first. Round 1 is below it.
+Four rounds of work, newest first: Round 4 (localhost works on any computer,
+without a Google login), Round 3 (faster "Open any field" and a research
+History on the device), Round 2 (offline copy of the Cloud snapshot), Round 1
+(Cloud snapshot backend).
 
 ## Timeline
 
@@ -15,9 +17,221 @@ All times are Malaysia time (UTC+8).
 | 8 Nov, afternoon | Round 2 built: snapshot index endpoint, service worker, offline layer, OFFLINE badge | Done |
 | 8 Nov, 16:34 | Round 2 tested in Chrome on localhost against the real Cloud snapshot (see R2.5) | All checks passed; 63/63 tests pass |
 | 8 Nov | Image `offline-copy-20261108` built in Cloud Build (import check passed) | Done |
-| Next | `terraform apply` with `image_tag = "offline-copy-20261108"` | To do (operator) |
+| 8 Nov, 16:55 | Round 2 committed (`b3816d4`, cache files removed in `f02a87f`) and merged with Evan-Lim's paper commits (`c6e2a3b`) | Pushed |
+| 8 Nov, evening | "Open any field" found slow (56 s in the browser). Measured in the cloud: 88 s, of which **61 s was a failing VSX lookup** that also left VSX empty | Investigated |
+| 8 Nov, evening | **Round 3** planned: parallel catalogues, VSX fix, compressed results, early wake-up, research History | Plan approved |
+| 8 Nov, evening | Round 3 built and tested on localhost against real IRSA (see R3.5) | All checks passed; 66/66 tests pass |
+| 8 Nov | Image `fast-field-20261108` built in Cloud Build (import check passed) | Done |
+| 8 Nov, night | A teammate's clone failed on localhost: every request crashed with `DefaultCredentialsError` (500) because their laptop has no Google login for the private bucket | Investigated |
+| 8 Nov, night | **Round 4** built: automatic fallback to the deployed snapshot API, clear errors instead of crashes (see R4) | Done; 68/68 tests pass |
+| 8 Nov, night | Round 4 tested with a server that has no Google login at all | All snapshot endpoints work; fresh IRSA fetch works |
+| 8 Nov, 19:01 | Rounds 3 and 4 committed and pushed (`3304c9e`) | Pushed |
+| 8 Nov, night | Netlify site loads but cannot fetch Cloud data: `https://spherex-lens.netlify.app/live-api/targets` returns Netlify's 404 page, so the `/live-api` proxy rule is not active. The rules lived only in the root `netlify.toml`, which Netlify skips when `site/` is deployed on its own (drag-and-drop, or base directory `site`). CORS on both Cloud Run services was checked and already allows this origin. | Investigated |
+| 8 Nov, night | Fix: `site/_redirects` and `site/_headers` carry the same rules inside the published folder, so they apply with every deployment method | Done; takes effect on the next Netlify deploy |
+| Next | `terraform apply` with `image_tag = "fast-field-20261108"` (Rounds 2 and 3; Round 4 is only needed on laptops) | To do (operator) |
 | Next | Netlify redeploy of `site/` | To do (teammates) |
-| Next | Commit Round 2 | To do, after review |
+| Next | Commit Rounds 3 and 4 | To do, after review |
+
+---
+
+# Round 4 — Localhost works on any computer
+
+## R4.1 What was wrong
+
+`uvicorn app:app` read the Cloud snapshot straight from the private GCS bucket.
+That works only on a computer with a Google login that has access (the
+project owner's laptop, after `gcloud auth application-default login`). On a
+teammate's clone there is no such login, so every snapshot request crashed
+with `DefaultCredentialsError` and a long 500 traceback. Netlify was not
+affected: the browser there talks to the Cloud Run API, which has its own
+service account.
+
+## R4.2 What changed (`app.py`)
+
+* **Automatic mode** (`SPHEREX_SNAPSHOT_SOURCE=auto`, the default). At start,
+  one cheap read checks whether this computer may read the bucket.
+  * Yes: read the bucket directly, exactly as before.
+  * No (no login, expired login, or no permission): print one line, e.g.
+    `No access to gs://spherex-lens-spherex-snapshots from this computer
+    (DefaultCredentialsError). Reading the Cloud snapshot through
+    https://spherex-lens-api-…run.app/api instead`. From then on, snapshot
+    reads are forwarded to the deployed snapshot API.
+  * `bucket` or `api` force a mode; `SPHEREX_SNAPSHOT_API` overrides the
+    address.
+* **What is forwarded:** target list, dashboards, field status, recovery
+  grids, all-sky mosaic, refresh status, snapshot index, and the "Fetch all
+  18" trigger (the operator token is passed through; a wrong token is still
+  refused). The `X-Snapshot-Object` / `X-Snapshot-Manifest` labels are kept,
+  so the offline copy (Round 2) works on these laptops too.
+* **What stays on the laptop:** fresh IRSA fetches (`source=live`), custom
+  fields and their recovery. They talk to IRSA directly, which needs no
+  Google login.
+* **No more crash.** A missing or rejected Google login returns one clear 503
+  message. In automatic mode it also switches to the API. If the API cannot
+  be reached, the message says to check the internet connection.
+
+## R4.3 Verification
+
+| Test | Result |
+|---|---|
+| Server started with no Google login (credential folder pointed at an empty directory) | Clear one-line message at start; snapshot API reachable |
+| `targets`, `dashboard`, `status`, `recovery`, `mosaic`, `refresh-status`, `snapshot-index` | All HTTP 200 through the API (0.3–2.4 s) |
+| "Fetch all 18" with a wrong token | Refused (401), as on the real API |
+| Fresh IRSA fetch of Barnard's Star on that server | Works: 10 detections, 36 s from this PC |
+| Server log | No tracebacks |
+| New tests | Without a login, reads are forwarded with their labels, while live and custom-field requests are not; forced bucket mode without a login gives a clear 503 instead of a crash |
+| All tests | 68 passed |
+
+## R4.4 Notes
+
+* Teammates need nothing beyond `pip install -r requirements.txt` and
+  `uvicorn app:app`.
+* The owner's laptop and Cloud Run are unchanged: they can read the bucket,
+  so they keep reading it directly.
+* Cost: teammates' snapshot reads are ordinary requests to the snapshot API,
+  like Netlify visitors make.
+* No new image is required for this round: it only changes how a laptop
+  reaches the snapshot, and the API it uses is already deployed. It is
+  included in the next image build anyway.
+
+---
+
+# Round 3 — Faster "Open any field" and research History
+
+## R3.1 What was wrong
+
+One real "Open any field" request (RA 2, Dec 2) on the deployed live service:
+
+| Step | Time |
+|---|---|
+| Gaia DR3 (IRSA TAP) | 7.9 s |
+| AllWISE (IRSA TAP) | 4.6 s |
+| **VSX (VizieR)** | **61 s**: the CfA mirror returned no table, then the Strasbourg and Tokyo mirrors each timed out after 30 s (Google Cloud cannot reach them) |
+| IRSA listing | 1.9 s, but only after all catalogues finished |
+| 4 cutouts | 4.5 s |
+| Science | 1.2 s |
+| Result sent to the browser | 6.4 s: progress streams are not gzip-compressed, so the 2.3 MB result travelled raw |
+| **Total** | **88 s** |
+
+After the 61 s wait, **VSX was empty**: the page showed no variable-star
+matches although the field holds 2 VSX stars. That was silent data loss. The
+12-hour refresh job was not affected: it uses strict mode, which retries and
+keeps the previous catalogue on failure.
+
+Results of "Open any field" were also not remembered anywhere: after a reload,
+or offline, a researcher could not get back to coordinates already studied.
+
+## R3.2 Changes: speed and reliability (backend)
+
+1. **Catalogues in parallel** (`step1_ingest.download_catalogs_with_status`).
+   Gaia, AllWISE and VSX are queried at the same time, and for custom fields
+   also at the same time as the IRSA listing and cutout downloads. The
+   pipeline waits for them only at triage, which is the first step that uses
+   them. Same queries and same fallback order as before.
+2. **VSX fixed.** The first mirror gets a second try. Fallback mirrors give up
+   after 10 s instead of 30 s. Each catalogue now reports `ok`, `none` (the
+   archive answered: no sources) or `unavailable` (no archive answered). The
+   dashboard carries this as `catalog_status`, and the page says "VSX
+   unavailable" instead of showing 0 matches. The strict refresh job keeps its
+   existing behaviour: it raises, so the previous catalogue is kept.
+3. **Compressed results.** A client that asks with `?result=gzip` receives the
+   final result gzip-compressed and base64-wrapped inside the progress stream:
+   1.41 MB → 0.29 MB measured. The browser unpacks it to the same JSON. This
+   applies to all four streams (dashboard, recovery, custom field, all-sky
+   tile). Older clients that don't ask get it uncompressed, as before.
+4. **One IRSA listing per custom field.** It is fetched once, in parallel with
+   the catalogues, and reused for the cutouts.
+5. **Quick re-check for known coordinates.** The custom-field response now
+   includes the IRSA listing fingerprint. When the browser already holds a
+   result for those coordinates, it sends the fingerprint (`known=`). If IRSA
+   lists the same images, the server answers after the listing alone (no
+   catalogues, no cutouts) with `unchanged: true`.
+6. **Early wake-up.** Focusing the RA/Dec/name boxes or the IRSA toggle sends
+   one cheap request to the live service, so a cold start (5.8 s measured)
+   happens while the user types. No instance is kept running, so there is no
+   extra cost.
+7. **Clearer progress.** For example: "Catalogue Gaia DR3: 579 sources",
+   "Catalogue VSX: 2 sources", "IRSA returned 348 images for this position",
+   "Images ready; waiting for the catalogue lookups".
+
+## R3.3 Changes: research History (frontend, IndexedDB)
+
+* **Saved automatically, exactly as received:** every custom field, every
+  fresh IRSA run of a registered field that produced new results, and every
+  live recovery grid. Each entry stores name, RA/Dec, settings, time, summary
+  and IRSA fingerprint. Payloads are stored separately from the list, so
+  showing the list never loads megabytes.
+* **History panel** in Target Control: newest first, search by name or by
+  "RA, Dec" (within 0.1°), with **Open / Pin / Delete** on each entry.
+* **Same coordinates (within 1″) open the saved result at once:** offline from
+  History, and online too, followed by the quick IRSA re-check (R3.2.5). If
+  IRSA has new images, the field is processed fresh and replaces the saved
+  result.
+* Share links (`?ra=…&dec=…`) work offline when the coordinates are in
+  History.
+* **Export / Import** to one JSON file (`spherexlens-history-YYYY-MM-DD.json`).
+  On import, entries are checked, files that are not SPHERExLens History are
+  rejected, and entries already saved are skipped.
+* **Limit 200 MB** (about 80–150 results). When full, the oldest *unpinned*
+  results are removed and the panel says so. Pinned results are never removed
+  automatically.
+* Offline, the RA/Dec inputs stay usable for coordinates saved in History. New
+  coordinates show "offline, and these coordinates are not in History".
+
+## R3.4 Files changed
+
+| File | Change |
+|---|---|
+| `step1_ingest.py` | `download_catalogs_with_status` (parallel, per-catalogue status, VSX retry, short fallback timeouts); `download_catalogs` keeps its old signature and return value |
+| `app.py` | Background catalogue lookup joined at triage; `catalog_status` in the dashboard; one shared IRSA listing; `known=` fingerprint check returning `unchanged`; `irsa_check` with the fingerprint in custom-field responses; `?result=gzip` on all four progress streams |
+| `site/app.js` | History module and panel; History lookup in "Open any field"; result unpacking; live-service wake-up; catalogue summary and "unavailable" warning; shared recovery renderer |
+| `site/index.html`, `site/style.css` | History section and styles |
+| `static/*` | Same frontend for local uvicorn |
+| `test_cloud_snapshots.py` | 3 new tests: catalogues truly run in parallel and report `ok` / `none` / `unavailable` without waiting on unreachable mirrors; an unchanged listing skips catalogues and cutouts; a compressed result unpacks to identical JSON |
+
+## R3.5 Verification (8 Nov)
+
+| Test | Result |
+|---|---|
+| Parallel catalogues vs each catalogue queried alone (RA 2, Dec 2) | Identical rows: Gaia 579, AllWISE 2,766, VSX 2 |
+| Custom field on localhost, real IRSA | 30.7 s end to end. Catalogues finished at 5.5 s, hidden behind the image downloads, which are slow from this PC (~20 s; 4.5 s from the cloud) |
+| Compressed result | 1.41 MB → 0.29 MB; unpacks to identical JSON |
+| Detections | 8, same as the old cloud run; VSX now 2 instead of 0 |
+| Same coordinates again (online) | Saved result on screen in 0.13 s; IRSA check "same 348 images" after 6.4 s; nothing reprocessed |
+| Reload | History kept |
+| Offline: share link, typed coordinates, search | Saved result opens; unknown coordinates get a clear message |
+| Export → delete → Import | Data identical, fingerprint kept; a wrong file is rejected; a second import adds no duplicates |
+| Storage limit (simulated 270 MB) | Oldest unpinned result removed; pinned result kept |
+| Browser console | No errors |
+| Automated tests | 66 passed |
+
+Expected in the cloud after deployment, for a new field: about 10–15 s (an
+estimate from the measured cloud steps: Gaia ~8 s now runs alongside the
+listing and the 4.5 s of downloads). Measure it after `terraform apply`.
+
+## R3.6 No data loss
+
+* Catalogues: same queries, same rows (verified identical); VSX no longer goes
+  silently empty, and a catalogue that cannot be reached is labelled as such.
+* Images and science: unchanged (same listing, same cutouts, same pipeline).
+* Compression is lossless (gzip); the unpacked JSON is identical.
+* History stores the exact response received; Export/Import round-trips it
+  unchanged.
+* Limits: History lives in this browser on this device. Clearing site data
+  removes it, so use Export as the backup. Raw FITS cutouts are not stored,
+  so saved results can be viewed offline but not reprocessed.
+
+## R3.7 Deploying Round 3
+
+1. Image `fast-field-20261108` (contains Rounds 2 and 3).
+2. Set `image_tag = "fast-field-20261108"` in
+   `cloud/terraform/terraform.tfvars`, then from `cloud/terraform` run
+   `terraform apply -var-file=terraform.tfvars -var=deploy_runtime=true`
+   (in PowerShell, add `--%` after `apply`).
+3. Redeploy `site/` on Netlify.
+
+The new frontend also works against the old backend: it asks for compressed
+results and sends `known=`, and an old backend simply ignores both.
 
 ---
 

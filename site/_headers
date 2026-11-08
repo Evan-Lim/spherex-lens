@@ -1,0 +1,11 @@
+# Netlify response headers (same as netlify.toml; see _redirects for why
+# they are repeated inside site/).
+
+# The offline-copy service worker must never come from an HTTP cache, or
+# visitors would keep an old worker after a deploy.
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+
+/figures/*
+  Cache-Control: public, max-age=86400

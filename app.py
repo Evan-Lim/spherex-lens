@@ -24,7 +24,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -120,6 +120,22 @@ from snapshot_store import DEFAULT_GCP_PROJECT
 SNAPSHOT_BUCKET = (os.environ.get("SPHEREX_SNAPSHOT_BUCKET")
                    or f"{DEFAULT_GCP_PROJECT}-spherex-snapshots")
 _SNAPSHOT_STORE = None
+# Where snapshot reads come from:
+#   bucket -- read the private GCS bucket directly (needs a Google login with
+#             access: the project owner's laptop, Cloud Run).
+#   api    -- forward snapshot reads to the deployed snapshot API, like the
+#             Netlify site does (no Google login needed: teammates' laptops).
+#   auto   -- (default) bucket when this computer can read it, otherwise api.
+SNAPSHOT_SOURCE = os.environ.get("SPHEREX_SNAPSHOT_SOURCE", "auto").strip().lower()
+SNAPSHOT_API = (os.environ.get("SPHEREX_SNAPSHOT_API")
+                or "https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api").rstrip("/")
+_SNAPSHOT_MODE = {"value": None}
+_SNAPSHOT_MODE_LOCK = threading.Lock()
+_ACCESS_HINT = (
+    "This computer has no Google login with access to the Cloud snapshot "
+    "bucket. Leave SPHEREX_SNAPSHOT_SOURCE unset (or set it to 'api') to read "
+    "through the deployed snapshot API, or run 'gcloud auth "
+    "application-default login' with an account that has access.")
 _PROGRESS_CALLBACK = contextvars.ContextVar("progress_callback", default=None)
 # Per-request record of which immutable snapshot object a response carries.
 # The middleware turns it into X-Snapshot-Object / X-Snapshot-Manifest headers
@@ -205,13 +221,29 @@ async def _lifespan(application):
     # The server still starts: the page itself and live IRSA requests do not
     # need the bucket.
     try:
-        store = await asyncio.to_thread(_snapshot_store)
+        mode = await asyncio.to_thread(_snapshot_mode)
+        store = await asyncio.to_thread(_snapshot_store) if mode == "bucket" else None
         if store is not None:
             # Also starts the background warm-up of all 18 fields.
             pointer, _ = await asyncio.to_thread(_published_state, store)
             _LOGGER.warning(
                 "Reading Cloud snapshot gs://%s (published %s)",
                 SNAPSHOT_BUCKET, (pointer or {}).get("published_at", "never"))
+        elif mode == "api":
+            status, _, body = await asyncio.to_thread(
+                _forward_snapshot_request, "GET", "/api/refresh-status", "")
+            published = None
+            if status == 200:
+                try:
+                    published = json.loads(body).get("snapshot_published_at")
+                except ValueError:
+                    pass
+            if published:
+                _LOGGER.warning("Snapshot API reachable (snapshot published %s)",
+                                published)
+            else:
+                _LOGGER.error("Snapshot API %s did not answer (HTTP %s); check the "
+                              "internet connection", SNAPSHOT_API, status)
     except Exception as error:
         _LOGGER.error(
             "Cannot read Cloud snapshot gs://%s: %s: %s. Run "
@@ -222,11 +254,77 @@ async def _lifespan(application):
 
 app.router.lifespan_context = _lifespan
 
+
+async def _snapshot_access_error(request, error):
+    if SNAPSHOT_SOURCE == "auto":
+        _use_snapshot_api(type(error).__name__)
+        hint = "Switched to reading through the deployed snapshot API; reload the page."
+    else:
+        hint = _ACCESS_HINT
+    return JSONResponse(status_code=503, content={
+        "error": "This computer cannot read the Cloud snapshot bucket.",
+        "detail": hint, "hint": hint})
+
+
+try:
+    from google.auth.exceptions import DefaultCredentialsError, RefreshError
+    app.add_exception_handler(DefaultCredentialsError, _snapshot_access_error)
+    app.add_exception_handler(RefreshError, _snapshot_access_error)
+except ImportError:
+    pass
+try:
+    from google.api_core.exceptions import Forbidden, Unauthorized
+    app.add_exception_handler(Forbidden, _snapshot_access_error)
+    app.add_exception_handler(Unauthorized, _snapshot_access_error)
+except ImportError:
+    pass
+
 # B9: Brief in-process cache for the current pointer + manifest.  Each
 # snapshot read was making two sequential GCS calls (current.json → manifest).
 # 10 seconds is enough to collapse a burst of concurrent requests while
 # staying fresh for status polling.
 _MANIFEST_CACHE: dict = {"t": 0.0, "pointer": None, "manifest": None}
+
+
+# Catalogue lookups for custom fields run here, alongside the IRSA listing
+# and cutout downloads of the same request (they only meet at triage).
+from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
+_CATALOG_POOL = _ThreadPoolExecutor(max_workers=4, thread_name_prefix="catalogs")
+_CATALOG_LABELS = {"gaia": "Gaia DR3", "wise": "AllWISE", "vsx": "VSX"}
+
+
+def _start_catalog_lookup(ra, dec):
+    """Start Gaia, AllWISE and VSX lookups in the background; returns a future."""
+    from step1_ingest import download_catalogs_with_status
+    callback = _PROGRESS_CALLBACK.get()
+
+    def report(key, count, state):
+        if not callback:
+            return
+        label = _CATALOG_LABELS.get(key, key)
+        text = {"ok": f"{count} sources", "none": "no sources in this field",
+                "unavailable": "unavailable (archive did not answer)"}[state]
+        callback({"stage": "catalogs", "message": f"Catalogue {label}: {text}",
+                  "catalog": key, "count": count, "catalog_state": state})
+
+    return _CATALOG_POOL.submit(download_catalogs_with_status,
+                                float(ra), float(dec), progress=report)
+
+
+def _resolve_catalog_lookup(meta):
+    """Wait for a background catalogue lookup (if any) and store its result."""
+    future = meta.pop("_catalogs_future", None)
+    if future is None:
+        return
+    if not future.done():
+        _emit_progress("catalogs", "Images ready; waiting for the catalogue lookups")
+    try:
+        meta["catalogs"], meta["catalog_status"] = future.result()
+    except Exception as exc:
+        print(f"field catalogues failed: {type(exc).__name__}: {exc}", flush=True)
+        meta["catalogs"] = {}
+        meta["catalog_status"] = {key: "unavailable" for key in _CATALOG_LABELS}
+    _emit_progress("catalogs", "Catalogue lookup complete")
 
 
 def _emit_progress(stage, message, **details):
@@ -241,7 +339,27 @@ def _sse_event(event, payload):
     return f"event: {event}\ndata: {data}\n\n"
 
 
-def _progress_stream(operation, initial_message):
+RESULT_ENCODING = "gzip-base64"
+# Progress streams are not gzipped by the middleware (event streams must not
+# be buffered), so a 2-3 MB dashboard crossed the ocean uncompressed. A client
+# that asks with ?result=gzip gets the final result gzip-compressed and
+# base64-wrapped inside the stream; it unpacks to exactly the same JSON.
+_RESULT_PARAM = Query("", pattern="^(|gzip)$")
+
+
+def _pack_result(payload):
+    import base64
+    import gzip
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"),
+                     allow_nan=False).encode("utf-8")
+    return {
+        "encoding": RESULT_ENCODING,
+        "data_packed": base64.b64encode(gzip.compress(raw, compresslevel=6)).decode("ascii"),
+        "raw_bytes": len(raw),
+    }
+
+
+def _progress_stream(operation, initial_message, compress=False):
     async def events():
         loop = asyncio.get_running_loop()
         queue = asyncio.Queue()
@@ -294,6 +412,9 @@ def _progress_stream(operation, initial_message):
                     continue
                 if event == "result":
                     payload["elapsed_seconds"] = round(time.monotonic() - started, 1)
+                    if compress:
+                        data = payload.pop("data")
+                        payload.update(await asyncio.to_thread(_pack_result, data))
                     yield _sse_event(event, payload)
                     break
                 yield _sse_event(event, payload)
@@ -311,14 +432,78 @@ def _progress_stream(operation, initial_message):
     )
 
 
-def _snapshot_store():
+def _is_access_error(error):
+    """True for 'this computer may not read the bucket' (not network trouble)."""
+    try:
+        from google.auth import exceptions as auth_errors
+        if isinstance(error, (auth_errors.DefaultCredentialsError,
+                              auth_errors.RefreshError)):
+            return True
+    except ImportError:
+        pass
+    try:
+        from google.api_core import exceptions as api_errors
+        if isinstance(error, (api_errors.Forbidden, api_errors.Unauthorized)):
+            return True
+    except ImportError:
+        pass
+    return False
+
+
+def _snapshot_reads_enabled():
+    return bool(SNAPSHOT_BUCKET) and os.environ.get(
+        "SPHEREX_SNAPSHOT_READS", "true").lower() not in {"0", "false", "no"}
+
+
+def _use_snapshot_api(reason):
+    with _SNAPSHOT_MODE_LOCK:
+        if _SNAPSHOT_MODE["value"] == "api":
+            return
+        _SNAPSHOT_MODE["value"] = "api"
+    _LOGGER.warning(
+        "No access to gs://%s from this computer (%s). Reading the Cloud "
+        "snapshot through %s instead; fresh IRSA fetches still run here.",
+        SNAPSHOT_BUCKET, reason, SNAPSHOT_API)
+
+
+def _snapshot_mode():
+    """'bucket', 'api' or 'off' (snapshot reads disabled, as in the tests)."""
     global _SNAPSHOT_STORE
-    if (not SNAPSHOT_BUCKET
-            or os.environ.get("SPHEREX_SNAPSHOT_READS", "true").lower()
-            in {"0", "false", "no"}):
+    if not _snapshot_reads_enabled():
+        return "off"
+    if SNAPSHOT_SOURCE == "api":
+        return "api"
+    if SNAPSHOT_SOURCE == "bucket" or _SNAPSHOT_STORE is not None:
+        return _SNAPSHOT_MODE["value"] or "bucket"
+    if _SNAPSHOT_MODE["value"]:
+        return _SNAPSHOT_MODE["value"]
+    # auto: one cheap read decides whether this computer may use the bucket.
+    try:
+        store = SnapshotStore(SNAPSHOT_BUCKET)
+        store.read_current()
+    except Exception as error:
+        if _is_access_error(error):
+            _use_snapshot_api(type(error).__name__)
+            return "api"
+        return "bucket"           # e.g. no network: decide on a later request
+    with _SNAPSHOT_MODE_LOCK:
+        _SNAPSHOT_STORE = _SNAPSHOT_STORE or store
+        _SNAPSHOT_MODE["value"] = _SNAPSHOT_MODE["value"] or "bucket"
+    return _SNAPSHOT_MODE["value"]
+
+
+def _snapshot_store():
+    """The bucket store, or None when snapshot reads go through the API (or are off)."""
+    global _SNAPSHOT_STORE
+    if _snapshot_mode() != "bucket":
         return None
     if _SNAPSHOT_STORE is None:
-        _SNAPSHOT_STORE = SnapshotStore(SNAPSHOT_BUCKET)
+        try:
+            _SNAPSHOT_STORE = SnapshotStore(SNAPSHOT_BUCKET)
+        except Exception as error:
+            if _is_access_error(error):
+                raise HTTPException(status_code=503, detail=_ACCESS_HINT) from error
+            raise
     return _SNAPSHOT_STORE
 
 
@@ -427,6 +612,45 @@ def _published_object_response(store, object_name, description):
     return payload
 
 
+_SNAPSHOT_GET_PATHS = {
+    "/api/targets", "/api/status", "/api/refresh-status", "/api/snapshot-index",
+    "/api/dashboard", "/api/recovery", "/api/mosaic",
+}
+_FORWARDED_HEADERS = ("X-Snapshot-Object", "X-Snapshot-Manifest", "Retry-After")
+_SNAPSHOT_API_SESSION = requests.Session()
+
+
+def _forward_snapshot_request(method, path, query, token=None):
+    """One snapshot request to the deployed API: (status, headers, body)."""
+    url = SNAPSHOT_API + path[len("/api"):] + (f"?{query}" if query else "")
+    headers = {"X-Refresh-Token": token} if token else {}
+    try:
+        response = _SNAPSHOT_API_SESSION.request(
+            method, url, headers=headers, timeout=(10, 60), allow_redirects=False)
+    except requests.RequestException as error:
+        body = json.dumps({
+            "error": "Cannot reach the Cloud snapshot API.",
+            "detail": f"{type(error).__name__} while contacting {SNAPSHOT_API}",
+            "hint": "Check the internet connection, then reload.",
+        })
+        return 503, {"Content-Type": "application/json"}, body.encode()
+    out = {"Content-Type": response.headers.get("Content-Type", "application/json")}
+    out.update({h: response.headers[h] for h in _FORWARDED_HEADERS if h in response.headers})
+    return response.status_code, out, response.content
+
+
+def _should_forward(request):
+    path = request.url.path
+    if request.method == "POST":
+        return path == "/api/refresh"
+    if request.method != "GET" or path not in _SNAPSHOT_GET_PATHS:
+        return False
+    if request.query_params.get("source", "").lower() == "live":
+        return False                     # fresh IRSA work runs on this computer
+    target = request.query_params.get("target")
+    return not (path in {"/api/dashboard", "/api/recovery"} and target in FIELD_REGISTRY)
+
+
 @app.middleware("http")
 async def disable_live_response_caching(request: Request, call_next):
     served = {}
@@ -471,6 +695,20 @@ async def disable_live_response_caching(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store, no-cache, max-age=0"
         response.headers["Pragma"] = "no-cache"
     return response
+
+
+@app.middleware("http")
+async def forward_snapshot_reads(request: Request, call_next):
+    """Without bucket access, serve snapshot reads from the deployed API."""
+    if not _should_forward(request):
+        return await call_next(request)
+    if await asyncio.to_thread(_snapshot_mode) != "api":
+        return await call_next(request)
+    status, headers, body = await asyncio.to_thread(
+        _forward_snapshot_request, request.method, request.url.path,
+        request.url.query, request.headers.get("X-Refresh-Token"))
+    headers["Cache-Control"] = "no-store, no-cache, max-age=0"
+    return Response(content=body, status_code=status, headers=headers)
 
 
 def load_target(target):
@@ -1696,6 +1934,8 @@ def get_dashboard(request: Request = None,
             return unchanged
         if _same_position(listing[0], listing[1], ra, dec):
             listing_rows = listing[2]
+    if live_mode and listing_rows is None:
+        listing_rows = meta.pop("_listing_rows", None)
     if live_mode:
         try:
             cutouts, live_provenance, live_cached = live_exposures(
@@ -1769,6 +2009,7 @@ def get_dashboard(request: Request = None,
         vals = [m for m, pe in zip(mjds, epochs) if pe == e and m]
         epoch_mjd[e] = float(np.mean(vals)) if vals else None
 
+    _resolve_catalog_lookup(meta)
     raw_catalogs = meta.get("catalogs") or {}
     _cats_cache = {}
 
@@ -2021,6 +2262,7 @@ def get_dashboard(request: Request = None,
         "histogram": significance_histogram(S),
         "epoch_pairs": pair_summary,
         "catalog_counts": {k: len(v or []) for k, v in raw_catalogs.items()},
+        "catalog_status": meta.get("catalog_status"),
         "epochs": [{"epoch": e, "mjd": epoch_mjd.get(e),
                     "year": round(mjd_to_year(epoch_mjd[e]), 3) if epoch_mjd.get(e) else None}
                    for e in order],
@@ -2041,7 +2283,8 @@ async def stream_dashboard(target: str = Query("WISE_0855"),
                            live_slots: int = Query(0, ge=0, le=12),
                            live_size: float = Query(0.2, ge=0.05, le=0.5),
                            live_epochs: str = Query(
-                               "firstlast", pattern="^(firstlast|all)$")):
+                               "firstlast", pattern="^(firstlast|all)$"),
+                           result: str = _RESULT_PARAM):
     return _progress_stream(
         lambda: get_dashboard(
             target=target,
@@ -2051,6 +2294,7 @@ async def stream_dashboard(target: str = Query("WISE_0855"),
             live_epochs=live_epochs,
         ),
         f"Starting a fresh IRSA run for {target}",
+        compress=result == "gzip",
     )
 
 
@@ -2237,11 +2481,13 @@ def get_recovery(request: Request = None,
 @app.get("/api/recovery/stream")
 async def stream_recovery(target: str = Query("WISE_0855"),
                           source: str = Query(
-                              "live", pattern="^(cache|live)$")):
+                              "live", pattern="^(cache|live)$"),
+                          result: str = _RESULT_PARAM):
     return _progress_stream(
         lambda: get_recovery(target=target, source=source),
         f"Starting {'fresh IRSA retrieval' if source == 'live' else 'cached-cutout'} "
         f"recovery for {target}",
+        compress=result == "gzip",
     )
 
 
@@ -2269,7 +2515,8 @@ def add_field(request: Request = None,
               size: float = Query(0.2, ge=0.05, le=0.5),
               slots: int = Query(0, ge=0, le=12),
               epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
-              catalogs: int = Query(1, ge=0, le=1)):
+              catalogs: int = Query(1, ge=0, le=1),
+              known: str = Query("", max_length=128)):
     if not 0 <= ra <= 360 or not -90 <= dec <= 90:
         return JSONResponse(
             status_code=422,
@@ -2281,7 +2528,8 @@ def add_field(request: Request = None,
             content={"error": "The field loader is busy. Wait for an active request "
                               "to finish, then try again."})
     try:
-        return _register_field(ra, dec, name, size, slots, epochs, catalogs)
+        return _register_field(ra, dec, name, size, slots, epochs, catalogs,
+                               known_fingerprint=known)
     finally:
         FIELD_REQUEST_LIMIT.release()
 
@@ -2292,13 +2540,16 @@ async def stream_field(ra: float = Query(...), dec: float = Query(...),
                        size: float = Query(0.2, ge=0.05, le=0.5),
                        slots: int = Query(0, ge=0, le=12),
                        epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
-                       catalogs: int = Query(1, ge=0, le=1)):
+                       catalogs: int = Query(1, ge=0, le=1),
+                       known: str = Query("", max_length=128),
+                       result: str = _RESULT_PARAM):
     return _progress_stream(
         lambda: add_field(
             ra=ra, dec=dec, name=name, size=size, slots=slots,
-            epochs=epochs, catalogs=catalogs,
+            epochs=epochs, catalogs=catalogs, known=known,
         ),
         "Starting a fresh IRSA request for the custom field",
+        compress=result == "gzip",
     )
 
 
@@ -2335,7 +2586,8 @@ def _manifest_target_entry(target):
     return None
 
 
-def _register_field(ra, dec, name, size, slots, epochs, catalogs):
+def _register_field(ra, dec, name, size, slots, epochs, catalogs,
+                    known_fingerprint=""):
     """
     Load a field that is not in data_cache/ -- any position on the sky.
 
@@ -2366,27 +2618,65 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs):
         "collection": "spherex_qr2", "cutout_size_deg": size,
         "custom": True,
     }
+    from datetime import datetime, timezone
+    checked_at = datetime.now(timezone.utc).isoformat()
+    if known_fingerprint:
+        # The browser holds a saved result for these coordinates: ask IRSA
+        # only for its listing first. The same images mean reprocessing
+        # would reproduce the saved result, so nothing else is fetched.
+        _emit_progress("irsa_query", "Checking IRSA for new images at these coordinates")
+    else:
+        _emit_progress("irsa_query", "Querying IRSA SIA2")
+    listing_future = _CATALOG_POOL.submit(
+        query_sia2, float(ra), float(dec), radius_deg=0.1, use_cache=False)
+    if known_fingerprint:
+        try:
+            rows = listing_future.result()
+        except Exception as e:
+            return JSONResponse(
+                status_code=502,
+                content={"error": f"IRSA listing query failed: {e}",
+                         "hint": "IRSA may be busy; retry in a minute."})
+        fingerprint = source_fingerprint(rows, float(ra), float(dec))
+        if fingerprint == known_fingerprint:
+            return {
+                "target": safe, "ra": float(ra), "dec": float(dec),
+                "unchanged": True,
+                "irsa_check": {"checked_at": checked_at, "irsa_rows": len(rows),
+                               "source_fingerprint": fingerprint,
+                               "reused_saved_result": True},
+                "note": "IRSA lists the same images as the saved result; "
+                        "nothing was reprocessed",
+            }
+        _emit_progress("irsa_query",
+                       f"IRSA lists {len(rows)} images, including new ones; processing fresh")
     if catalogs:
         # Without catalogues every detection in a custom field would be a
-        # CANDIDATE. Gaia + AllWISE come from IRSA TAP (~10 s each), VSX from
-        # VizieR; a failure just leaves that catalogue empty.
-        _emit_progress("catalogs", "Querying catalogues for the custom field")
-        try:
-            from step1_ingest import download_catalogs
-            meta["catalogs"] = download_catalogs(float(ra), float(dec))
-        except Exception as exc:
-            print(f"field catalogues failed: {type(exc).__name__}: {exc}", flush=True)
-            _emit_progress(
-                "catalogs",
-                "Catalogue lookup failed; continuing without catalogue matches",
-            )
-        else:
-            _emit_progress("catalogs", "Catalogue lookup complete")
+        # CANDIDATE. Gaia + AllWISE (IRSA TAP) and VSX (VizieR) are looked up
+        # in parallel with each other and with the IRSA listing and cutout
+        # downloads; the dashboard waits for them only at triage. Each
+        # catalogue reports its own status, so "unavailable" is never shown
+        # as "no catalogue stars".
+        _emit_progress("catalogs",
+                       "Querying Gaia, AllWISE and VSX while IRSA is queried")
+        meta["_catalogs_future"] = _start_catalog_lookup(ra, dec)
+    try:
+        listing_rows = listing_future.result()
+    except Exception as e:
+        meta.pop("_catalogs_future", None)
+        return JSONResponse(
+            status_code=502,
+            content={"error": f"IRSA listing query failed: {e}",
+                     "hint": "IRSA may be busy; retry in a minute."})
+    meta["_listing_rows"] = listing_rows
+    _emit_progress("irsa_query", f"IRSA returned {len(listing_rows)} images for this position")
     previous_meta = FIELD_REGISTRY.get(safe)
     FIELD_REGISTRY[safe] = meta
 
     payload = get_dashboard(target=safe, source="live", live_slots=slots,
                             live_size=size, live_epochs=epochs)
+    meta.pop("_catalogs_future", None)       # an early failure never waited for it
+    meta.pop("_listing_rows", None)
     if not isinstance(payload, dict):
         if previous_meta is None:
             FIELD_REGISTRY.pop(safe, None)
@@ -2410,6 +2700,10 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs):
         "n_exposures": payload.get("stats", {}).get("n_exposures"),
         "n_epochs": payload.get("stats", {}).get("n_epochs"),
         "dashboard": payload,
+        "irsa_check": {"checked_at": checked_at, "irsa_rows": len(listing_rows),
+                       "source_fingerprint": source_fingerprint(
+                           listing_rows, float(ra), float(dec)),
+                       "reused_saved_result": False},
         "note": "fetched from IRSA for this request; not added to scheduled snapshots",
     }
 
@@ -2514,10 +2808,12 @@ def live_mosaic_tile(target, thumb=48):
 
 
 @app.get("/api/mosaic/tile/stream")
-async def stream_mosaic_tile(target: str = Query(..., max_length=80)):
+async def stream_mosaic_tile(target: str = Query(..., max_length=80),
+                             result: str = _RESULT_PARAM):
     return _progress_stream(
         lambda: live_mosaic_tile(target),
         f"Fetching {target} fresh from IRSA for the all-sky view",
+        compress=result == "gzip",
     )
 
 
