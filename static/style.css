@@ -5,38 +5,44 @@
    ========================================================================== */
 
 :root {
-  /* surfaces */
-  --bg: #05070d;                 /* page: deep space */
-  --bg-2: #0a0f1c;               /* nebula base */
-  --panel: rgba(14, 20, 36, .78);/* glass panel */
-  --panel-solid: #0e1424;
-  --raise: rgba(255,255,255,.035);/* rows, inner boxes */
-  --line: rgba(148,163,184,.16);
-  --line-strong: rgba(148,163,184,.30);
-  --grid: rgba(148,163,184,.06);
+  /* surfaces (P5: deep indigo, flat and opaque -- no glass) */
+  --bg: #110c2e;                 /* page: deep indigo */
+  --bg-2: #170f3d;
+  --panel: #1a1442;
+  --panel-solid: #1a1442;
+  --raise: #221a54;              /* inner boxes, table header, inputs */
+  --line: rgba(196,181,253,.14);
+  --line-strong: rgba(196,181,253,.26);
+  --grid: rgba(196,181,253,.05);
 
   /* text */
-  --text: #e8eef8;
-  --text-soft: #b4c0d3;
-  --muted: #8592a8;
+  --text: #f3f0ff;
+  --text-soft: #cfc8f0;
+  --muted: #a49cd0;              /* 6.6:1 on --panel, 5.8:1 on --raise */
 
-  /* NASA-inspired accents (lightened for contrast on black) */
-  --nasa-blue: #0b3d91;          /* fills, gradients */
-  --blue: #4c8dff;               /* text/lines on dark */
-  --blue-soft: rgba(76,141,255,.14);
-  --red: #ff5a3c;                /* from NASA red #fc3d21, lifted */
-  --red-soft: rgba(255,90,60,.14);
-  --green: #2fd47a;
-  --green-soft: rgba(47,212,122,.14);
-  --amber: #c98a4b;              /* used as BROWN for the Baseline card */
-  --amber-soft: rgba(201,138,75,.16);
-  --signal: #cdff71;             /* lime: active tab, focus ring, key emphasis */
-  --purple: #a78bfa;             /* KNOWN MOVER badge */
+  /* ONE action colour + focus */
+  --accent: #7c4dff;
+  --accent-hover: #6a3cf2;       /* spec gave #8f66ff: white on it is 3.8:1, so hover goes darker (5.8:1) */
+  --accent-text: #b9a3ff;        /* accent used as text/links on indigo */
+  --focus: #22d3ee;              /* focus ring + active-tab outline only */
 
-  /* shape + depth */
-  --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-pill: 999px;
-  --shadow: 0 10px 30px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.04) inset;
-  --glow-blue: 0 0 0 1px rgba(76,141,255,.35), 0 8px 28px rgba(76,141,255,.22);
+  /* metric colours: same meaning, tuned for indigo */
+  --nasa-blue: #0b3d91;          /* legacy name, no longer used for fills */
+  --blue: #60a5fa;
+  --blue-soft: rgba(96,165,250,.14);
+  --red: #ff6b57;
+  --red-soft: rgba(255,107,87,.14);
+  --green: #34d399;
+  --green-soft: rgba(52,211,153,.14);
+  --amber: #d19a62;              /* used as BROWN for the Baseline card */
+  --amber-soft: rgba(209,154,98,.16);
+  --signal: var(--accent);       /* lime retired: old --signal uses get the accent */
+  --purple: #c4b5fd;             /* KNOWN MOVER badge text */
+
+  /* shape + depth (P5: no glow; --r-pill kept as a name, now a 6px chip radius) */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 6px;
+  --shadow: 0 0 #0000;
+  --glow-blue: 0 0 #0000;
 
   /* type (IBM Plex: loaded from Google Fonts in index.html; the system
      stacks are the offline fallback, so the page never needs the network) */
@@ -2233,4 +2239,226 @@ sub, sup { font-size: max(13px, .75em); line-height: 0; }
 @media (max-width: 899px) {
   .zoom-group { margin-left: 0; }
   .map-chip-stack { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+/* ==========================================================================
+   P5a -- indigo palette, flat surfaces, no AI tells (SPHEREX-LENS_P5_SPEC.md)
+   Loaded last; P5c folds every layer into one stylesheet.
+   ========================================================================== */
+
+/* ---- page ground: one soft radial at the top + a faint static starfield -- */
+:root { color-scheme: dark; }   /* dark native scrollbars and form widgets */
+html {
+  background-color: var(--bg);
+  background-image: radial-gradient(120% 60% at 50% 0%, var(--bg-2), var(--bg) 70%);
+  background-attachment: fixed;
+}
+body::before {
+  background-image:
+    radial-gradient(circle at 37px 61px,   rgba(255,255,255,.22) 0 .8px, transparent 1.4px),
+    radial-gradient(circle at 412px 233px, rgba(255,255,255,.16) 0 .7px, transparent 1.3px),
+    radial-gradient(circle at 690px 47px,  rgba(255,255,255,.20) 0 .8px, transparent 1.4px),
+    radial-gradient(circle at 211px 518px, rgba(255,255,255,.14) 0 .7px, transparent 1.3px),
+    radial-gradient(circle at 874px 402px, rgba(255,255,255,.18) 0 .8px, transparent 1.4px),
+    radial-gradient(circle at 563px 741px, rgba(255,255,255,.12) 0 .7px, transparent 1.3px),
+    radial-gradient(circle at 1093px 166px, rgba(255,255,255,.20) 0 .8px, transparent 1.4px),
+    radial-gradient(circle at 129px 903px, rgba(255,255,255,.15) 0 .7px, transparent 1.3px),
+    radial-gradient(circle at 1301px 612px, rgba(255,255,255,.17) 0 .8px, transparent 1.4px),
+    radial-gradient(circle at 768px 958px, rgba(255,255,255,.13) 0 .7px, transparent 1.3px),
+    radial-gradient(circle at 1455px 288px, rgba(255,255,255,.19) 0 .8px, transparent 1.4px),
+    radial-gradient(circle at 989px 1044px, rgba(255,255,255,.14) 0 .7px, transparent 1.3px);
+  background-size: 1531px 1097px;
+}
+
+/* ---- focus: 2px cyan ring, everywhere ------------------------------------ */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.control-select:focus, .control-input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+
+/* ---- flat, opaque surfaces: no glass, no glow ---------------------------- */
+.chrome {
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.panel {
+  background: var(--panel);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--line);
+  box-shadow: none;
+  padding: 24px 24px 8px;
+}
+.mono-box, .verdict-box, .table-wrap, .chart, .cloud-refresh-panel, .map-info {
+  background-color: var(--raise);
+}
+.brand-mark {
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--raise) 0 52%, var(--accent) 52% 100%);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+/* ---- type: Montserrat for brand, panel titles, card labels, dialog titles - */
+.brand-name, .panel-head h1, .card-label, #guide-title,
+.modal .cloud-refresh-summary h2 {
+  font-family: "Montserrat", var(--sans);
+}
+.brand-name { font-weight: 800; letter-spacing: -.01em; }
+.panel-head h1 { font-size: var(--fs-title); font-weight: 800; letter-spacing: -.015em; }
+.panel-sub { font-family: var(--sans); color: var(--text-soft); }
+
+/* section titles: sentence case as written, sans, 16px/700, no marker */
+.section { padding: 28px 0; }
+.section-label {
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.section-label::before { content: none; }
+
+/* prose in sans; mono only for numbers, coordinates, ids, file names */
+.hint-inline, .history-usage, .obj-note, .archive-line, .action-feedback,
+.mono-box, .notes-table td, .notes-table td.kv-full, .footer .mono,
+.guide-foot .mono, .sky-legend, .source-help, .cloud-refresh-details,
+.freshness-badge, .status-pill, button.status-pill, .tag, .badge, .cat-chip,
+.verdict-known, .verdict-candidate, .guide-kicker, .kv dt, #zoom-fit {
+  font-family: var(--sans);
+  letter-spacing: 0;
+}
+.hint-inline { font-size: var(--fs-small); color: var(--muted); }
+.mono-box { font-size: 15px; line-height: 1.6; }
+/* epoch pairs: one row each, sans, the padding spaces collapse */
+.pair-row {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  word-spacing: .12em;
+}
+#action-time, .map-chip-stack .mi-v, .map-readout, #zoom-label,
+.kv-table.stats-table td, .kv-table.target-table td, .epoch-chip {
+  font-family: var(--mono);
+}
+
+/* uppercase small text only in table headers */
+.status-pill, button.status-pill, .freshness-badge, .guide-kicker, .kv dt,
+.map-info-tag, .tag, .badge, .verdict-known, .verdict-candidate, .guide-tab,
+.brand-sub {
+  text-transform: none;
+}
+.guide-kicker { color: var(--text-soft); }
+thead th { font-family: var(--sans); background: var(--raise); border-bottom-color: var(--line-strong); }
+
+/* ---- buttons: one solid purple action, no gradients ---------------------- */
+.btn-primary, .btn-primary:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+.btn-primary:not(:disabled):hover { background: var(--accent-hover); }
+.btn-ghost:hover, .btn-secondary:hover {
+  background: var(--raise);
+  border-color: var(--accent-text);
+}
+.btn-ghost.active { border-color: var(--accent-text); color: var(--accent-text); background: var(--raise); }
+button.status-pill { border-radius: var(--r-sm); }
+button.status-pill:hover { border-color: var(--accent-text); }
+
+/* ---- inputs --------------------------------------------------------------- */
+.control-select, .control-input { background: var(--raise); }
+.control-select option { background: var(--raise); }
+input[type="checkbox"] { background: var(--raise); }
+input[type="checkbox"]::after { border-color: #fff; }
+input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+input[type="checkbox"]:checked:hover { border-color: var(--accent-hover); }
+input[type="checkbox"]:hover { border-color: var(--accent-text); }
+.toggle input:checked + span, .toggle-live input:checked + span { color: var(--text); }
+
+/* ---- segmented controls: accent fill on the active button, white text ---- */
+.segmented { border-radius: var(--r-sm); padding: 3px; }
+.seg { border-radius: 6px; }
+.seg.active, .segmented.has-pill .seg.active { color: #fff; }
+.segmented:not(.has-pill) .seg.active { background: var(--accent); }
+.seg-pill { background: var(--accent); border-radius: 6px; }
+.seg:not(.active):hover { background: var(--raise); color: var(--text); }
+
+/* ---- metric cards: flat --raise, 3px left bar in the card colour --------- */
+.card {
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  border-radius: var(--r-md);
+}
+.card-blue, .card-red, .card-green, .card-amber { border-top-color: var(--line); border-left-color: var(--c); }
+/* Montserrat is far wider than Plex: label and value stay one size (dark
+   spec 4.1) but scaled so "Unaccounted" fits its card from 1280px up */
+.card-label, .card-value { font-size: clamp(20px, 1.7vw, 28px); }
+.card-label { white-space: nowrap; }
+/* full colour: at 80% opacity red/blue hints fell to 4.0-4.4:1 on --raise */
+.card-hint { opacity: 1; }
+
+/* ---- badges and chips: 6px rounded rectangles, 1px border ---------------- */
+.badge, .cat-chip, .epoch-chip, .verdict-known, .verdict-candidate,
+.map-chip, .archive-chip, .freshness-badge, .tag, .map-info-tag,
+.modal .field-cell {
+  border-radius: var(--r-pill);
+}
+.map-chip-stack { border-radius: var(--r-sm); }
+.map-info-tag {
+  border-color: color-mix(in srgb, var(--accent-text) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-text);
+  letter-spacing: .02em;
+}
+
+/* ---- links ---------------------------------------------------------------- */
+a, a:visited, a:hover, .sources-table td a, .sources-table td a:visited,
+.verdict-detail a, .kv-table a { color: var(--accent-text); }
+
+/* ---- table selection ------------------------------------------------------ */
+tbody tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent-text); }
+
+/* ---- dialogs: flat panel, one neutral shadow, plain dim backdrop --------- */
+.modal, .guide-sheet {
+  background: var(--panel);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: 0 20px 50px rgba(0,0,0,.45);
+}
+.modal::backdrop, .guide {
+  background: rgba(8, 5, 24, .72);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.guide-tab.active { color: var(--text); }
+.guide-tab:hover { color: var(--text); }
+.tab-pill { background: var(--focus); }
+.guide-lead { border-left-color: var(--accent); }
+.guide-gloss dt { color: var(--accent-text); }
+
+/* ---- motion: hover/press + the sliding pill only ------------------------- */
+.dot::after { content: none; animation: none; }
+.card { animation: none; }
+.reveal, .reveal.in { opacity: 1; transform: none; transition: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .btn:not(:disabled):hover, .zoom-group button:hover, .history-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: none;
+  }
+  .btn-primary:not(:disabled):hover { box-shadow: none; }
+  .card:hover, .chart:hover, .table-wrap:hover { transform: none; box-shadow: none; }
+  .card:hover { border-color: var(--line-strong); border-left-color: var(--c); }
+  .btn:not(:disabled):active, .zoom-group button:active, .history-btn:active {
+    transform: translateY(0) scale(.98);
+  }
 }
