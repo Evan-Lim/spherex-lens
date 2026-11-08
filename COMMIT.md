@@ -25,6 +25,9 @@ All times are Malaysia time (UTC+8).
 | 8 Nov, night | A teammate's clone failed on localhost: every request crashed with `DefaultCredentialsError` (500) because their laptop has no Google login for the private bucket | Investigated |
 | 8 Nov, night | **Round 4** built: automatic fallback to the deployed snapshot API, clear errors instead of crashes (see R4) | Done; 68/68 tests pass |
 | 8 Nov, night | Round 4 tested with a server that has no Google login at all | All snapshot endpoints work; fresh IRSA fetch works |
+| 8 Nov, 19:01 | Rounds 3 and 4 committed and pushed (`3304c9e`) | Pushed |
+| 8 Nov, night | Netlify site loads but cannot fetch Cloud data: `https://spherex-lens.netlify.app/live-api/targets` returns Netlify's 404 page, so the `/live-api` proxy rule is not active. The rules lived only in the root `netlify.toml`, which Netlify skips when `site/` is deployed on its own (drag-and-drop, or base directory `site`). CORS on both Cloud Run services was checked and already allows this origin. | Investigated |
+| 8 Nov, night | Fix: `site/_redirects` and `site/_headers` carry the same rules inside the published folder, so they apply with every deployment method | Done; takes effect on the next Netlify deploy |
 | Next | `terraform apply` with `image_tag = "fast-field-20261108"` (Rounds 2 and 3; Round 4 is only needed on laptops) | To do (operator) |
 | Next | Netlify redeploy of `site/` | To do (teammates) |
 | Next | Commit Rounds 3 and 4 | To do, after review |

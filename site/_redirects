@@ -1,0 +1,12 @@
+# Netlify proxy rules. They live inside site/ so they apply however the site
+# is deployed (drag-and-drop of this folder, `netlify deploy --dir site`, or
+# Git with publish directory "site"). netlify.toml at the repository root
+# holds the same rules but is only read when Netlify builds from the repo root.
+
+# Snapshot service: fast Cloud snapshot reads (targets, dashboards, status,
+# recovery, all-sky, refresh status, snapshot index).
+/live-api/*       https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api/:splat   200!
+
+# Live-pipeline service (short requests only; long IRSA streams call the
+# Cloud Run URL directly because Netlify proxies time out after 26 s).
+/data-live-api/*  https://spherex-lens-live-m6cqoypnxa-uc.a.run.app/api/:splat  200!
