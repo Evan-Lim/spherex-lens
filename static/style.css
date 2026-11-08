@@ -5,20 +5,21 @@
    ========================================================================== */
 
 :root {
-  /* surfaces (P6: black page, very deep navy modules, flat and opaque) */
-  --bg: #000000;                 /* page */
-  --bg-2: #03060f;
-  --panel: #07122b;              /* module containers */
-  --panel-solid: #07122b;
-  --raise: #0c1b3d;              /* cards inside modules, table headers, inputs */
-  --line: rgba(148,170,210,.20);
-  --line-strong: rgba(148,170,210,.36);
-  --grid: rgba(148,170,210,.06);
+  /* surfaces (P7: deep navy page, lighter blue-grey cards, white borders) */
+  --bg: #0a1226;                 /* deep navy page */
+  --bg-2: #0d1730;
+  --panel: #16223d;              /* big panels (Target Control, Command Dashboard) */
+  --panel-solid: #16223d;
+  --raise: #1e2c4b;              /* component cards inside panels */
+  --raise-2: #253658;            /* table header, input fields, hover */
+  --line: rgba(255,255,255,.22); /* card borders, 1.5px */
+  --line-strong: rgba(255,255,255,.38); /* inputs, secondary buttons */
+  --grid: rgba(255,255,255,.06);
 
   /* text */
   --text: #ffffff;
-  --text-soft: #d3dbea;
-  --muted: #9fb0cc;              /* 7.8:1 on --panel, 7.5:1 on --raise */
+  --text-soft: #d6deec;
+  --muted: #a9b6cc;              /* 6.8:1 on --raise, 5.9:1 on --raise-2 */
 
   /* red is reserved: primary action per area, alerts, CANDIDATE, Unaccounted */
   --nasa-red: #d42a12;           /* primary action fill (white text 5.1:1) */
@@ -2588,3 +2589,105 @@ button.status-pill, .history-meta, .footer, .footer .mono, .guide-kicker,
 .map-toolbar .toggle { gap: 6px; }
 #zoom-label { min-width: 40px; }
 sub, sup { font-size: max(14px, .75em); }
+
+
+/* ==========================================================================
+   P7a -- navy palette, 1.5px white borders, component cards, filled metric
+   cards, type scale (SPHEREX-LENS_P7_SPEC.md s1, s3, s8). Loaded last.
+   ========================================================================== */
+
+/* ---- page and big panels ------------------------------------------------- */
+html, .chrome { background: var(--bg); }
+.chrome { border-bottom: 1.5px solid var(--line); }
+.panel {
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  padding: 24px 24px 8px;
+}
+.section { border-top: 1.5px solid var(--line); }
+
+/* ---- component cards inside panels: --raise, 1.5px border, radius 14 ----- */
+.mono-box, .verdict-box, .map-info, .chart, .table-wrap, .map-wrap,
+.cloud-refresh-panel {
+  background-color: var(--raise);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+}
+.mono-box, .verdict-box { padding: 20px; }
+.map-info { padding: 12px 16px; }
+.chart { padding: 16px; }
+.chart-grid { gap: 20px; }
+.map-wrap { border-color: var(--line-strong); }
+.modal .cloud-refresh-panel { border: none; background: transparent; }
+.modal, .guide-sheet { background: var(--panel); border: 1.5px solid var(--line-strong); border-radius: 18px; }
+
+/* chips and tags sit on --raise: give them the lighter surface */
+.map-chip, .archive-chip, .map-info-tag, .map-chip-stack { background: var(--raise-2); border-color: var(--line); }
+
+/* ---- inputs and buttons --------------------------------------------------- */
+.control-select, .control-input {
+  background: var(--raise-2);
+  border: 1.5px solid var(--line-strong);
+}
+.control-select option { background: var(--raise-2); }
+input[type="checkbox"] { background: var(--raise-2); border: 1.5px solid var(--line-strong); }
+input[type="checkbox"]:checked { background: #ffffff; border-color: #ffffff; }
+.btn-secondary, .btn-ghost {
+  background: transparent;
+  border: 1.5px solid var(--line-strong);
+  color: var(--text);
+}
+.btn-secondary:hover, .btn-ghost:hover { background: var(--raise-2); border-color: var(--text-soft); }
+.btn-ghost.active { background: var(--raise-2); }
+.segmented { background: var(--raise); border: 1.5px solid var(--line-strong); }
+.seg:not(.active):hover { background: var(--raise-2); }
+.zoom-group { background: var(--raise); border: 1.5px solid var(--line); }
+.zoom-group button:hover { background: var(--raise-2); }
+.history-btn { border: 1.5px solid var(--line-strong); }
+.history-btn:hover { background: var(--raise-2); border-color: var(--text-soft); color: var(--text); }
+
+/* ---- tables: header --raise-2, 16px values, 15px headers ----------------- */
+thead th { background: var(--raise-2); font-size: 15px; border-bottom: 1.5px solid var(--line); }
+tbody td, .detections-table td:nth-child(n), .sources-table td:nth-child(n),
+.movers-table td:nth-child(n), .objects-table td:nth-child(n) { font-size: 16px; }
+.table-wrap tbody tr:nth-child(even) td { background: rgba(255,255,255,.03); }
+tbody tr:hover td, .table-wrap tbody tr:hover td, tbody tr.selected td { background: var(--raise-2); }
+.kv-table th, .kv-table td, .kv-table.stats-table td { font-size: 16px; }
+
+/* ---- field metrics: solid fills, white text, no border (P7 s3) ----------- */
+.cards { gap: 16px; }
+.card {
+  border: none;
+  border-radius: 14px;
+  padding: 20px;
+  color: #ffffff;
+}
+.card-blue  { background: #1d4ed8; }   /* white on it 6.8:1 */
+.card-red   { background: #b42318; }   /* 6.5:1 */
+.card-green { background: #047857; }   /* 5.5:1 */
+.card-amber { background: #8a5a2b; }   /* brown, 6.0:1 */
+.card-label, .card-value, .card-hint,
+.card-red .card-value { color: #ffffff; opacity: 1; }
+.card-label { font-size: 20px; font-weight: 700; }
+.card-value { font-size: 34px; font-weight: 700; }
+.card-hint { font-size: 15px; }
+.card, .card:hover { border: none; box-shadow: none; transform: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .card { transition: filter .15s ease-out; }
+}
+.card:hover { filter: brightness(1.06); }
+
+/* ---- badge / chip text on the lighter P7 cards ---------------------------
+   Same hues, lifted lightness: on --raise / --raise-2 with their own tint the
+   token colours fell to 3.85-4.31:1. These pass 4.5:1 on zebra/hover rows too. */
+.badge-candidate, .verdict-candidate { color: #ff8f78; }
+.badge-static, .badge-monopole, .cat-chip.vsx, .verdict-box .badge-static { color: #e6b480; }
+.cat-chip.gaia, .epoch-chip.e2, .badge-variable { color: #8cc2ff; }
+
+/* ---- type scale (P7 s8 overrides P6 s2) ---------------------------------- */
+.panel-head h1 { font-size: 30px; font-weight: 800; }
+.section-label { font-size: 22px; font-weight: 700; }
+.module-desc, .panel-sub { font-size: 15px; }
+.chart figcaption { font-size: 20px; font-weight: 700; }
+body { font-size: 16px; }
