@@ -45,3 +45,11 @@
   for = "/figures/*"
   [headers.values]
     Cache-Control = "public, max-age=86400"
+
+# The offline-copy service worker must never be served from an HTTP cache,
+# otherwise students would keep an old worker after a deploy.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"

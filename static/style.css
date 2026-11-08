@@ -555,6 +555,18 @@ html, body {
 .freshness-badge[data-state="refreshing"] {
   border-color: #9ccbe6; background: var(--blue-soft); color: #0b5f88;
 }
+.freshness-badge[data-state="offline"] {
+  border-color: var(--line-strong); background: var(--panel); color: var(--text-soft);
+}
+.freshness-badge[data-state="offline"]::before {
+  background: transparent; border: 1.5px solid currentColor;
+}
+.offline-copy-status {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.offline-copy-status[data-state="offline"] { color: #754a00; }
 .freshness-badge[data-state="refreshing"]::before {
   animation: refresh-pulse 1.2s ease-in-out infinite;
 }

@@ -1,4 +1,155 @@
-# Commit notes — Cloud snapshot backend, IRSA refresh, and speed/reliability work
+# Commit notes
+
+Two rounds of work. Round 2 (offline copy for students without stable
+internet) is the newest and is described first. Round 1 is below it.
+
+## Timeline
+
+All times are Malaysia time (UTC+8).
+
+| When | What | Status |
+|---|---|---|
+| 6–8 Nov 2026 | **Round 1:** Cloud snapshot backend, 12-hour IRSA refresh, refresh status panel, fresh all-sky from IRSA, speed work, deployment bug fixes, Vercel removed | Committed as `f55034d` (8 Nov, 02:36) |
+| 8 Nov, 12:05 | Scheduled cloud refresh published a snapshot: 18/18 fields, 1 updated (SgrA*), 17 unchanged | Live |
+| 8 Nov, afternoon | **Round 2** planned: offline copy, so the site works without internet | Plan approved |
+| 8 Nov, afternoon | Round 2 built: snapshot index endpoint, service worker, offline layer, OFFLINE badge | Done |
+| 8 Nov, 16:34 | Round 2 tested in Chrome on localhost against the real Cloud snapshot (see R2.5) | All checks passed; 63/63 tests pass |
+| 8 Nov | Image `offline-copy-20261108` built in Cloud Build (import check passed) | Done |
+| Next | `terraform apply` with `image_tag = "offline-copy-20261108"` | To do (operator) |
+| Next | Netlify redeploy of `site/` | To do (teammates) |
+| Next | Commit Round 2 | To do, after review |
+
+---
+
+# Round 2 — Offline copy of the Cloud snapshot
+
+## R2.1 Why
+
+Lab students often have no stable internet. Before this change, the site
+could not even open without a connection. Now every visitor's browser keeps a
+complete copy of the latest Cloud snapshot:
+
+* **No internet:** the site opens from the saved copy and shows a grey
+  **OFFLINE** badge with the snapshot's age.
+* **Internet:** the saved copy shows instantly (no wait for a Cloud Run cold
+  start). The browser checks for a newer snapshot and downloads only what
+  changed.
+* **Internet comes back while the page is open:** the page switches back to
+  Cloud snapshot mode by itself within about 30 s (5 s in testing), with no
+  reload.
+
+## R2.2 How it works
+
+1. **Website copy.** A service worker (`site/sw.js`) keeps the HTML, JS, CSS
+   and fonts. It asks the network first, and uses the saved copy when the
+   network is down or slower than 4 s.
+2. **Snapshot index.** New endpoint `/api/snapshot-index` (about 2 KB) lists
+   the SHA-256 name of every object in the current snapshot: the target list,
+   the all-sky mosaic, and each field's dashboard and recovery grid.
+3. **Only changed files are downloaded.** The browser compares those names
+   with the ones it saved and downloads only the new ones. One changed field
+   means one download (~0.4 MB), not 7 MB. Comparing names stays correct even
+   after missing many 12-hour runs.
+4. **Every download is checked.** Snapshot responses now carry an
+   `X-Snapshot-Object` header (the per-field status carries
+   `X-Snapshot-Manifest`). A file is saved only when that label matches the
+   index and the body is complete JSON. If a new snapshot is published during
+   a download, the browser notices and starts again.
+5. **The switch to a new copy happens all at once.** New files are saved next
+   to the old ones. The page switches to the new copy only when every file is
+   present. Files the new copy no longer uses are deleted only after the
+   switch.
+6. **Connection check.** The page decides it is offline from a real request to
+   the snapshot index, which waits up to 30 s so a cold start is not mistaken
+   for "no internet". It does not rely on the browser's online flag, which is
+   wrong on lab Wi-Fi without internet. While offline it retries every 30 s,
+   and immediately when the browser reports a connection.
+7. **Gentle on the API.** Background saving runs 3 downloads at once, with
+   dashboard and recovery reads paced to about 17 per minute (the API limit is
+   30 per minute per visitor). If a shared lab address hits the limit, saving
+   waits and retries.
+
+## R2.3 What is available offline
+
+| Feature | Offline |
+|---|---|
+| All 18 fields (map, detections, charts, metrics) | Yes, from the saved copy |
+| Recovery grid | Yes (saved scheduled result) |
+| All-sky view (18 tiles) | Yes |
+| Refresh panel and per-field grid | Yes, from the last status seen online |
+| Fetch fresh from IRSA, Fetch all 18, Open any field | Disabled, with the reason shown; re-enabled automatically when the connection returns |
+
+## R2.4 Files changed
+
+| File | Change |
+|---|---|
+| `app.py` | `/api/snapshot-index` endpoint (rate-limited, never cached). The middleware adds `X-Snapshot-Object` / `X-Snapshot-Manifest` through a per-request holder, so every endpoint still returns the same body and internal callers are unaffected. CORS exposes both headers. |
+| `site/sw.js` (new) | Service worker: website copy, snapshot reads served from the saved copy, labelled network responses saved by object name. Fresh IRSA requests, progress streams, the refresh trigger, the refresh status and the index are never stored. |
+| `site/app.js` | Offline layer (check, compare, paced download, verify, switch, clean up, persistent storage request), offline mode switching, OFFLINE badge and labels, recovery read from the saved copy when offline, views refreshed only when their data changed. |
+| `site/index.html`, `site/style.css` | Offline status line in the Cloud snapshot panel; grey OFFLINE badge; amber status pill when offline. |
+| `netlify.toml` | `sw.js` is served with `Cache-Control: no-cache`, so students receive a new worker after each deploy. |
+| `static/*` | Same files for local `uvicorn app:app`. |
+| `test_cloud_snapshots.py` | New test that runs through the full ASGI stack: the index content, the header on each snapshot response, no header on live responses, and plain dicts still returned to internal callers. |
+| `README.md` | Note with the deploy command. |
+
+## R2.5 Verification (Chrome, localhost, real Cloud snapshot, 8 Nov)
+
+| Test | Result |
+|---|---|
+| First visit saves the full copy | 18 fields, 56 files, 61 s in the background |
+| Reopen with the network switched off | Page opens; field, recovery, all-sky (18 tiles) work; OFFLINE badge; IRSA controls disabled |
+| Connection returns while the page is open | Back to Cloud snapshot mode in 5.1 s, nothing re-downloaded |
+| Snapshot with 1 changed field | Exactly 1 file downloaded, 2.8 s |
+| Saved copy compared with the server | Byte-for-byte identical |
+| Connection lost after 2 of 6 updates | Old copy kept and complete; on reconnect only the 4 missing files downloaded, then switched and cleaned up |
+| Browser console | No new errors |
+| Automated tests | 63 passed, offline |
+
+## R2.6 No data loss
+
+* Responses are saved exactly as the server sent them. Nothing is compressed,
+  trimmed or re-encoded.
+* A copy is used only when it is complete. A failed or interrupted update
+  never replaces a working copy.
+* Each saved file is checked against its content-addressed (SHA-256) object
+  name.
+* The cloud side is unchanged: the same snapshots, the same 12-hour refresh,
+  the same endpoint bodies.
+
+## R2.7 Limits
+
+* A student must open the site once while online before it can work offline.
+* Storage is about 54 MB of browser storage per device.
+* Safari and iPhone may delete the copy after about 7 days without a visit.
+  Chrome and Edge keep it.
+* Offline data is as new as the student's last online visit, and the page
+  shows its age.
+* A whole lab behind one internet address shares the API's per-visitor limit,
+  so the first save for 30 students at once takes a few minutes. Later visits
+  mostly read the saved copy.
+* On the very first visit, the field on screen may be downloaded twice
+  (~0.4 MB), because the service worker is not yet active for that first
+  request.
+
+## R2.8 Deploying Round 2
+
+1. Image `offline-copy-20261108` is already built.
+2. Set `image_tag = "offline-copy-20261108"` in
+   `cloud/terraform/terraform.tfvars`, then from `cloud/terraform` run
+   `terraform apply -var-file=terraform.tfvars -var=deploy_runtime=true`
+   (in PowerShell, add `--%` after `apply`).
+3. Check `https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api/snapshot-index`
+   returns JSON that starts with `{"manifest":`.
+4. Redeploy `site/` on Netlify.
+
+Until step 2 is done, the deployed site behaves as before. Without the index
+endpoint, the page simply does not save an offline copy.
+
+---
+
+# Round 1 — Cloud snapshot backend, IRSA refresh, and speed/reliability work
+
+Committed as `f55034d` (8 Nov 2026, 02:36).
 
 This commit moves SPHERExLens from a local data cache to a **Google Cloud
 snapshot backend that refreshes all 18 registered fields from IRSA every

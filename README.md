@@ -972,7 +972,9 @@ to its timeout. This cloud deployment is not guaranteed free; see
 The static page can detect an available `/live-api` rewrite, but a deploy with
 the direct pipeline base configured is required for long-running live progress.
 
-
+Command to rebuild image
+cd C:\Users\User\spherex-lens\cloud\terraform
+terraform apply -var-file=terraform.tfvars -var=deploy_runtime=true
 ---
 
 ## Repository layout

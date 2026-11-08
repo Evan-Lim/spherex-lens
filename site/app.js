@@ -45,7 +45,8 @@ function backendAvailable() {
 }
 
 function syncBackendUi() {
-  const ok = backendAvailable();
+  const isOffline = offline.mode === 'offline';
+  const ok = backendAvailable() && !isOffline;
   const toggle = document.getElementById('tog-live');
   const wrap = document.getElementById('toggle-live-wrap');
   const label = document.getElementById('tog-live-label');
@@ -59,11 +60,15 @@ function syncBackendUi() {
   }
   if (wrap) wrap.classList.toggle('is-disabled', !ok);
   if (label) {
-    label.textContent = ok
+    label.textContent = ok || isOffline
       ? 'Fetch fresh SPHEREx data from IRSA (selected field)'
       : 'Live from IRSA \u2014 needs a backend';
   }
-  if (hint) {
+  if (hint && isOffline) {
+    hint.textContent = 'Unavailable offline: fetching from IRSA needs a connection. '
+      + 'It switches back on automatically when the connection returns.';
+    hint.classList.add('hint-warn');
+  } else if (hint) {
     hint.textContent = ok
       ? (STATIC_MODE
         ? 'Unchecked: latest published Cloud snapshot. Checked: fetches fresh SPHEREx listings and cutouts for this field only; it does not publish a snapshot or refresh catalogs/WISE history.'
@@ -81,9 +86,17 @@ function syncBackendUi() {
     const el = document.getElementById(id);
     if (el) el.disabled = !ok;
   });
-  if (fieldHint && !ok) {
+  if (fieldHint && isOffline) {
+    fieldHint.textContent = 'unavailable offline \u2014 opening a new field needs IRSA';
+    fieldHint.classList.add('hint-warn');
+    fieldHint.dataset.offline = 'true';
+  } else if (fieldHint && !ok) {
     fieldHint.textContent = 'needs a backend \u2014 not available on this static deployment';
     fieldHint.classList.add('hint-warn');
+  } else if (fieldHint && fieldHint.dataset.offline) {
+    delete fieldHint.dataset.offline;
+    fieldHint.textContent = '';
+    fieldHint.classList.remove('hint-warn');
   }
 }
 
@@ -247,7 +260,10 @@ function renderCloudFreshness(status, running) {
   const age = Date.now() - publishedMs;
   let state = 'unknown';
   let text = 'no snapshot';
-  if (running || status.awaiting_requested_run) {
+  if (status.status === 'offline') {
+    state = 'offline';
+    text = 'offline';
+  } else if (running || status.awaiting_requested_run) {
     state = 'refreshing';
     text = running ? `refreshing ${completed}/${total}` : 'starting refresh';
   } else if (Number.isFinite(publishedMs)) {
@@ -258,7 +274,9 @@ function renderCloudFreshness(status, running) {
   badge.textContent = text;
   badge.title = state === 'overdue'
     ? 'The published snapshot is older than one 12-hour cycle plus 2 h; a scheduled run was missed or failed.'
-    : '';
+    : (state === 'offline'
+      ? 'No connection to the Cloud snapshot: showing the copy saved on this device.'
+      : '');
 
   const progress = $('cloud-refresh-progress');
   if (progress) {
@@ -308,7 +326,11 @@ function showCloudRefreshState(status) {
   const updated = Number(status.updated_count) || 0;
   const unchanged = Number(status.unchanged_count) || 0;
   const failed = Number(status.failed_count) || 0;
-  if (running) {
+  if (status.status === 'offline') {
+    setText('cloud-refresh-status',
+      'Offline \u00b7 showing the snapshot saved on this device. ' +
+      'Refresh status and IRSA fetches resume automatically when the connection returns.');
+  } else if (running) {
     const field = status.current_target
       ? ` · checking ${fieldLabel(status.current_target)} (${status.current_target_index}/${total})`
       : '';
@@ -351,6 +373,8 @@ async function updateCloudRefreshStatus() {
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const status = await response.json();
+    rememberRefreshStatus(status);
+    if (offline.mode === 'offline') syncOfflineCopy();   // the connection is back
     const isNewAttempt = cloudRefreshRequestedAt
       && status.started_at
       && Date.parse(status.started_at) >= Date.parse(cloudRefreshRequestedAt);
@@ -367,9 +391,15 @@ async function updateCloudRefreshStatus() {
     if ((isNewAttempt && status.status === 'succeeded') || newSnapshot) {
       cloudRefreshRequestedAt = null;
       cloudRefreshPollStartedAt = null;
-      await loadMosaic(true);
-      draw();
-      if (!state.live) await runPipeline();
+      if (offline.supported) {
+        // Views read the saved copy: update it first (only changed files are
+        // downloaded); it then refreshes the views that changed.
+        await syncOfflineCopy();
+      } else {
+        await loadMosaic(true);
+        draw();
+        if (!state.live) await runPipeline();
+      }
       scheduleCloudRefreshPoll(CLOUD_REFRESH_IDLE_POLL_MS);
       return;
     }
@@ -398,6 +428,13 @@ async function updateCloudRefreshStatus() {
       scheduleCloudRefreshPoll(CLOUD_REFRESH_IDLE_POLL_MS);
     }
   } catch (error) {
+    if (offline.supported && offline.mode === 'offline') {
+      showCloudRefreshState(offlineStatusForPanel());
+      scheduleCloudRefreshPoll(CLOUD_REFRESH_IDLE_POLL_MS);
+      return;
+    }
+    // A failure while online may mean the connection just dropped: check.
+    if (offline.supported && offline.mode === 'online') syncOfflineCopy();
     setText('cloud-refresh-status',
       `Refresh status unavailable: ${error.message}`);
     const statusElement = $('cloud-refresh-status');
@@ -454,6 +491,456 @@ async function requestCloudRefresh(event) {
         || latestCloudRefreshStatus.status === 'running';
     }
   }
+}
+
+// ------------------------------------------------------------ offline copy
+//
+// The browser keeps a complete copy of the latest Cloud snapshot so the site
+// still works without internet (sw.js serves it). Kept in sync like the cloud
+// publishes: /api/snapshot-index names every immutable object; only objects
+// this device has not saved are downloaded, each one is checked against the
+// X-Snapshot-Object header, and the new copy is switched on in one step only
+// after every file has arrived. The previous copy stays in use until then.
+
+const OFFLINE_DATA_CACHE = 'spx-data-v1';            // same names as sw.js
+const OFFLINE_META_URL = '/__spx/meta';
+const OFFLINE_LAST_STATUS_URL = '/__spx/last-refresh-status';
+const OFFLINE_INDEX_TIMEOUT_MS = 30000;   // long enough for a Cloud Run cold start
+const OFFLINE_SLOW_MS = 4000;             // after this, say "still connecting"
+const OFFLINE_RETRY_MS = 30000;           // reconnect probe while offline
+const OFFLINE_PARALLEL = 3;
+// The snapshot API allows 30 dashboard and 30 recovery reads per minute per
+// visitor; background saving stays well under that so clicks never hit it.
+const OFFLINE_PACED_MS = { dashboard: 3500, recovery: 3500 };
+
+const offline = {
+  supported: false,
+  mode: 'checking',        // checking | online | offline
+  meta: null,              // the switched-on saved copy
+  lastStatus: null,        // last refresh-status seen online
+  syncing: null,
+  saved: 0,
+  total: 0,
+  note: '',
+  retryTimer: null,
+  slowTimer: null,
+};
+
+function offlineBase() {
+  const base = STATIC_MODE ? LIVE_API : `${API_BASE}/api`;
+  if (!base) return null;
+  try {
+    // Only same-origin APIs: the service worker and header checks need it.
+    return new URL(base, window.location.href).origin === window.location.origin
+      ? base : null;
+  } catch {
+    return null;
+  }
+}
+
+function offlineObjectKey(kind, object) {
+  return `/__spx/obj/${kind}/${encodeURIComponent(object)}`;
+}
+
+function offlineStatusKey(field, manifest) {
+  return `/__spx/obj/status/${encodeURIComponent(field)}/${encodeURIComponent(manifest)}`;
+}
+
+async function offlineCache() {
+  return caches.open(OFFLINE_DATA_CACHE);
+}
+
+async function offlineReadJson(url) {
+  try {
+    const response = await (await offlineCache()).match(url);
+    return response ? await response.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function offlineWriteJson(url, value) {
+  await (await offlineCache()).put(url, new Response(JSON.stringify(value), {
+    headers: { 'Content-Type': 'application/json' },
+  }));
+}
+
+function offlineSleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function offlineSavedText() {
+  const meta = offline.meta;
+  if (!meta) return '';
+  return `${meta.fields} fields, saved ${formatTimestamp(meta.saved_at)}`;
+}
+
+function renderOfflineCopy() {
+  const line = $('offline-copy-status');
+  if (!line) return;
+  line.hidden = !offline.supported;
+  if (!offline.supported) return;
+  let text;
+  if (offline.mode === 'offline') {
+    text = offline.meta
+      ? `No connection · showing the copy saved on this device (${offlineSavedText()}). ` +
+        'Reconnecting automatically.'
+      : 'No connection, and no offline copy is saved on this device yet. ' +
+        'Open the site once while connected to save one.';
+  } else if (offline.syncing && offline.total) {
+    text = `Saving offline copy on this device: ${offline.saved}/${offline.total} files…`;
+  } else if (offline.note) {
+    text = offline.note;
+  } else if (offline.mode === 'checking') {
+    text = offline.meta
+      ? `Showing the copy saved on this device (${offlineSavedText()}) · checking for a newer snapshot…`
+      : 'Checking the Cloud snapshot…';
+  } else {
+    text = offline.meta
+      ? `Offline copy on this device: up to date (${offlineSavedText()}).`
+      : 'Offline copy not saved yet.';
+  }
+  line.textContent = text;
+  line.dataset.state = offline.mode;
+}
+
+function offlineStatusForPanel() {
+  const last = offline.lastStatus || {};
+  return {
+    ...last,
+    status: 'offline',
+    manual_refresh_available: false,
+    snapshot_published_at: offline.meta?.published_at || last.snapshot_published_at || null,
+  };
+}
+
+function scheduleOfflineRetry() {
+  if (offline.retryTimer) window.clearTimeout(offline.retryTimer);
+  offline.retryTimer = window.setTimeout(() => {
+    offline.retryTimer = null;
+    syncOfflineCopy();
+  }, OFFLINE_RETRY_MS);
+}
+
+function setOfflineMode(mode) {
+  const was = offline.mode;
+  offline.mode = mode;
+  document.body.classList.toggle('is-offline', mode === 'offline');
+  if (mode === 'offline') {
+    if (state.live) {
+      // Fresh IRSA fetches cannot work offline: fall back to the saved copy.
+      state.live = false;
+      const toggle = $('tog-live');
+      if (toggle) toggle.checked = false;
+      stopLiveSky();
+      if (state.viewMode === 'sky') loadMosaic(false).then(draw);
+      else if (!state.pipelineRunning) runPipeline();
+    }
+    showCloudRefreshState(offlineStatusForPanel());
+    scheduleOfflineRetry();
+  }
+  syncBackendUi();
+  renderOfflineCopy();
+  if (was === 'offline' && mode === 'online') {
+    // Back online: refresh the panel now instead of at the next idle poll.
+    scheduleCloudRefreshPoll(0);
+  }
+}
+
+async function offlineFetchIndex() {
+  const controller = new AbortController();
+  const abort = window.setTimeout(() => controller.abort(), OFFLINE_INDEX_TIMEOUT_MS);
+  offline.slowTimer = window.setTimeout(() => {
+    if (offline.mode !== 'online') {
+      offline.note = 'Still connecting to the Cloud snapshot (it may be waking up)…';
+      renderOfflineCopy();
+    }
+  }, OFFLINE_SLOW_MS);
+  try {
+    return await fetch(`${offlineBase()}/snapshot-index`, {
+      cache: 'no-store', signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(abort);
+    window.clearTimeout(offline.slowTimer);
+  }
+}
+
+function offlinePlan(index) {
+  const base = offlineBase();
+  const current = $('target-select')?.value;
+  const items = [];
+  const query = (target) => (target ? `?target=${encodeURIComponent(target)}` : '');
+  const add = (kind, target, object) => {
+    if (!object) return;               // the cloud has no such object either
+    items.push({
+      slot: target ? `${kind}:${target}` : kind, kind, target, object,
+      key: offlineObjectKey(kind, object),
+      url: `${base}/${kind}${query(target)}`,
+    });
+  };
+  add('targets', null, index.targets_object);
+  add('mosaic', null, index.mosaic);
+  Object.entries(index.fields || {}).forEach(([field, objects]) => {
+    items.push({
+      slot: `status:${field}`, kind: 'status', target: field, manifest: index.manifest,
+      key: offlineStatusKey(field, index.manifest),
+      url: `${base}/status${query(field)}`,
+    });
+    add('dashboard', field, objects.dashboard);
+    add('recovery', field, objects.recovery);
+  });
+  // The field on screen first, then the small shared files, then the rest.
+  const rank = (item) => (item.target === current ? 0 : (item.target ? 2 : 1));
+  return items.map((item, i) => [item, i])
+    .sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1])
+    .map(([item]) => item);
+}
+
+class OfflineSnapshotChanged extends Error {}
+class OfflineUnsupported extends Error {}
+
+async function offlineDownload(cache, item, pacer) {
+  for (let attempt = 0; ; attempt += 1) {
+    await pacer(item.kind);
+    let response;
+    try {
+      response = await fetch(item.url, { cache: 'no-store', headers: { 'X-SPX-Sync': '1' } });
+    } catch (error) {
+      if (attempt >= 2) throw error;               // connection lost
+      await offlineSleep(1500 * (attempt + 1));
+      continue;
+    }
+    if (response.status === 429 && attempt < 6) {  // shared lab address: wait it out
+      const wait = Number(response.headers.get('Retry-After')) || 20;
+      await offlineSleep(Math.min(60, wait) * 1000);
+      continue;
+    }
+    if (response.status >= 500 && attempt < 2) {
+      await offlineSleep(1500 * (attempt + 1));
+      continue;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${item.slot}`);
+    const object = response.headers.get('X-Snapshot-Object');
+    const manifest = response.headers.get('X-Snapshot-Manifest');
+    if (item.object ? !object : !manifest) {
+      throw new OfflineUnsupported('this API does not label snapshot objects');
+    }
+    if (item.object ? object !== item.object : manifest !== item.manifest) {
+      throw new OfflineSnapshotChanged('a new snapshot was published during the download');
+    }
+    const text = await response.text();
+    JSON.parse(text);                              // complete JSON only
+    await cache.put(item.key, new Response(text, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Snapshot-Object': object || '',
+        'X-Snapshot-Manifest': manifest || '',
+        'X-SPX-Saved-At': new Date().toISOString(),
+      },
+    }));
+    return;
+  }
+}
+
+function offlinePacer() {
+  const nextStart = {};
+  return async (kind) => {
+    const spacing = OFFLINE_PACED_MS[kind];
+    if (!spacing) return;
+    const now = Date.now();
+    const start = Math.max(now, nextStart[kind] || 0);
+    nextStart[kind] = start + spacing;
+    if (start > now) await offlineSleep(start - now);
+  };
+}
+
+async function offlineSaveAll(index) {
+  const cache = await offlineCache();
+  const plan = offlinePlan(index);
+  const missing = [];
+  for (const item of plan) {
+    if (!(await cache.match(item.key))) missing.push(item);
+  }
+  offline.total = plan.length;
+  offline.saved = plan.length - missing.length;
+  renderOfflineCopy();
+  const pacer = offlinePacer();
+  let next = 0;
+  let failure = null;
+  const worker = async () => {
+    while (!failure && next < missing.length) {
+      const item = missing[next];
+      next += 1;
+      try {
+        await offlineDownload(cache, item, pacer);
+        offline.saved += 1;
+        renderOfflineCopy();
+      } catch (error) {
+        failure = failure || error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: OFFLINE_PARALLEL }, worker));
+  if (failure) throw failure;
+
+  // Switch on only a complete copy.
+  for (const item of plan) {
+    if (!(await cache.match(item.key))) throw new Error(`${item.slot} is missing`);
+  }
+  const meta = {
+    manifest: index.manifest,
+    published_at: index.published_at,
+    saved_at: new Date().toISOString(),
+    fields: Object.keys(index.fields || {}).length,
+    keys: Object.fromEntries(plan.map((item) => [item.slot, item.key])),
+  };
+  await offlineWriteJson(OFFLINE_META_URL, meta);
+
+  // Only now remove objects the new copy no longer uses.
+  const keep = new Set(plan.map((item) => new URL(item.key, window.location.origin).href));
+  const stored = await cache.keys();
+  await Promise.all(stored
+    .filter((request) => new URL(request.url).pathname.startsWith('/__spx/obj/')
+      && !keep.has(request.url))
+    .map((request) => cache.delete(request)));
+  return meta;
+}
+
+async function offlineSyncOnce() {
+  const previous = offline.meta;
+  for (let round = 0; round < 3; round += 1) {
+    let response;
+    try {
+      response = await offlineFetchIndex();
+    } catch (error) {
+      offline.note = '';
+      setOfflineMode('offline');
+      return { changed: false };
+    }
+    if (response.status === 404) {
+      // This API predates the offline copy: never serve a copy it cannot update.
+      await (await offlineCache()).delete(OFFLINE_META_URL);
+      offline.meta = null;
+      offline.supported = false;
+      setOfflineMode('online');
+      return { changed: false };
+    }
+    if (!response.ok) {
+      offline.note = `Cloud snapshot unavailable right now (HTTP ${response.status})` +
+        (offline.meta ? '; the copy saved on this device is shown.' : '.');
+      setOfflineMode('online');
+      scheduleOfflineRetry();
+      return { changed: false };
+    }
+    const index = await response.json();
+    offline.note = '';
+    setOfflineMode('online');
+    if (offline.meta && offline.meta.manifest === index.manifest) {
+      renderOfflineCopy();
+      return { changed: false };
+    }
+    try {
+      const meta = await offlineSaveAll(index);
+      offline.meta = meta;
+      offline.total = 0;
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {});
+      }
+      const changedSlots = new Set(Object.keys(meta.keys)
+        .filter((slot) => !previous || previous.keys[slot] !== meta.keys[slot]));
+      offline.note = previous
+        ? `Offline copy updated to the snapshot published ${formatTimestamp(meta.published_at)}.`
+        : '';
+      renderOfflineCopy();
+      return { changed: !!previous, changedSlots };
+    } catch (error) {
+      offline.total = 0;
+      if (error instanceof OfflineSnapshotChanged) continue;   // start again
+      if (error instanceof OfflineUnsupported) {
+        offline.supported = false;
+        renderOfflineCopy();
+        return { changed: false };
+      }
+      const quota = error && error.name === 'QuotaExceededError';
+      offline.note = quota
+        ? 'Not enough browser storage for an offline copy (about 45 MB is needed).'
+        : `Saving the offline copy stopped (${error.message}); ` +
+          (previous ? 'the previous copy is kept. ' : '') +
+          'Files already saved are reused next time.';
+      renderOfflineCopy();
+      if (error instanceof TypeError) setOfflineMode('offline');   // network gone
+      else scheduleOfflineRetry();
+      return { changed: false };
+    }
+  }
+  offline.note = 'The Cloud snapshot kept changing during the download; retrying shortly.';
+  renderOfflineCopy();
+  scheduleOfflineRetry();
+  return { changed: false };
+}
+
+async function waitForPipeline() {
+  while (state.pipelineRunning) await offlineSleep(200);
+}
+
+// Show a newly saved snapshot without resetting views that did not change.
+async function applyOfflineUpdate(result) {
+  if (!result || !result.changed || state.live) return;
+  const slots = result.changedSlots || new Set();
+  const current = $('target-select')?.value;
+  if (slots.has('targets')) await loadTargets();
+  if (slots.has('mosaic') && state.mosaic) {
+    await loadMosaic(true);
+    draw();
+  }
+  if (slots.has(`dashboard:${current}`) || slots.has(`status:${current}`)) {
+    await waitForPipeline();
+    await runPipeline();
+  }
+}
+
+function syncOfflineCopy() {
+  if (!offline.supported) return Promise.resolve({ changed: false });
+  if (offline.syncing) return offline.syncing;
+  const run = () => offlineSyncOnce().then(async (result) => {
+    await applyOfflineUpdate(result);
+    return result;
+  });
+  offline.syncing = (navigator.locks
+    ? navigator.locks.request('spx-offline-sync', run)   // one tab at a time
+    : run())
+    .catch((error) => {
+      console.warn('offline copy sync failed', error);
+      return { changed: false };
+    })
+    .finally(() => {
+      offline.syncing = null;
+      renderOfflineCopy();
+    });
+  return offline.syncing;
+}
+
+async function startOfflineCopy() {
+  offline.supported = !!(window.isSecureContext && 'caches' in window
+    && 'serviceWorker' in navigator && offlineBase());
+  if (!offline.supported) return;
+  navigator.serviceWorker.register('sw.js').catch((error) => {
+    console.warn('offline copy unavailable: service worker not registered', error);
+  });
+  [offline.meta, offline.lastStatus] = await Promise.all([
+    offlineReadJson(OFFLINE_META_URL), offlineReadJson(OFFLINE_LAST_STATUS_URL)]);
+  window.addEventListener('online', () => syncOfflineCopy());
+  window.addEventListener('offline', () => setOfflineMode('offline'));
+  if (navigator.onLine === false) setOfflineMode('offline');
+  renderOfflineCopy();
+}
+
+function rememberRefreshStatus(status) {
+  if (!offline.supported) return;
+  offline.lastStatus = status;
+  offlineWriteJson(OFFLINE_LAST_STATUS_URL, status).catch(() => {});
 }
 
 async function fetchProgressApi(kind, target, onProgress, extraParams = {}) {
@@ -1417,6 +1904,7 @@ function renderProvenance(data) {
 
 async function runPipeline(preloadedData = null, preloadedElapsed = null) {
   let statusPromise = null;   // fetched alongside the dashboard
+  let fromSavedCopy = false;  // served by sw.js from this device's offline copy
   if (state.pipelineRunning) return;
   state.pipelineRunning = true;
   $('btn-run').disabled = true;
@@ -1467,6 +1955,7 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null) {
         // at once instead of one after the other.
         statusPromise = fetchApi('status', target).catch((e) => e);
         const resp = await fetchApi('dashboard', target);
+        fromSavedCopy = resp.headers.get('X-SPX-Source') === 'offline-copy';
         if (!resp.ok) {
           const problem = await resp.json().catch(() => ({}));
           throw new Error([problem.error, problem.hint, problem.detail]
@@ -1572,6 +2061,11 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null) {
       setText('cloud-support-freshness', '');
     }
     if (data.irsa_check) freshness = `${irsaCheckText(data.irsa_check)}; ${freshness}`;
+    const offlineView = fromSavedCopy && offline.mode === 'offline';
+    if (offlineView) {
+      freshness = `offline copy saved on this device ${formatTimestamp(
+        offline.meta?.saved_at)}; ${freshness}`;
+    }
     setText('map-hint',
       `${data.common} \u00b7 ${data.n_epoch1}+${data.n_epoch2} exposures \u00b7 ` +
       `${data.map.fov_arcmin}' field \u00b7 ${freshness}`);
@@ -1592,9 +2086,9 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null) {
         : (data.generated_at
           ? `Field data loaded from local cache; pipeline completed ${formatTimestamp(data.generated_at)}`
           : 'Field data loaded from local cache; pipeline completion time unavailable')));
-    setStatus(data.source === 'scheduled'
+    setStatus(offlineView ? 'OFFLINE \u00b7 SAVED CLOUD SNAPSHOT' : data.source === 'scheduled'
       ? 'SCHEDULED CLOUD SNAPSHOT'
-      : 'NORMAL OPS \u00b7 FIELD LOADED');
+      : 'NORMAL OPS \u00b7 FIELD LOADED', offlineView ? 'busy' : undefined);
     setText('footer-status',
       `${target} \u00b7 ${data.detections.length} detections \u00b7 ` +
       `${data.source === 'scheduled' ? 'published' : 'computed'} ` +
@@ -1717,7 +2211,7 @@ async function runRecovery() {
   setText('footer-status', `recovery: ${target}`);
   try {
     let data;
-    if (state.live || !STATIC_MODE) {
+    if (state.live || (!STATIC_MODE && offline.mode !== 'offline')) {
       const source = state.live ? 'live' : 'cache';
       const streamed = await fetchProgressApi('recovery', target, (event) => {
         progress.update(event.message || 'Recovery is running');
@@ -2461,6 +2955,7 @@ function attachUiEvents() {
 async function init() {
   attachUiEvents();
   attachMapEvents();
+  await startOfflineCopy();          // reads the saved copy's index (a few ms)
   syncBackendUi();
   // The refresh panel does not need the target list: load both at once.
   const refreshStatusLoaded = updateCloudRefreshStatus();
@@ -2475,9 +2970,12 @@ async function init() {
     const sel = $('target-select');
     if ([...sel.options].some((o) => o.value === wanted)) sel.value = wanted;
   }
-  state.live = params.get('source') === 'live' && backendAvailable();
+  state.live = params.get('source') === 'live' && backendAvailable()
+    && offline.mode !== 'offline';
   const liveToggle = $('tog-live');
   if (liveToggle) liveToggle.checked = state.live;
+  // Check for a newer snapshot while the saved copy is already on screen.
+  syncOfflineCopy();
   setStatus('STANDBY \u00b7 LOADING FIELD', 'busy');
   if (params.has('ra') && params.has('dec')) {
     await openFieldAt(Number(params.get('ra')), Number(params.get('dec')),

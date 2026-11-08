@@ -172,6 +172,95 @@ def test_snapshot_api_reads_published_registered_field(store, monkeypatch):
     assert b"IRSA is unavailable" in live_response.body
 
 
+def _asgi_get(asgi_app, path, query=""):
+    """One GET through the full ASGI stack (middleware, routing, threadpool)."""
+    import asyncio
+    import json
+
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {
+        "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+        "method": "GET", "scheme": "http", "path": path, "raw_path": path.encode(),
+        "query_string": query.encode(), "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "client": ("127.0.0.1", 5000), "server": ("testserver", 80),
+    }
+    asyncio.run(asgi_app(scope, receive, send))
+    start = next(m for m in messages if m["type"] == "http.response.start")
+    body = b"".join(m.get("body", b"") for m in messages
+                    if m["type"] == "http.response.body")
+    headers = {k.decode().lower(): v.decode() for k, v in start["headers"]}
+    return start["status"], headers, json.loads(body)
+
+
+def test_snapshot_responses_name_the_object_they_carry(store, monkeypatch):
+    import app as portal
+
+    dashboard = {"target": "Field_A", "source": "scheduled"}
+    recovery = {"target": "Field_A", "grid": [{"snr": 3, "mu": 1, "recovery": 0.5}]}
+    mosaic = {"tiles": [{"target": "Field_A"}], "n_fields": 1}
+    targets = {"targets": [{"name": "Field_A", "common": "Field A"}]}
+    dashboard_object, _ = store.write_json_immutable(
+        "snapshots/dashboards/Field_A", dashboard)
+    recovery_object, _ = store.write_json_immutable(
+        "snapshots/recovery/Field_A", recovery)
+    mosaic_object, _ = store.write_json_immutable("snapshots/mosaic", mosaic)
+    targets_object, _ = store.write_json_immutable("snapshots/targets", targets)
+    store.publish({
+        "targets": {"Field_A": {"dashboard": dashboard_object,
+                                "recovery": recovery_object}},
+        "mosaic": mosaic_object,
+        "targets_object": targets_object,
+    }, expected_generation=0)
+    monkeypatch.setattr(portal, "SNAPSHOT_BUCKET", "test-bucket")
+    monkeypatch.setattr(portal, "_SNAPSHOT_STORE", store)
+    monkeypatch.setenv("SPHEREX_SNAPSHOT_READS", "true")
+    portal._MANIFEST_CACHE.update({"t": 0.0, "pointer": None, "manifest": None})
+
+    status, headers, index = _asgi_get(portal.app, "/api/snapshot-index")
+    assert status == 200
+    manifest_name = index["manifest"]
+    assert manifest_name and headers["x-snapshot-manifest"] == manifest_name
+    assert headers["cache-control"].startswith("no-store")
+    assert index["targets_object"] == targets_object
+    assert index["mosaic"] == mosaic_object
+    assert index["fields"] == {"Field_A": {"dashboard": dashboard_object,
+                                           "recovery": recovery_object}}
+
+    for path, query, expected_object, expected_body in (
+            ("/api/dashboard", "target=Field_A", dashboard_object, dashboard),
+            ("/api/recovery", "target=Field_A", recovery_object, recovery),
+            ("/api/mosaic", "", mosaic_object, mosaic),
+            ("/api/targets", "", targets_object, targets)):
+        status, headers, body = _asgi_get(portal.app, path, query)
+        assert status == 200, path
+        assert headers["x-snapshot-object"] == expected_object, path
+        assert body == expected_body, path
+
+    status, headers, body = _asgi_get(portal.app, "/api/status", "target=Field_A")
+    assert status == 200
+    assert headers["x-snapshot-manifest"] == manifest_name
+    assert "x-snapshot-object" not in headers
+
+    # Live responses are never labelled: they are not snapshot objects.
+    monkeypatch.setattr(portal, "live_exposures",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
+    status, headers, _ = _asgi_get(portal.app, "/api/dashboard",
+                                   "target=Field_A&source=live")
+    assert "x-snapshot-object" not in headers
+
+    # Internal callers still receive the plain payload.
+    assert portal.get_dashboard(target="Field_A", source="cache") == dashboard
+    assert portal.get_snapshot_index()["manifest"] == manifest_name
+
+
 def test_snapshot_status_distinguishes_check_processing_and_refresh(store, monkeypatch):
     import app as portal
 

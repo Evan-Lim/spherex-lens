@@ -59,6 +59,7 @@ if CORS_ORIGINS:
         allow_origins=list(CORS_ORIGINS),
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
+        expose_headers=["X-Snapshot-Object", "X-Snapshot-Manifest"],
     )
 
 def _client_key(request):
@@ -120,6 +121,17 @@ SNAPSHOT_BUCKET = (os.environ.get("SPHEREX_SNAPSHOT_BUCKET")
                    or f"{DEFAULT_GCP_PROJECT}-spherex-snapshots")
 _SNAPSHOT_STORE = None
 _PROGRESS_CALLBACK = contextvars.ContextVar("progress_callback", default=None)
+# Per-request record of which immutable snapshot object a response carries.
+# The middleware turns it into X-Snapshot-Object / X-Snapshot-Manifest headers
+# so the browser's offline copy can verify that what it saved is exactly the
+# object the snapshot index names (objects are named by their SHA-256).
+_SNAPSHOT_SERVED = contextvars.ContextVar("snapshot_served", default=None)
+
+
+def _note_snapshot(**fields):
+    holder = _SNAPSHOT_SERVED.get()
+    if holder is not None:
+        holder.update({key: value for key, value in fields.items() if value})
 
 
 def _same_position(ra1, dec1, ra2, dec2, tolerance_arcsec=1.0):
@@ -407,9 +419,26 @@ def _published_json(store, object_name, description):
             detail=f"The published {description} is unavailable.")
     return payload
 
+
+def _published_object_response(store, object_name, description):
+    """A published object returned unchanged, labelled with its object name."""
+    payload = _published_json(store, object_name, description)
+    _note_snapshot(object=object_name)
+    return payload
+
+
 @app.middleware("http")
 async def disable_live_response_caching(request: Request, call_next):
-    response = await call_next(request)
+    served = {}
+    token = _SNAPSHOT_SERVED.set(served)
+    try:
+        response = await call_next(request)
+    finally:
+        _SNAPSHOT_SERVED.reset(token)
+    if served.get("object"):
+        response.headers["X-Snapshot-Object"] = served["object"]
+    if served.get("manifest"):
+        response.headers["X-Snapshot-Manifest"] = served["manifest"]
     is_live_pipeline = (
         request.url.path in {
             "/api/dashboard", "/api/recovery",
@@ -429,7 +458,7 @@ async def disable_live_response_caching(request: Request, call_next):
         bool(SNAPSHOT_BUCKET)
         and request.url.path in {
             "/api/targets", "/api/status", "/api/refresh-status",
-            "/api/dashboard",
+            "/api/dashboard", "/api/snapshot-index",
             "/api/recovery", "/api/mosaic"
         }
         and request.query_params.get("source", "").lower() != "live"
@@ -1281,7 +1310,7 @@ def list_targets(request: Request = None):
     store = _snapshot_store()
     if store is not None:
         manifest = _published_manifest(store)
-        return _published_json(
+        return _published_object_response(
             store, manifest.get("targets_object"), "target list")
 
     # N3: in cloud-only mode the bucket is mandatory; reaching this branch
@@ -1329,6 +1358,7 @@ def get_status(target: str = Query("WISE_0855")):
         }
     else:
         attempt = {"status": "unknown"}
+    _note_snapshot(manifest=pointer.get("manifest"))
     neowise_last_updated_at = entry.get("neowise_checked_at")
     if not neowise_last_updated_at and entry.get("neowise_object"):
         neowise = store.read_json(entry["neowise_object"])
@@ -1458,6 +1488,34 @@ def _proxy_refresh_request(endpoint, method, token=None):
     return JSONResponse(status_code=response.status_code, content=payload)
 
 
+@_rate_limited_route("get", "/api/snapshot-index", "60/minute")
+def get_snapshot_index(request: Request = None):
+    """Names of the immutable objects behind every snapshot response.
+
+    About 2 KB. The browser's offline copy compares these names with the ones
+    it saved and downloads only the objects that changed; each download is
+    checked against its X-Snapshot-Object header before it is used.
+    """
+    store = _snapshot_store()
+    if store is None:
+        raise HTTPException(status_code=503,
+                            detail="Snapshot store is not available.")
+    pointer, manifest = _published_state(store)
+    _note_snapshot(manifest=pointer.get("manifest"))
+    fields = {
+        name: {"dashboard": entry.get("dashboard"),
+               "recovery": entry.get("recovery")}
+        for name, entry in sorted((manifest.get("targets") or {}).items())
+    }
+    return {
+        "manifest": pointer.get("manifest"),
+        "published_at": pointer.get("published_at"),
+        "targets_object": manifest.get("targets_object"),
+        "mosaic": manifest.get("mosaic"),
+        "fields": fields,
+    }
+
+
 @app.get("/api/refresh-status")
 def get_refresh_status():
     proxied = _proxy_refresh_request("refresh-status", "GET")
@@ -1585,7 +1643,7 @@ def get_dashboard(request: Request = None,
                 raise HTTPException(
                     status_code=404,
                     detail=f"No published snapshot exists for target '{target}'.")
-            return _published_json(
+            return _published_object_response(
                 store, entry.get("dashboard"), f"dashboard for {target}")
         if entry:
             if entry.get("meta_object"):
@@ -2130,7 +2188,7 @@ def get_recovery(request: Request = None,
                 raise HTTPException(
                     status_code=404,
                     detail=f"No published recovery grid exists for target '{target}'.")
-            return _published_json(
+            return _published_object_response(
                 store, entry.get("recovery"), f"recovery grid for {target}")
         if entry:
             if entry.get("meta_object"):
@@ -2480,7 +2538,8 @@ def get_mosaic(request: Request = None,
     store = _snapshot_store()
     if store is not None and str(source).lower() != "live":
         manifest = _published_manifest(store)
-        return _published_json(store, manifest.get("mosaic"), "all-sky mosaic")
+        return _published_object_response(
+            store, manifest.get("mosaic"), "all-sky mosaic")
 
     if source.lower() == "live":
         return JSONResponse(
