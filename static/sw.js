@@ -10,11 +10,12 @@
 //    the refresh trigger and status, the snapshot index -- goes to the network
 //    untouched and is never stored.
 
-const SHELL_CACHE = 'spx-shell-v1';
+const SHELL_CACHE = 'spx-shell-v12';
 const DATA_CACHE = 'spx-data-v1';
 const META_URL = '/__spx/meta';
 const SHELL_TIMEOUT_MS = 4000;
-const SHELL_FILES = ['./', 'index.html', 'app.js', 'style.css'];
+const SHELL_FILES = ['./', 'index.html', 'app.js', 'style.css',
+  'assets/icons/logo-spherex-lens.svg'];
 const DATA_PATH = /\/(?:api|live-api)\/(targets|dashboard|status|recovery|mosaic)$/;
 const FONT_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
 

@@ -1428,7 +1428,59 @@ async function fetchProgressApi(kind, target, onProgress, extraParams = {}) {
 const $ = (id) => document.getElementById(id);
 const show = (id) => $(id).classList.remove('hidden');
 const hide = (id) => $(id).classList.add('hidden');
-const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+const setText = (id, text) => {
+  const el = $(id);
+  if (!el) return;
+  if (id === 'map-hint') { renderMapHint(text); return; }
+  el.textContent = text;
+};
+
+// The map info strip: same text as before, laid out as chips. " · " splits
+// parts; a part with "; " becomes a stack of "label  date" lines. A lime tag
+// in front names the active view (and layer) from the buttons themselves.
+const DATE_RE = /\d{1,4}[/.\-]\d{1,2}[/.\-]\d{1,4}/;
+function renderMapHint(text) {
+  const el = $('map-hint');
+  if (!el) return;
+  const raw = String(text ?? '');
+  el.dataset.text = raw;
+  const clean = (b) => (b ? b.textContent.replace(/\s+/g, ' ').trim() : '');
+  const viewBtn = document.querySelector('#view-switch .seg.active');
+  const isField = !viewBtn || viewBtn.dataset.view === 'field';
+  const tagText = isField
+    ? [clean(viewBtn), clean(document.querySelector('#layer-switch .seg.active'))].filter(Boolean).join(' · ')
+    : clean(viewBtn);
+  // P11 s11: chip roles and the current view, as attributes only (text unchanged)
+  const layerBtn = document.querySelector('#layer-switch .seg.active');
+  const viewKey = !isField ? 'allsky'
+    : ({ image: 'coadd', zogy_image: 'difference', zogy_snr: 'significance' }[layerBtn && layerBtn.dataset.layer] || '');
+  const viewAttr = viewKey ? ` data-view="${viewKey}"` : '';
+  const roleOf = (part, i) => (/^scale\s/.test(part) ? 'scale'
+    : /^(click|drag|press|hover|tap)\b/i.test(part) ? 'hint'
+      : (i === 0 && isField && part.trim() ? 'target' : 'fact'));
+  const tag = tagText ? `<span class="map-info-tag" data-role="view"${viewAttr}>${fmt.escape(tagText)}</span>` : '';
+  const parts = raw.split(' · ');
+  if (parts.length < 2) {
+    const role = /^(click|drag|press|hover|tap)\b/i.test(raw) ? 'hint' : 'fact';
+    el.innerHTML = `${tag}<span class="map-chip map-chip-plain" data-role="${role}">${fmt.escape(raw)}</span>`;
+    return;
+  }
+  const chips = parts.map((part, i) => {
+    if (part.includes('; ')) {
+      const lines = part.split('; ').map((piece) => {
+        const m = piece.match(DATE_RE);
+        if (!m || m.index === 0) return `<span class="mi-line">${fmt.escape(piece)}</span>`;
+        return `<span class="mi-k">${fmt.escape(piece.slice(0, m.index).trim())}</span>` +
+          `<span class="mi-v">${fmt.escape(piece.slice(m.index))}</span>`;
+      }).join('');
+      return `<span class="map-chip map-chip-stack" data-role="fact">${lines}</span>`;
+    }
+    const strong = i === 0 && isField ? ' map-chip-strong' : '';
+    const role = roleOf(part, i);
+    return `<span class="map-chip${strong}" data-role="${role}"${role === 'scale' ? viewAttr : ''}>${fmt.escape(part)}</span>`;
+  }).join('');
+  el.innerHTML = tag + chips;
+}
 
 const fmt = {
   num(v, d = 2) { return (v === null || v === undefined || Number.isNaN(v)) ? '--' : Number(v).toFixed(d); },
@@ -2094,7 +2146,9 @@ function renderVerdict(det) {
   const info = cat ? CATEGORY_INFO[cat] : null;
   let html = `<div class="verdict-head">${categoryBadge(det)}` +
     (info ? `<span class="verdict-hint">${fmt.escape(info.hint)}</span>` : '') + '</div>';
-  const line = (label, value) => `<div class="verdict-detail">${label} <b>${value}</b></div>`;
+  let rows = '';
+  // P11 s8: the label sits in a pill (wrapper only; label text unchanged)
+  const line = (label, value) => { rows += `<tr><th><span class="v-pill">${label}</span></th><td>${value}</td></tr>`; };
 
   if ((det.reasons || []).length) {
     html += '<ul class="verdict-reasons">' +
@@ -2102,14 +2156,14 @@ function renderVerdict(det) {
   }
   const keys = Object.keys(det.matches || {});
   if (keys.length) {
-    html += line('Matched:', keys.map((k) => {
+    line('Matched', keys.map((k) => {
       const m = det.matches[k];
       const name = m.source && (m.source.name || m.source.designation);
       const p = m.p_chance != null ? ` p<sub>chance</sub>=${m.p_chance.toFixed(2)}` : '';
       return `${k}${name ? ` (${fmt.escape(name)})` : ''} ${m.sep_arcsec.toFixed(1)}\u2033${p}`;
-    }).join(', '));
+    }).join('<br>'));
   } else if (!cat) {
-    html += '<div class="verdict-detail">No catalog match \u00b7 follow-up recommended</div>';
+    line('Match', 'No catalog match \u00b7 follow-up recommended');
   }
   const v = det.vsx;
   if (v) {
@@ -2118,33 +2172,34 @@ function renderVerdict(det) {
     if (v.cycles_in_baseline != null) s += ` (${v.cycles_in_baseline} cycles in baseline)`;
     if (v.amplitude_mag != null) s += ` \u00b7 amp ${v.amplitude_mag} mag ${fmt.escape(v.passband || '')}`;
     if (v.url) s += ` \u00b7 <a href="${fmt.escape(v.url)}" target="_blank" rel="noopener">AAVSO \u2197</a>`;
-    html += line('VSX:', s);
+    line('VSX', s);
   }
-  if (det.delta_mag != null) html += line('SPHEREx \u0394mag:', `${det.delta_mag > 0 ? '+' : ''}${det.delta_mag}`);
+  if (det.delta_mag != null) line('SPHEREx \u0394mag', `${det.delta_mag > 0 ? '+' : ''}${det.delta_mag}`);
   const g = det.gaia;
   if (g && (g.distance_pc || g.var_flag === 'VARIABLE')) {
     const parts = [];
     if (g.distance_pc) parts.push(`${fmt.num(g.distance_pc, 1)} pc${g.nearby ? ' (nearby)' : ''}`);
     if (g.abs_g != null) parts.push(`M<sub>G</sub> ${g.abs_g}`);
     if (g.var_flag === 'VARIABLE') parts.push('Gaia VARIABLE');
-    html += line('Gaia:', parts.join(' \u00b7 '));
+    line('Gaia', parts.join(' \u00b7 '));
   }
   const w = det.wise;
-  if (w && w.w1_w2 != null) html += line('AllWISE W1\u2212W2:', `${w.w1_w2} \u00b7 ${fmt.escape(w.colour_class || '')}`);
+  if (w && w.w1_w2 != null) line('AllWISE W1\u2212W2', `${w.w1_w2} \u00b7 ${fmt.escape(w.colour_class || '')}`);
   const mc = det.motion_check;
   if (mc) {
-    html += line('Motion:', `${fmt.escape(mc.catalogue)} ${fmt.num(mc.pm_masyr / 1000, 2)}\u2033/yr \u2192 ` +
+    line('Motion', `${fmt.escape(mc.catalogue)} ${fmt.num(mc.pm_masyr / 1000, 2)}\u2033/yr \u2192 ` +
       `${fmt.num(mc.predicted_arcsec, 1)}\u2033 predicted vs ${mc.measured_arcsec != null ? fmt.num(mc.measured_arcsec, 1) : '--'}\u2033 \u00b7 ${fmt.escape(mc.status || '')}`);
   }
   const n = det.neowise;
   if (n && n.n_visits) {
     const w1 = n.w1 || {};
-    html += line('NEOWISE:', `${n.n_visits} visits \u00b7 W1 amp ${w1.amplitude ?? '--'} mag, ` +
+    line('NEOWISE', `${n.n_visits} visits \u00b7 W1 amp ${w1.amplitude ?? '--'} mag, ` +
       `\u03c7\u00b2\u1d63 ${w1.chi2_red ?? '--'} \u00b7 ${n.variable ? 'VARIABLE' : 'stable'}` +
       (n.pm_significant ? ` \u00b7 pm ${fmt.num(n.pm_total_masyr / 1000, 2)}\u2033/yr` : ''));
   }
-  html += `<div class="verdict-detail">RA <b>${fmt.num(det.ra, 5)}</b> \u00b7 Dec <b>${fmt.num(det.dec, 5)}</b></div>`;
-  html += `<div class="verdict-detail">SNR <b>${fmt.num(det.snr, 1)}\u03c3</b> \u00b7 ${fmt.escape(det.kind)} \u00b7 confidence <b>${fmt.escape(det.confidence || '--')}</b></div>`;
+  line('Position', `RA ${fmt.num(det.ra, 5)} \u00b7 Dec ${fmt.num(det.dec, 5)}`);
+  line('Detection', `SNR ${fmt.num(det.snr, 1)}\u03c3 \u00b7 ${fmt.escape(det.kind)} \u00b7 confidence ${fmt.escape(det.confidence || '--')}`);
+  html += `<table class="kv-table verdict-table"><tbody>${rows}</tbody></table>`;
   box.innerHTML = html;
 }
 
@@ -2190,12 +2245,11 @@ function renderPairs(data) {
     out.textContent = 'no epoch pairs available';
     return;
   }
-  out.style.whiteSpace = 'pre-line';
-  out.textContent = pairs.map((p) =>
+  out.innerHTML = pairs.map((p) =>
     `${p.pair.padEnd(7)} ${String(p.n_exposures_a).padStart(2)}+${String(p.n_exposures_b).padStart(2)} exp` +
     `   sigma ${p.sigma_a.toFixed(4)} / ${p.sigma_b.toFixed(4)}` +
     `   -> ${p.n_detections} detection${p.n_detections === 1 ? '' : 's'}`
-  ).join('\n');
+  ).map((line) => `<div class="pair-row">${fmt.escape(line)}</div>`).join('');
 }
 
 function renderObjects(data) {
@@ -2289,11 +2343,22 @@ function renderProvenance(data) {
   const tbody = $('sources-body');
   const s = data.stats || {};
 
-  setText('archive-line',
+  const archiveText =
     `IRSA SIA2 \u00b7 collection ${(rows[0] && rows[0].collection) || 'spherex_qr2'} \u00b7 ` +
     `${rows.length} cutout${rows.length === 1 ? '' : 's'} \u00b7 ` +
     `${s.depth_5sigma ? s.depth_5sigma.toFixed(3) : '--'} MJy/sr 5\u03c3 depth \u00b7 ` +
-    `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`);
+    `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`;
+  // P11 s6: chip colour by what the part is, matched on stable words (class only)
+  const chipKind = (part) => (/\bSIA/.test(part) ? 'archive'
+    : /^collection\b/.test(part) ? 'collection'
+      : /\bcutouts?\b/.test(part) ? 'cutouts'
+        : /\bdepth\b/.test(part) ? 'depth'
+          : /cross-matched/.test(part) ? 'xmatch' : '');
+  $('archive-line').innerHTML = archiveText.split(' \u00b7 ')
+    .map((part) => {
+      const kind = chipKind(part);
+      return `<span class="archive-chip${kind ? ` archive-chip--${kind}` : ''}">${fmt.escape(part)}</span>`;
+    }).join('');
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty">No provenance recorded</td></tr>';
@@ -2303,7 +2368,7 @@ function renderProvenance(data) {
   tbody.innerHTML = rows.map((r) => {
     const lam = r.wavelength_um ? r.wavelength_um.toFixed(3) : '--';
     const epoch = r.epoch
-      ? `<span class="epoch-chip ${r.epoch > 1 ? 'e2' : ''}">E${r.epoch}</span>` : '--';
+      ? `<span class="epoch-chip ${r.epoch > 1 ? 'e2' : ''}" data-epoch="${Number(r.epoch) || ''}">E${r.epoch}</span>` : '--';
     const obs = r.obs_id || (r.file || '').replace(/_cut\.fits$/, '');
     const link = r.url
       ? `<a href="${fmt.escape(r.url)}" target="_blank" rel="noopener"
@@ -3288,6 +3353,118 @@ async function copyShareLink() {
   history.replaceState(null, '', `?${params.toString()}`);
 }
 
+// ------------------------------------------------ presentation-only motion
+// Sliding pill behind the active button of a group. The existing code still
+// just toggles `.active`; a MutationObserver moves the pill after it does.
+function attachSlider(group, itemSelector, pillClass) {
+  if (!group || group.querySelector(`.${pillClass}`)) return;
+  const pill = document.createElement('span');
+  pill.className = pillClass;
+  pill.setAttribute('aria-hidden', 'true');
+  group.prepend(pill);
+  group.classList.add('has-pill');
+  const sync = (instant) => {
+    const active = group.querySelector(`${itemSelector}.active`);
+    if (!active || !active.offsetWidth) { pill.style.opacity = '0'; return; }
+    if (instant) pill.classList.remove('pill-ready');
+    pill.style.opacity = '1';
+    pill.style.width = `${active.offsetWidth}px`;
+    pill.style.transform = `translateX(${active.offsetLeft}px)`;
+    if (instant) requestAnimationFrame(() => pill.classList.add('pill-ready'));
+  };
+  group.syncPill = sync;
+  const mo = new MutationObserver(() => sync(false));
+  group.querySelectorAll(itemSelector).forEach((b) =>
+    mo.observe(b, { attributes: true, attributeFilter: ['class'], childList: true, characterData: true, subtree: true }));
+  sync(true);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => sync(true));
+}
+
+// P10a: one-line summaries on the closed Target Control cards. They only read
+// what renderStats() and the recovery code already wrote into the page.
+function syncTcSummaries() {
+  const t = (id) => (($(id) && $(id).textContent) || '').trim();
+  const stats = $('tc-stats-sum');
+  if (stats) {
+    const exp = t('stat-exp');
+    stats.textContent = exp && exp !== '--'
+      ? `${exp} exposures · ${t('stat-epochs')} epochs · SNR max ${t('stat-snr')}`
+      : '';
+  }
+  const rec = $('tc-recovery-sum');
+  if (rec) rec.textContent = t('recovery-out').split('\n')[0];
+}
+
+function attachTcSummaries() {
+  const mo = new MutationObserver(syncTcSummaries);
+  ['stat-exp', 'stat-epochs', 'stat-snr', 'recovery-out'].forEach((id) => {
+    const el = $(id);
+    if (el) mo.observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  syncTcSummaries();
+}
+
+// P10a: the map box is now sized by its column (square, capped at 80vh), so
+// re-fit the field whenever that box changes size, not only on window resize.
+function attachMapFit() {
+  const wrap = document.querySelector('.map-wrap');
+  if (!wrap || !('ResizeObserver' in window)) return;
+  let last = '';
+  let raf = 0;
+  new ResizeObserver(() => {
+    const size = `${wrap.clientWidth}x${wrap.clientHeight}`;
+    if (size === last) return;
+    last = size;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      if (state.data && state.viewMode !== 'sky') { fitView(); updateZoomLabel(); }
+      draw();
+    });
+  }).observe(wrap);
+}
+
+function attachMotion() {
+  attachTcSummaries();
+  attachMapFit();
+  ['view-switch', 'layer-switch', 'object-filter'].forEach((id) =>
+    attachSlider($(id), '.seg', 'seg-pill'));
+  attachSlider($('guide-tabs'), '.guide-tab', 'tab-pill');
+
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      ['view-switch', 'layer-switch', 'object-filter', 'guide-tabs'].forEach((id) => {
+        const g = $(id);
+        if (g && g.syncPill) g.syncPill(true);
+      });
+      // charts are drawn at their on-screen size, so repaint them
+      if (state.data) {
+        try {
+          renderCharts(state.data);
+          drawSed(state.data.sed);
+          drawLightCurve(state.data.neowise || {}, state.data.epochs);
+        } catch (err) { console.error('chart redraw failed', err); }
+      }
+    }, 150);
+  });
+
+  // Scroll reveal, once per section; skipped entirely with reduced motion.
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      e.target.classList.add('in');
+      io.unobserve(e.target);
+    });
+  }, { rootMargin: '0px 0px -40px 0px', threshold: 0.05 });
+  document.querySelectorAll('.workspace .section').forEach((sec) => {
+    sec.classList.add('reveal');
+    io.observe(sec);
+  });
+}
+
 function attachUiEvents() {
   $('btn-run').addEventListener('click', refreshSelectedTarget);
   $('btn-recovery').addEventListener('click', runRecovery);
@@ -3353,14 +3530,43 @@ function attachUiEvents() {
 
   // ------------------------------------------------------------- the guide
   const guide = $('guide');
+  let guideOpener = null;
   const openGuide = (tab) => {
     if (!guide) return;
+    guideOpener = document.activeElement;
     guide.classList.remove('hidden');
     if (tab) showGuideTab(tab);
+    const tabs = $('guide-tabs');
+    if (tabs && tabs.syncPill) tabs.syncPill(true);
     const first = guide.querySelector('.guide-tab');
     if (first) first.focus();
   };
-  const closeGuide = () => { if (guide) guide.classList.add('hidden'); };
+  const closeGuide = () => {
+    if (!guide || guide.classList.contains('hidden')) return;
+    guide.classList.add('hidden');
+    if (guideOpener && guideOpener.focus) guideOpener.focus();
+    guideOpener = null;
+  };
+
+  // ------------------------------------------- cloud snapshot dialog (4.3)
+  const cloudDialog = $('cloud-dialog');
+  const cloudOpener = $('btn-cloud-status');
+  if (cloudDialog && cloudOpener && cloudDialog.showModal) {
+    cloudOpener.addEventListener('click', () => {
+      if (!cloudDialog.open) cloudDialog.showModal();
+    });
+    const cloudClose = $('cloud-dialog-close');
+    if (cloudClose) cloudClose.addEventListener('click', () => cloudDialog.close());
+    // a click on the backdrop lands on the <dialog> itself, outside its box
+    cloudDialog.addEventListener('click', (e) => {
+      if (e.target !== cloudDialog) return;
+      const r = cloudDialog.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right
+        && e.clientY >= r.top && e.clientY <= r.bottom;
+      if (!inside) cloudDialog.close();
+    });
+    cloudDialog.addEventListener('close', () => cloudOpener.focus());
+  }
   const btnGuide = $('btn-guide');
   if (btnGuide) btnGuide.addEventListener('click', () => openGuide('how'));
   const gc1 = $('guide-close');
@@ -3376,6 +3582,8 @@ function attachUiEvents() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeGuide();
   });
+
+  attachMotion();
 
   const liveToggle = $('tog-live');
   if (liveToggle) {
@@ -3480,25 +3688,62 @@ init();
 
 // ------------------------------------------------------------------ charts
 
+// Chart colours come from the CSS tokens, read once on first draw (the
+// stylesheet has loaded by then). Only colours change, not what is plotted.
+let THEME = null;
+function chartTheme() {
+  if (THEME) return THEME;
+  const css = getComputedStyle(document.documentElement);
+  const v = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
+  // P8 s2: chart-specific tokens, falling back to the general ones
+  THEME = {
+    bg: v('--chart-bg', v('--panel-solid', '#0e1424')),
+    grid: v('--chart-grid', v('--line', 'rgba(148,163,184,.16)')),
+    text: v('--chart-text', v('--text-soft', '#b4c0d3')),
+    muted: v('--chart-text', v('--muted', '#8592a8')),
+    blue: v('--chart-blue', v('--blue', '#4c8dff')),
+    green: v('--chart-green', v('--green', '#2fd47a')),
+    red: v('--chart-red', '#ff5a3c'),
+    amber: v('--chart-amber', v('--amber', '#c98a4b')),
+    purple: v('--purple', '#a78bfa'),
+    font: '13px "DM Mono", ui-monospace, Menlo, monospace',  /* P9 s3/s9: DM Mono 13px */
+  };
+  return THEME;
+}
+
 function chartFrame(id, title) {
   const canvas = $(id);
   if (!canvas) return null;
-  const w = canvas.width, h = canvas.height;
+  const T = chartTheme();
+  // Draw at the canvas's on-screen size so 12px text stays 12px when the
+  // chart box is wider or narrower than the 380x150 default.
+  const cssW = Math.round(canvas.clientWidth), cssH = Math.round(canvas.clientHeight);
+  const dpr = window.devicePixelRatio || 1;
   const ctx = canvas.getContext('2d');
+  let w = canvas.width, h = canvas.height;
+  if (cssW > 0 && cssH > 0) {
+    if (canvas.width !== Math.round(cssW * dpr)) canvas.width = Math.round(cssW * dpr);
+    if (canvas.height !== Math.round(cssH * dpr)) canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    w = cssW; h = cssH;
+  } else {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#fcfdff';
+  ctx.fillStyle = T.bg;
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#e3e8ef';
+  ctx.strokeStyle = T.grid;
   ctx.lineWidth = 1;
   for (let i = 1; i < 4; i++) {
     const y = (h - 26) * (i / 4) + 10;
     ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(w - 8, y); ctx.stroke();
   }
-  ctx.fillStyle = '#64748b';
-  ctx.font = '10.5px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = chartTheme().muted;
+  ctx.font = chartTheme().font;
   ctx.textAlign = 'left';
-  ctx.fillText(title, 30, 14);
-  return { ctx, w, h, plotBottom: h - 26, plotTop: 24, plotLeft: 30, plotRight: w - 8 };
+  ctx.fillText(title, 30, 15);
+  // plotTop leaves room for a value label above the tallest bar (12px text)
+  return { ctx, w, h, plotBottom: h - 26, plotTop: 38, plotLeft: 30, plotRight: w - 8 };
 }
 
 function drawHistogram(hist) {
@@ -3512,26 +3757,27 @@ function drawHistogram(hist) {
     const x = plotLeft + i * bw;
     const hgt = (plotBottom - plotTop) * (c / max);
     const centre = hist.edges[i] + (hist.edges[i + 1] - hist.edges[i]) / 2;
-    ctx.fillStyle = Math.abs(centre) > 5 ? '#d92d20' : '#0f7fb5';
+    ctx.fillStyle = Math.abs(centre) > 5 ? chartTheme().red : chartTheme().blue;
     ctx.globalAlpha = Math.abs(centre) > 5 ? 0.9 : 0.6;
     ctx.fillRect(x + 0.5, plotBottom - hgt, Math.max(1, bw - 1), hgt);
   });
   ctx.globalAlpha = 1;
-  ctx.fillStyle = '#8a97a8';
-  ctx.font = '10px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = chartTheme().muted;
+  ctx.font = chartTheme().font;
   ctx.textAlign = 'center';
   const last = counts.length - 1;
   ctx.fillText(`${hist.edges[0]}\u03c3`, plotLeft + bw / 2, plotBottom + 13);
   ctx.fillText('0', plotLeft + (last / 2) * bw + bw / 2, plotBottom + 13);
-  ctx.fillText(`${hist.edges[last]}\u03c3`, plotLeft + last * bw + bw / 2, plotBottom + 13);
+  ctx.textAlign = 'right';  // keep the end label inside the canvas
+  ctx.fillText(`${hist.edges[last]}\u03c3`, plotRight, plotBottom + 13);
 }
 
 function drawBars(id, labels, values, colour, unit) {
   const f = chartFrame(id, unit || '');
   if (!f) return;
   if (!values || !values.length) {
-    f.ctx.fillStyle = '#8a97a8';
-    f.ctx.font = '11px ui-monospace, Menlo, monospace';
+    f.ctx.fillStyle = chartTheme().muted;
+    f.ctx.font = chartTheme().font;
     f.ctx.textAlign = 'center';
     f.ctx.fillText('no data yet', f.w / 2, f.h / 2);
     return;
@@ -3546,8 +3792,8 @@ function drawBars(id, labels, values, colour, unit) {
     ctx.globalAlpha = 0.8;
     ctx.fillRect(x + 4, plotBottom - hgt, Math.max(2, bw - 8), hgt);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#475569';
-    ctx.font = '10px ui-monospace, Menlo, monospace';
+    ctx.fillStyle = chartTheme().text;
+    ctx.font = chartTheme().font;
     ctx.textAlign = 'center';
     ctx.fillText(String(labels[i]), x + bw / 2, plotBottom + 13);
     ctx.fillText(Number(v).toFixed(v < 10 ? 2 : 0), x + bw / 2, plotBottom - hgt - 4);
@@ -3558,8 +3804,8 @@ function drawRecoveryChart(grid) {
   const f = chartFrame('chart-recovery', 'recovered % vs SNR');
   if (!f) return;
   if (!grid || !grid.length) {
-    f.ctx.fillStyle = '#8a97a8';
-    f.ctx.font = '11px ui-monospace, Menlo, monospace';
+    f.ctx.fillStyle = chartTheme().muted;
+    f.ctx.font = chartTheme().font;
     f.ctx.textAlign = 'center';
     f.ctx.fillText('press \u201cRecovery Grid\u201d', f.w / 2, f.h / 2);
     return;
@@ -3567,7 +3813,7 @@ function drawRecoveryChart(grid) {
   const { ctx, plotBottom, plotTop, plotLeft, plotRight } = f;
   const snrs = [...new Set(grid.map((g) => g.snr))].sort((a, b) => a - b);
   const mus = [...new Set(grid.map((g) => g.mu))].sort((a, b) => a - b);
-  const colours = ['#0f7fb5', '#0f9d58', '#b7791f', '#d92d20'];
+  const colours = [chartTheme().blue, chartTheme().green, chartTheme().amber, chartTheme().red];
   mus.forEach((mu, k) => {
     ctx.strokeStyle = colours[k % colours.length];
     ctx.lineWidth = 1.6;
@@ -3581,12 +3827,12 @@ function drawRecoveryChart(grid) {
     });
     ctx.stroke();
     ctx.fillStyle = colours[k % colours.length];
-    ctx.font = '10px ui-monospace, Menlo, monospace';
+    ctx.font = chartTheme().font;
     ctx.textAlign = 'left';
     ctx.fillText(`\u03bc${mu}\u2033`, plotLeft + 2 + k * 34, plotTop + 8);
   });
-  ctx.fillStyle = '#8a97a8';
-  ctx.font = '10px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = chartTheme().muted;
+  ctx.font = chartTheme().font;
   ctx.textAlign = 'center';
   snrs.forEach((snr, i) => {
     const x = plotLeft + (plotRight - plotLeft) * (i / Math.max(1, snrs.length - 1));
@@ -3595,8 +3841,8 @@ function drawRecoveryChart(grid) {
 }
 
 function chartMessage(f, text) {
-  f.ctx.fillStyle = '#8a97a8';
-  f.ctx.font = '11px ui-monospace, Menlo, monospace';
+  f.ctx.fillStyle = chartTheme().muted;
+  f.ctx.font = chartTheme().font;
   f.ctx.textAlign = 'center';
   f.ctx.fillText(text, f.w / 2, f.h / 2);
 }
@@ -3619,20 +3865,20 @@ function drawSed(sed) {
   const Y = scaler(Math.min(...ly) - 0.2, Math.max(...ly) + 0.2, f.plotBottom, f.plotTop);
   const { ctx } = f;
   sph.forEach((p) => {
-    ctx.fillStyle = 'rgba(124, 58, 237, .75)';
+    ctx.fillStyle = chartTheme().purple;
     ctx.beginPath(); ctx.arc(X(Math.log10(p.lam_um)), Y(Math.log10(p.mjy)), 2.2, 0, Math.PI * 2); ctx.fill();
   });
   cat.forEach((p) => {
     if (!(p.mjy > 0)) return;
     const x = X(Math.log10(p.lam_um)), y = Y(Math.log10(p.mjy));
-    ctx.fillStyle = p.band.startsWith('Gaia') ? '#2563eb' : '#0f9d58';
+    ctx.fillStyle = p.band.startsWith('Gaia') ? chartTheme().blue : chartTheme().green;
     ctx.fillRect(x - 3, y - 3, 6, 6);
-    ctx.font = '9.5px ui-monospace, Menlo, monospace';
+    ctx.font = chartTheme().font;
     ctx.textAlign = 'center';
     ctx.fillText(p.band.replace('Gaia ', ''), x, y - 6);
   });
-  ctx.fillStyle = '#8a97a8';
-  ctx.font = '10px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = chartTheme().muted;
+  ctx.font = chartTheme().font;
   ctx.textAlign = 'left';
   ctx.fillText('■ Gaia  ■ AllWISE  ● SPHEREx', f.plotLeft, f.plotBottom + 13);
 }
@@ -3657,12 +3903,14 @@ function drawLightCurve(history, epochs) {
   const { ctx } = f;
   (epochs || []).forEach((e) => {
     if (!e.year) return;
-    ctx.strokeStyle = 'rgba(124, 58, 237, .35)';
+    ctx.strokeStyle = chartTheme().purple;
+    ctx.globalAlpha = 0.5;
     ctx.setLineDash([2, 2]);
     ctx.beginPath(); ctx.moveTo(X(e.year), f.plotTop); ctx.lineTo(X(e.year), f.plotBottom); ctx.stroke();
   });
   ctx.setLineDash([]);
-  [['w1', '#0f7fb5'], ['w2', '#d92d20']].forEach(([b, colour]) => {
+  ctx.globalAlpha = 1;
+  [['w1', chartTheme().blue], ['w2', chartTheme().red]].forEach(([b, colour]) => {
     ctx.strokeStyle = colour; ctx.fillStyle = colour; ctx.lineWidth = 1;
     visits.forEach((v) => {
       if (v[b] == null) return;
@@ -3671,13 +3919,29 @@ function drawLightCurve(history, epochs) {
       ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
     });
   });
-  ctx.fillStyle = '#8a97a8';
-  ctx.font = '10px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = chartTheme().muted;
+  ctx.font = chartTheme().font;
   ctx.textAlign = 'left';
   const x0 = Math.min(...visits.map((v) => v.year)), x1 = Math.max(...visits.map((v) => v.year));
   ctx.fillText(`${x0.toFixed(0)}`, f.plotLeft, f.plotBottom + 13);
   ctx.textAlign = 'right';
   ctx.fillText(`${x1.toFixed(0)} · ● W1 ● W2 · dashed = SPHEREx`, f.plotRight, f.plotBottom + 13);
+}
+
+// NEOWISE/SED notes as label | value rows; the text of every note is unchanged.
+// A ": " only splits when the part before it is a short label (W1, NEOWISE,
+// Stored NEOWISE history), so a sentence that happens to contain ": " stays whole.
+function notesTable(notes) {
+  const row = (note) => {
+    const pre = note.match(/^(W1 trend|WISE motion) (.*)$/s);
+    if (pre) return `<tr><th>${fmt.escape(pre[1])}</th><td>${fmt.escape(pre[2])}</td></tr>`;
+    const at = note.indexOf(': ');
+    if (at > 0 && at <= 32) {
+      return `<tr><th>${fmt.escape(note.slice(0, at))}</th><td>${fmt.escape(note.slice(at + 2))}</td></tr>`;
+    }
+    return `<tr><td colspan="2" class="kv-full">${fmt.escape(note)}</td></tr>`;
+  };
+  return `<table class="kv-table notes-table"><tbody>${notes.map(row).join('')}</tbody></table>`;
 }
 
 function renderHistory(data) {
@@ -3716,7 +3980,7 @@ function renderHistory(data) {
     }
   }
   if (sed.note && (sed.wise_comparison || []).length) notes.push(sed.note);
-  $('history-out').textContent = notes.join('\n') || 'no catalogue counterpart for this target';
+  $('history-out').innerHTML = notesTable(notes.length ? notes : ['no catalogue counterpart for this target']);
 
   const movers = data.expected_movers || [];
   const tbody = $('movers-body');
@@ -3743,10 +4007,10 @@ function renderCharts(data) {
     labels.push(p.pair);
     sigmas.push(p.sigma_a * 1000);
   });
-  drawBars('chart-noise', labels, sigmas, '#0f7fb5', '\u03c3 \u00d7 10\u207b\u00b3 MJy/sr');
+  drawBars('chart-noise', labels, sigmas, chartTheme().blue, '\u03c3 \u00d7 10\u207b\u00b3 MJy/sr');
   drawBars('chart-pairs',
            (data.epoch_pairs || []).map((p) => p.pair),
            (data.epoch_pairs || []).map((p) => p.n_detections),
-           '#0f9d58', 'detections per pair');
+           chartTheme().green, 'detections per pair');
   drawRecoveryChart(state.recovery);
 }
