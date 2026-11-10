@@ -1450,10 +1450,19 @@ function renderMapHint(text) {
   const tagText = isField
     ? [clean(viewBtn), clean(document.querySelector('#layer-switch .seg.active'))].filter(Boolean).join(' · ')
     : clean(viewBtn);
-  const tag = tagText ? `<span class="map-info-tag">${fmt.escape(tagText)}</span>` : '';
+  // P11 s11: chip roles and the current view, as attributes only (text unchanged)
+  const layerBtn = document.querySelector('#layer-switch .seg.active');
+  const viewKey = !isField ? 'allsky'
+    : ({ image: 'coadd', zogy_image: 'difference', zogy_snr: 'significance' }[layerBtn && layerBtn.dataset.layer] || '');
+  const viewAttr = viewKey ? ` data-view="${viewKey}"` : '';
+  const roleOf = (part, i) => (/^scale\s/.test(part) ? 'scale'
+    : /^(click|drag|press|hover|tap)\b/i.test(part) ? 'hint'
+      : (i === 0 && isField && part.trim() ? 'target' : 'fact'));
+  const tag = tagText ? `<span class="map-info-tag" data-role="view"${viewAttr}>${fmt.escape(tagText)}</span>` : '';
   const parts = raw.split(' · ');
   if (parts.length < 2) {
-    el.innerHTML = `${tag}<span class="map-chip map-chip-plain">${fmt.escape(raw)}</span>`;
+    const role = /^(click|drag|press|hover|tap)\b/i.test(raw) ? 'hint' : 'fact';
+    el.innerHTML = `${tag}<span class="map-chip map-chip-plain" data-role="${role}">${fmt.escape(raw)}</span>`;
     return;
   }
   const chips = parts.map((part, i) => {
@@ -1464,10 +1473,11 @@ function renderMapHint(text) {
         return `<span class="mi-k">${fmt.escape(piece.slice(0, m.index).trim())}</span>` +
           `<span class="mi-v">${fmt.escape(piece.slice(m.index))}</span>`;
       }).join('');
-      return `<span class="map-chip map-chip-stack">${lines}</span>`;
+      return `<span class="map-chip map-chip-stack" data-role="fact">${lines}</span>`;
     }
     const strong = i === 0 && isField ? ' map-chip-strong' : '';
-    return `<span class="map-chip${strong}">${fmt.escape(part)}</span>`;
+    const role = roleOf(part, i);
+    return `<span class="map-chip${strong}" data-role="${role}"${role === 'scale' ? viewAttr : ''}>${fmt.escape(part)}</span>`;
   }).join('');
   el.innerHTML = tag + chips;
 }
@@ -2137,7 +2147,8 @@ function renderVerdict(det) {
   let html = `<div class="verdict-head">${categoryBadge(det)}` +
     (info ? `<span class="verdict-hint">${fmt.escape(info.hint)}</span>` : '') + '</div>';
   let rows = '';
-  const line = (label, value) => { rows += `<tr><th>${label}</th><td>${value}</td></tr>`; };
+  // P11 s8: the label sits in a pill (wrapper only; label text unchanged)
+  const line = (label, value) => { rows += `<tr><th><span class="v-pill">${label}</span></th><td>${value}</td></tr>`; };
 
   if ((det.reasons || []).length) {
     html += '<ul class="verdict-reasons">' +
@@ -2337,8 +2348,17 @@ function renderProvenance(data) {
     `${rows.length} cutout${rows.length === 1 ? '' : 's'} \u00b7 ` +
     `${s.depth_5sigma ? s.depth_5sigma.toFixed(3) : '--'} MJy/sr 5\u03c3 depth \u00b7 ` +
     `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`;
+  // P11 s6: chip colour by what the part is, matched on stable words (class only)
+  const chipKind = (part) => (/\bSIA/.test(part) ? 'archive'
+    : /^collection\b/.test(part) ? 'collection'
+      : /\bcutouts?\b/.test(part) ? 'cutouts'
+        : /\bdepth\b/.test(part) ? 'depth'
+          : /cross-matched/.test(part) ? 'xmatch' : '');
   $('archive-line').innerHTML = archiveText.split(' \u00b7 ')
-    .map((part) => `<span class="archive-chip">${fmt.escape(part)}</span>`).join('');
+    .map((part) => {
+      const kind = chipKind(part);
+      return `<span class="archive-chip${kind ? ` archive-chip--${kind}` : ''}">${fmt.escape(part)}</span>`;
+    }).join('');
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty">No provenance recorded</td></tr>';
@@ -2348,7 +2368,7 @@ function renderProvenance(data) {
   tbody.innerHTML = rows.map((r) => {
     const lam = r.wavelength_um ? r.wavelength_um.toFixed(3) : '--';
     const epoch = r.epoch
-      ? `<span class="epoch-chip ${r.epoch > 1 ? 'e2' : ''}">E${r.epoch}</span>` : '--';
+      ? `<span class="epoch-chip ${r.epoch > 1 ? 'e2' : ''}" data-epoch="${Number(r.epoch) || ''}">E${r.epoch}</span>` : '--';
     const obs = r.obs_id || (r.file || '').replace(/_cut\.fits$/, '');
     const link = r.url
       ? `<a href="${fmt.escape(r.url)}" target="_blank" rel="noopener"

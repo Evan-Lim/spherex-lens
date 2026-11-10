@@ -3375,3 +3375,268 @@ a:hover, a:focus-visible { color: var(--accent-text); text-decoration: underline
   .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
   .seg { flex: none; }
 }
+
+
+/* ===== P11 palette ===== */
+/* SPHEREX-LENS_P11_SPEC.md: palette that blends with the black dashboard,
+   clearer labels, one font system (Inter + DM Mono). Loaded last.
+   Swap (P11-0 check): the existing dark surfaces are neutral (#050505,
+   #101012, #151518), and #372C2C reads brown beside them, so header rows,
+   the dialog title and the verdict zebra use --p11-bar at low opacity
+   instead (spec's own fallback). */
+
+:root {
+  /* neutrals */
+  --p11-panel:      #372C2C;                   /* kept as a token; not applied (reads brown) */
+  --p11-bar:        rgba(92, 87, 87, 0.94);
+  --p11-white:      #FFFFFF;
+  --p11-paper:      rgba(247, 247, 247, 0.83);
+  --p11-stone:      rgba(194, 187, 187, 0.83);
+  --p11-glass:      rgba(255, 255, 255, 0.39);
+  --p11-ink:        rgba(28, 27, 27, 0.73);
+  /* red family */
+  --p11-red-deep:   rgba(202, 21, 21, 0.92);
+  --p11-red:        #F12A2A;
+  --p11-red-soft:   rgba(255, 111, 111, 0.72);
+  --p11-red-light:  #FF8A8A;
+  --p11-red-tint:   rgba(255, 103, 103, 0.39);
+  /* violet family */
+  --p11-indigo:     #2F02C2;
+  --p11-violet:     #4C23D5;
+  --p11-lavender:   rgba(136, 116, 202, 0.83);
+  --p11-periwinkle: #899BFF;
+  /* green family */
+  --p11-green:      #43EF65;
+  --p11-green-deep: #189030;
+  --p11-mint:       #B2F4BF;
+  /* orange family */
+  --p11-orange:     #FF682C;
+  --p11-salmon:     #F19875;
+  --p11-peach:      #F0BFAC;
+  /* low-opacity tints for dark backgrounds */
+  --p11-tint-violet: rgba(76, 35, 213, 0.28);
+  --p11-tint-red:    rgba(202, 21, 21, 0.28);
+  --p11-tint-green:  rgba(24, 144, 48, 0.28);
+  --p11-tint-orange: rgba(255, 104, 44, 0.22);
+  --p11-tint-stone:  rgba(194, 187, 187, 0.14);
+  --p11-pill-radius: 12px;
+  /* swap for --p11-panel: --p11-bar at 0.45 over the #101012 surface, solid
+     so sticky table headers stay opaque */
+  --p11-head:        #323031;
+  --p11-zebra:       rgba(92, 87, 87, 0.22);    /* swap for rgba(55,44,44,.55) */
+}
+
+/* ---- P11a: field metric cards as dark tinted panels ---------------------- */
+.card,
+.card:hover {
+  --c11: var(--p11-periwinkle);
+  --c11-edge: rgba(137, 155, 255, 0.35);
+  background: var(--p11-tint-violet);
+  border: 1px solid var(--c11-edge);
+  border-top: 3px solid var(--c11);
+  box-shadow: none;
+}
+.card-blue  { --c11: var(--p11-periwinkle); --c11-edge: rgba(137, 155, 255, 0.35); background: var(--p11-tint-violet); }
+.card-red   { --c11: var(--p11-red-light);  --c11-edge: rgba(255, 138, 138, 0.35); background: var(--p11-tint-red); }
+.card-green { --c11: var(--p11-mint);       --c11-edge: rgba(178, 244, 191, 0.35); background: var(--p11-tint-green); }
+.card-amber { --c11: var(--p11-salmon);     --c11-edge: rgba(241, 152, 117, 0.35); background: var(--p11-tint-orange); }
+.card.card-blue, .card.card-red, .card.card-green, .card.card-amber {
+  border-color: var(--c11-edge);
+  border-top-color: var(--c11);
+}
+/* site fonts only: the pixel font is gone */
+.card-label, .card-value { font-family: var(--sans); letter-spacing: -.01em; }
+.card-label, .card-red .card-label { font-size: 15px; font-weight: 700; color: var(--p11-white); }
+.card-value, .card-red .card-value {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--c11);
+  font-variant-numeric: tabular-nums;
+}
+.card-hint, .card-red .card-hint {
+  font-family: var(--mono);
+  font-size: 13px;              /* spec 12px; the project minimum is 13px */
+  font-weight: 500;             /* spec 600; DM Mono ships 400/500 only */
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--p11-stone);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card { transition: transform .18s ease-out; }
+  .card:hover { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card:hover { transform: none; }
+}
+
+/* ---- P11b: table header rows (solid, sticky, follow the box radius) ------ */
+.table-wrap thead th {
+  background: var(--p11-head);
+  color: var(--p11-white);
+  border-bottom: 2px solid var(--p11-red-soft);
+  font-weight: 500;             /* spec 800; DM Mono has no bold (no faked bold) */
+}
+.table-wrap thead th:first-child { border-top-left-radius: 11px; }
+.table-wrap thead th:last-child  { border-top-right-radius: 11px; }
+
+/* provenance chips: pills, colour by what the part is */
+.archive-chip {
+  border-radius: var(--p11-pill-radius);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.archive-chip.archive-chip--archive,
+.archive-chip.archive-chip--collection {
+  background: var(--p11-tint-violet);
+  border: 1px solid var(--p11-lavender);
+  color: var(--p11-periwinkle);
+}
+.archive-chip.archive-chip--cutouts {
+  background: var(--p11-tint-stone);
+  border: 1px solid var(--p11-stone);
+  color: var(--p11-paper);
+}
+.archive-chip.archive-chip--depth {
+  background: var(--p11-tint-green);
+  border: 1px solid var(--p11-green-deep);
+  color: var(--p11-mint);
+}
+.archive-chip.archive-chip--xmatch {
+  background: var(--p11-paper);
+  border: 1px solid transparent;
+  color: var(--p11-ink);
+  font-family: var(--sans);
+  font-weight: 800;
+}
+
+/* epoch badges: same mapping wherever data-epoch appears */
+.epoch-chip[data-epoch] {
+  border-radius: var(--p11-pill-radius);
+  background: var(--p11-tint-green);           /* E4 and later */
+  border: 1px solid var(--p11-green-deep);
+  color: var(--p11-mint);
+  font-variant-numeric: tabular-nums;
+}
+.epoch-chip[data-epoch="1"] { background: var(--p11-tint-stone);  border-color: var(--p11-stone);      color: var(--p11-paper); }
+.epoch-chip[data-epoch="2"] { background: var(--p11-tint-violet); border-color: var(--p11-periwinkle); color: var(--p11-periwinkle); }
+.epoch-chip[data-epoch="3"] { background: var(--p11-tint-orange); border-color: var(--p11-salmon);     color: var(--p11-peach); }
+
+/* ---- P11c: map-colour legend as a vertical list --------------------------- */
+.map-legend {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.map-legend li { display: flex; align-items: baseline; gap: 8px; }
+.map-legend .swatch-dot { flex: none; margin: 0; transform: translateY(-1px); }
+.map-legend b { flex: none; font-family: var(--sans); font-weight: 800; letter-spacing: .02em; }
+.map-legend .lg-known     { color: var(--p11-mint); }
+.map-legend .lg-candidate { color: var(--p11-salmon); }
+.map-legend .lg-target    { color: var(--p11-red-light); }
+.map-legend .lg-desc      { color: var(--p11-paper); }
+
+/* explainer dialog: title row, tab row, body = three steps of grey */
+.guide-head {
+  background: var(--p11-head);                 /* swap for --p11-panel */
+  border-bottom: 1px solid var(--p11-glass);
+  border-radius: 12px 12px 0 0;
+}
+.guide-head h2, #guide-title { color: var(--p11-white); font-weight: 800; }
+.guide-kicker { color: var(--p11-stone); }
+.guide-close, .guide-close:hover { border: 1px solid var(--p11-glass); }
+.guide-tabs {
+  background: var(--p11-bar);
+  border-bottom: 1px solid var(--p11-glass);
+}
+.guide-tab { color: var(--p11-paper); font-weight: 600; }
+.guide-tab:hover { color: var(--p11-white); background: rgba(255, 255, 255, 0.06); }
+.guide-tab.active { color: var(--p11-white); font-weight: 800; }
+.guide-tabs .tab-pill { background: var(--p11-red); height: 3px; bottom: -1px; }
+.guide-tabs.has-pill .guide-tab.active { border-bottom-color: transparent; }
+
+/* Triage verdict: labels as "Matched" pills, white values, soft zebra */
+.verdict-table th { width: auto; padding-right: 14px; white-space: nowrap; }
+.verdict-table .v-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--p11-pill-radius);
+  background: var(--p11-paper);
+  color: var(--p11-ink);
+  font-family: var(--sans);
+  font-size: 13px;              /* spec 12px; the project minimum is 13px */
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.verdict-table td { color: var(--p11-white); font-weight: 500; }
+.verdict-table tr:nth-child(even) th,
+.verdict-table tr:nth-child(even) td { background: var(--p11-zebra); }
+.verdict-table th, .verdict-table td { padding-top: 8px; padding-bottom: 8px; }
+.verdict-table th { padding-left: 8px; }
+
+/* ---- P11d: explainer close (x) button, centred --------------------------- */
+/* equal padding all round so the button's right gap = the title's left gap */
+.guide-head { align-items: center; padding: 20px 24px; }
+.guide-head .guide-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+  font-size: 18px;
+  color: var(--p11-white);
+  background: transparent;
+  border: 1px solid var(--p11-glass);
+  border-radius: 8px;
+}
+.guide-head .guide-close:hover { background: var(--p11-tint-stone); border-color: var(--p11-glass); color: var(--p11-white); }
+.guide-head .guide-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---- P11d: map chip row, coloured by role ----------------------------------
+   Only the view chip and the target chip carry colour; facts stay neutral.
+   The scale chip borrows the current view's colour as its border. */
+.map-info [data-role] { font-family: var(--mono); }
+.map-info [data-role="view"], .map-info [data-role="target"] { font-weight: 700; }
+.map-info [data-role="view"][data-view="coadd"] {
+  background: var(--p11-tint-violet); border: 1px solid var(--p11-periwinkle); color: var(--p11-periwinkle);
+}
+.map-info [data-role="view"][data-view="difference"] {
+  background: var(--p11-tint-orange); border: 1px solid var(--p11-salmon); color: var(--p11-peach);
+}
+.map-info [data-role="view"][data-view="significance"] {
+  background: var(--p11-tint-green); border: 1px solid var(--p11-green-deep); color: var(--p11-mint);
+}
+.map-info [data-role="view"][data-view="allsky"] {
+  background: var(--p11-bar); border: 1px solid var(--p11-glass); color: var(--p11-white);
+}
+.map-info [data-role="target"] {
+  background: var(--p11-tint-red); border: 1px solid var(--p11-red-soft); color: var(--p11-red-light);
+}
+.map-info [data-role="fact"], .map-info [data-role="scale"] {
+  background: var(--p11-tint-stone);
+  border: 1px solid rgba(194, 187, 187, 0.42);   /* --p11-stone at 0.5 */
+  color: var(--p11-paper);
+}
+.map-info .map-chip-stack[data-role="fact"] .mi-k,
+.map-info .map-chip-stack[data-role="fact"] .mi-v,
+.map-info .map-chip-stack[data-role="fact"] .mi-line { color: var(--p11-paper); }
+.map-info [data-role="scale"][data-view="coadd"]        { border-color: var(--p11-periwinkle); }
+.map-info [data-role="scale"][data-view="difference"]   { border-color: var(--p11-salmon); }
+.map-info [data-role="scale"][data-view="significance"] { border-color: var(--p11-green-deep); }
+.map-info [data-role="hint"] {
+  background: transparent;
+  border: 1px dashed var(--p11-stone);
+  color: var(--p11-stone);
+}
+.map-info .map-chip-plain[data-role] { padding-left: 11px; }   /* plain chips keep a full pill */

@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/icons/logo-spherex-lens.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&family=Bitcount+Grid+Single&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -455,13 +455,14 @@
         </div>
 
         <h3>What the colours on the map mean</h3>
-        <p>
-          <span class="swatch-dot green"></span> <b>KNOWN</b> -- the catalogues already
-          have something at that position.
-          <span class="swatch-dot amber"></span> <b>CANDIDATE</b> -- nothing known
-          there; this is the interesting case.
-          <span class="swatch-dot red"></span> the target you selected.
-        </p>
+        <ul class="map-legend">
+          <li><span class="swatch-dot green"></span> <b class="lg-known">KNOWN</b>
+            <span class="lg-desc">the catalogues already have something at that position.</span></li>
+          <li><span class="swatch-dot amber"></span> <b class="lg-candidate">CANDIDATE</b>
+            <span class="lg-desc">nothing known there; this is the interesting case.</span></li>
+          <li><span class="swatch-dot red"></span> <b class="lg-target">TARGET</b>
+            <span class="lg-desc">the target you selected.</span></li>
+        </ul>
       </section>
 
       <!-- ----------------------------------------------------- how to use it -->
