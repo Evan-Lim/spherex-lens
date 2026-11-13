@@ -802,8 +802,20 @@ def download_catalogs_with_status(ra, dec, radius_arcmin=15, strict=False,
     coord = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
     radius_deg = radius_arcmin / 60.0
     tap = {"gaia": query_irsa_tap_gaia, "wise": query_irsa_tap_allwise}
+    mirrors = {}
 
     def one(key):
+        if key == "gaia":
+            # IRSA TAP -> MAST -> VizieR (spherexlens.ingest.gaia); same row
+            # format, and the mirror that answered is recorded.
+            from spherexlens.ingest.gaia import fetch_gaia_with_fallback
+            got = fetch_gaia_with_fallback(ra, dec, radius_deg, limit=GAIA_TAP_LIMIT)
+            mirrors["gaia"] = got.mirror
+            if strict and not got.rows and not got.answered:
+                raise RuntimeError("gaia catalog query failed without a valid response")
+            if progress:
+                progress(key, len(got.rows), got.state)
+            return got.rows, got.state
         tap_ok = False
         rows = []
         if key in tap:
@@ -836,6 +848,8 @@ def download_catalogs_with_status(ra, dec, radius_arcmin=15, strict=False,
 
     out = {key: rows for key, (rows, _) in results.items()}
     status = {key: state for key, (_, state) in results.items()}
+    # which Gaia mirror answered: "irsa", "mast", "vizier:<host>" or None
+    status["gaia_mirror"] = mirrors.get("gaia")
     return out, status
 
 
@@ -902,6 +916,12 @@ def ingest_target(name, collection=config.SPHEREX_COLLECTION, radius_deg=0.1,
         "sia2_rows": n_rows,
         "n_epochs": n_epochs,
     }
+    if os.environ.get("SPHEREX_CATALOG_PARQUET", "true").lower() != "false":
+        try:        # versioned Parquet copy (additive: JSON stays the source)
+            from spherexlens.ingest.store import snapshot_meta
+            snapshot_meta(record, {"gaia": {"release": "DR3"}})
+        except Exception as e:
+            print(f"  catalogue snapshot skipped: {type(e).__name__}: {e}")
     with open(os.path.join(CACHE, f"{name}_meta.json"), "w") as f:
         json.dump(record, f, indent=2)
 

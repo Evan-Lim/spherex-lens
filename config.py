@@ -192,3 +192,23 @@ def _load_eval_threshold(path=None):
 EVAL_THRESHOLD_SIGMA = _load_eval_threshold()
 if EVAL_THRESHOLD_SIGMA is not None:
     DETECTION_SIGMA = EVAL_THRESHOLD_SIGMA
+
+# ---- ingest (Phase 2.1-2.3, 3.1, 3.4, 3.5) -- spherexlens/ingest/ ---------
+# SPHEREx Level-2 files in the public AWS bucket (anonymous HTTPS, S3 REST).
+# Layout: <release>/level2/<planning period>/<l2b version>/<detector 1-6>/
+#         level2_<period>_<obs seq>_<exp>D<det>_spx_<l2b version>.fits
+SPHEREX_S3_ENDPOINT = "https://nasa-irsa-spherex.s3.amazonaws.com"
+# Gaia mirrors tried in order by spherexlens.ingest.gaia.fetch_gaia_with_fallback
+GAIA_MIRRORS = ("irsa", "mast", "vizier")
+MAST_INVOKE_URL = "https://mast.stsci.edu/api/v0/invoke"
+# CADC ObsCore TAP (registry ivo://cadc.nrc.ca/argus); NEOSSat as CADC lists it
+CADC_TAP_SYNC = "https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/sync"
+NEOSSAT_COLLECTION = "NEOSSAT"
+NEOSSAT_STAMP_SNR = 5.0             # aperture SNR for "source seen in a stamp"
+# /api/coverage and the "coverage" enricher
+COVERAGE_TIMEOUT_S = _env("COVERAGE_TIMEOUT_S", 20.0)        # per archive, API
+COVERAGE_ENRICH_BUDGET_S = _env("COVERAGE_ENRICH_BUDGET_S", 3.0)   # dashboard
+COVERAGE_CACHE_TTL_S = 86400
+COVERAGE_RADIUS_DEG = 0.1
+COVERAGE_MAX_RADIUS_DEG = 1.0
+WISEVIEW_SIZE_ARCSEC = 176
