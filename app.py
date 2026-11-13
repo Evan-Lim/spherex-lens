@@ -45,6 +45,9 @@ from catalog_tools import (propagate_catalogs, harmonise_motions, target_positio
                            robust_std, CATALOG_EPOCH_MJD, GAIA_DR3_EPOCH_MJD,
                            ALLWISE_EPOCH_MJD)
 from snapshot_store import SnapshotStore
+import config
+from version import pipeline_stamp
+from spherexlens.enrich import run_enrichers
 
 app = FastAPI(title="SPHEREx Discovery Portal API")
 # B9: Gzip responses larger than 1 KB.
@@ -970,7 +973,7 @@ def exposure_provenance(meta, target_wcs, npix=180):
         info.setdefault("path", path)
         info.setdefault("file", os.path.basename(path))
         info.setdefault("epoch", epoch)
-        info.setdefault("collection", meta.get("collection", "spherex_qr2"))
+        info.setdefault("collection", meta.get("collection", "spherex_dr1"))
 
         try:
             with fits.open(path) as hdul:
@@ -2204,7 +2207,8 @@ def get_dashboard(request: Request = None,
             else:
                 d_img, s_img = zogy(stacks[ea], stacks[eb], noises[ea],
                                     noises[eb], 1.4, 1.4)
-            found = find_detections(s_img, pix_scale_arcsec=3.0, dt_years=0.5)
+            found = find_detections(s_img, pix_scale_arcsec=3.0, dt_years=0.5,
+                                    sigma_thresh=config.DETECTION_SIGMA)
         except Exception:
             found = []
         pair_summary.append({
@@ -2238,7 +2242,7 @@ def get_dashboard(request: Request = None,
         detections.append(d)
 
     triaged = []
-    triage_detections = detections[:10]
+    triage_detections = detections[:config.MAX_TRIAGED_DETECTIONS]
     _emit_progress("triage", f"Classifying {len(triage_detections)} detections")
     for index, d in enumerate(triage_detections, start=1):
         ea, eb = d.get("epochs", (order[0], order[-1]))
@@ -2275,6 +2279,17 @@ def get_dashboard(request: Request = None,
             t["proper_motion_arcsec_yr"] = d["proper_motion_arcsec_yr"]
         if context.get("delta_mag") is not None:
             t["delta_mag"] = context["delta_mag"]
+        # v2: sky position, epochs and a stable id for every detection, so
+        # enrichers (asteroids, links, ML) and votes can refer to it.
+        _py, _px = t["position"]
+        try:
+            _dra, _ddec = wcs.pixel_to_world_values(float(_px), float(_py))
+            t["ra"], t["dec"] = float(_dra), float(_ddec)
+        except Exception:
+            t["ra"] = t["dec"] = None
+        t["mjd_a"], t["mjd_b"] = epoch_mjd.get(ea), epoch_mjd.get(eb)
+        t["epochs"] = [ea, eb]
+        t["detection_id"] = f"{target}:{t.get('pair')}:{_py},{_px}"
         d["category"] = t["category"]
         triaged.append(t)
         _emit_progress(
@@ -2352,8 +2367,8 @@ def get_dashboard(request: Request = None,
         "astrometry": astrometry,
     })
 
-    _emit_progress("complete", "Dashboard processing complete")
-    return {
+    payload = {
+        "pipeline": {**pipeline_stamp(), "model_version": None},
         "target": target,
         "common": meta["meta"].get("common", target),
         "ra": ra,
@@ -2406,6 +2421,26 @@ def get_dashboard(request: Request = None,
                     "generated_utc": (neowise or {}).get("generated_utc"),
                     "target": neowise_target},
     }
+
+    # ---- v2 enrichers (spherexlens/enrich.py) -------------------------------
+    # Asteroid check, links, coverage, ML score, evidence.  Each adds fields
+    # documented in spherexlens/CONTRACT.md; a failing one is reported in
+    # payload["enrichment"] and never breaks the dashboard.
+    _emit_progress("enrich", "Running asteroid check, ML scoring and evidence")
+    enrich_ctx = {
+        "target": target, "meta": meta, "wcs": wcs, "npix": npix,
+        "pixscale_arcsec": 3.0, "ra": ra, "dec": dec,
+        "stacks": stacks, "noises": noises, "noise_maps": noise_maps,
+        "excluded": excluded, "n_bands": n_bands,
+        "epoch_order": order, "epoch_mjd": epoch_mjd,
+        "sources": sources, "bands": bands, "epochs": epochs, "mjds": mjds,
+        "raw_catalogs": raw_catalogs, "catalogs_at": catalogs_at,
+        "neowise": neowise, "block": block, "S": S, "D": D,
+        "raw_detections": detections, "live": live_mode,
+    }
+    run_enrichers(payload, enrich_ctx)
+    _emit_progress("complete", "Dashboard processing complete")
+    return payload
 
 
 @app.get("/api/dashboard/stream")
@@ -2512,7 +2547,7 @@ def _meta_from_targets_registry(target):
         "paths": [],
         "epochs": [],
         "catalogs": {},
-        "collection": "spherex_qr2",
+        "collection": "spherex_dr1",
     }
 
 
@@ -2745,7 +2780,7 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
         "meta": {"ra": float(ra), "dec": float(dec), "common": name or safe,
                  "type": "Custom field"},
         "paths": [], "epochs": [], "catalogs": {},
-        "collection": "spherex_qr2", "cutout_size_deg": size,
+        "collection": "spherex_dr1", "cutout_size_deg": size,
         "custom": True,
     }
     from datetime import datetime, timezone
@@ -2985,5 +3020,12 @@ def get_mosaic(request: Request = None,
                "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name."
     )
 
+
+# v2 subsystems add their endpoints as routers in spherexlens/routes/; they
+# must be included before the catch-all static mount below.
+from spherexlens.routes import all_routers  # noqa: E402
+
+for _router in all_routers():
+    app.include_router(_router)
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

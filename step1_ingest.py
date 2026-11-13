@@ -19,7 +19,7 @@ returns only the region around the target (~5 MB, ~117x117 px at 6.15"/px).
 
 Output: data_cache/<target>_meta.json and data_cache/*.fits
 
-Run: python step1_ingest.py [--collection spherex_qr2] [--size 0.2]
+Run: python step1_ingest.py [--collection spherex_dr1] [--size 0.2]
 """
 
 import os
@@ -159,7 +159,7 @@ def parse_votable(xml_bytes):
     return rows
 
 
-def query_sia2(ra, dec, radius_deg=0.1, collection="spherex_qr2", retries=3,
+def query_sia2(ra, dec, radius_deg=0.1, collection="spherex_dr1", retries=3,
                use_cache=True):
     """
     SIA2 cone search for SPHEREx Level-2 spectral images (obs_collection,
@@ -477,7 +477,7 @@ def describe_sources(paths, epochs, rows, collection, size_deg):
     return sources
 
 
-def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
+def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_dr1",
                              size_deg=0.2, bands=DEFAULT_BANDS,
                              epoch_mode="all", overwrite=False, rows=None):
     """
@@ -846,7 +846,7 @@ def download_catalogs(ra, dec, radius_arcmin=15, strict=False):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def ingest_target(name, collection="spherex_qr2", radius_deg=0.1,
+def ingest_target(name, collection="spherex_dr1", radius_deg=0.1,
                   size_deg=0.2, bands=DEFAULT_BANDS, epoch_mode="all",
                   overwrite=False, skip_catalogs=False, rows=None,
                   catalogs=None, strict_catalogs=False):
@@ -910,8 +910,8 @@ def ingest_target(name, collection="spherex_qr2", radius_deg=0.1,
 
 def main():
     parser = argparse.ArgumentParser(description="Ingest real SPHEREx data.")
-    parser.add_argument("--collection", default="spherex_qr2",
-                        help="SIA2 collection (spherex_qr2 / spherex_qr3)")
+    parser.add_argument("--collection", default="spherex_dr1",
+                        help="SIA2 collection (spherex_dr1 / spherex_qr3 / spherex_dr1_deep)")
     parser.add_argument("--radius", type=float, default=0.1,
                         help="SIA2 cone radius in degrees")
     parser.add_argument("--size", type=float, default=0.2,

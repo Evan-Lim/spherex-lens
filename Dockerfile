@@ -29,7 +29,10 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY app.py step1_ingest.py step2_coadd.py step3_zogy.py step4_triage.py \
      step5_spectrum.py step6_injection.py step7_neowise.py live_ingest.py \
-     catalog_tools.py snapshot_store.py cloud_refresh.py ./
+     catalog_tools.py snapshot_store.py cloud_refresh.py config.py version.py ./
+COPY spherexlens ./spherexlens
+COPY ml ./ml
+COPY eval ./eval
 COPY static ./static
 
 EXPOSE 8000

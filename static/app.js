@@ -2512,7 +2512,7 @@ function renderProvenance(data) {
   const s = data.stats || {};
 
   const archiveText =
-    `IRSA SIA2 \u00b7 collection ${(rows[0] && rows[0].collection) || 'spherex_qr2'} \u00b7 ` +
+    `IRSA SIA2 \u00b7 collection ${(rows[0] && rows[0].collection) || 'spherex_dr1'} \u00b7 ` +
     `${rows.length} cutout${rows.length === 1 ? '' : 's'} \u00b7 ` +
     `${s.depth_5sigma ? s.depth_5sigma.toFixed(3) : '--'} MJy/sr 5\u03c3 depth \u00b7 ` +
     `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`;

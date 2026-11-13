@@ -137,7 +137,7 @@ def _check_bytes(data, ra, dec, min_margin=12, max_masked=0.5):
     return True, "ok", info
 
 
-def live_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
+def live_cutouts(ra, dec, radius_deg=0.1, collection="spherex_dr1",
                  size_deg=0.2, bands=None, epoch_mode="all", per_slot=1,
                  max_slots=None, workers=DEFAULT_WORKERS, log=print,
                  progress=None, rows=None, deadline=None):
