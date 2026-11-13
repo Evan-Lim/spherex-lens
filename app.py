@@ -2221,7 +2221,8 @@ def get_dashboard(request: Request = None,
             else:
                 d_img, s_img = zogy(stacks[ea], stacks[eb], noises[ea],
                                     noises[eb], psf1=psfs.get(ea), psf2=psfs.get(eb))
-            found = find_detections(s_img, pix_scale_arcsec=3.0, dt_years=0.5,
+            found = find_detections(s_img, pix_scale_arcsec=3.0,
+                                    dt_years=baseline_years(ea, eb) or 0.5,
                                     sigma_thresh=config.DETECTION_SIGMA)
         except Exception:
             found = []

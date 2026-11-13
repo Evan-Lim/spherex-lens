@@ -31,13 +31,25 @@ PSF_SIGMA_PX_FALLBACK = 1.4         # Gaussian used only when a file has no PSF
 # ---- detection -------------------------------------------------------------
 # Default significance cut.  Phase 4 (eval) replaces this with a cut chosen
 # from the measured null-test false-alarm rate; see eval/threshold.json.
-DETECTION_SIGMA = _env("DETECTION_SIGMA", 5.0)
-TARGET_FALSE_ALARMS_PER_FIELD = _env("TARGET_FALSE_ALARMS_PER_FIELD", 0.1)
+# 6.0: chosen on the null test (decision A, 2026-11-13, 7 DR1 fields, robust
+# S, physical dipole pairing, wider bright-star masks): fake CANDIDATEs per
+# field 0.86 at 5 sigma vs 0.48 at 6 sigma, injection recall 81% at both.
+DETECTION_SIGMA = _env("DETECTION_SIGMA", 6.0)
+TARGET_FALSE_ALARMS_PER_FIELD = _env("TARGET_FALSE_ALARMS_PER_FIELD", 0.5)   # fake CANDIDATEs
 MERGE_RADIUS_PX = 2
+# Dipole (mover) pairing, step3_zogy.find_detections.  Lobe separation is
+# limited by the fastest plausible proper motion over the epoch baseline, and
+# the two lobes (one star) must have comparable strength.
+DIPOLE_MAX_PM_ARCSEC_YR = _env("DIPOLE_MAX_PM_ARCSEC_YR", 25.0)
+DIPOLE_SEP_PAD_PX = 2.0
+DIPOLE_MAX_AMPLITUDE_RATIO = _env("DIPOLE_MAX_AMPLITUDE_RATIO", 2.0)
 # How step3 scales the ZOGY significance map: "std" (original) or "robust"
 # (MAD).  See step3_zogy.s_noise_scale; flipped to "robust" together with a
 # null-test-calibrated threshold (execution plan, decision A, 2026-11-13).
-ZOGY_S_NORMALISATION = os.environ.get("SPHEREX_ZOGY_S_NORMALISATION", "std")
+ZOGY_S_NORMALISATION = os.environ.get("SPHEREX_ZOGY_S_NORMALISATION", "robust")
+# ZOGY astrometric-noise term (Zackay et al. 2016, sec. 3.3), pixels per axis
+# on the 3" grid.  0 = off (original).  Calibrated on the null test.
+ZOGY_ASTROMETRIC_SIGMA_PX = _env("ZOGY_ASTROMETRIC_SIGMA_PX", 0.0)
 MAX_TRIAGED_DETECTIONS = int(_env("MAX_TRIAGED_DETECTIONS", 10, int))
 
 # ---- solar-system objects --------------------------------------------------
@@ -158,7 +170,11 @@ BH_FDR_Q = 0.05
 # How the eval normalises the ZOGY S map: "pipeline" = exactly as step3 does
 # (S / S.std(), which bright-star residuals inflate), "robust" = additionally
 # rescale so the MAD of S is 1 (what a noise-limited S map would have).
-EVAL_S_NORMALISATION = os.environ.get("SPHEREX_EVAL_S_NORMALISATION", "pipeline")
+EVAL_S_NORMALISATION = os.environ.get("SPHEREX_EVAL_S_NORMALISATION", "pipeline")   # pipeline = step3 (now robust)
+# Injection SNR definition: "empirical" = matched-filter SNR against the noise
+# measured on each co-add (honest on real data: the formal VARIANCE misses
+# resampling correlation and ~1.4x extra scatter); "psf" = against VARIANCE.
+EVAL_SNR_MODE = os.environ.get("SPHEREX_EVAL_SNR_MODE", "empirical")
 
 # ---- ml (Phase 5: spherexlens/ml) -----------------------------------------
 ML_DATA_DIR = os.environ.get("SPHEREX_ML_DATA_DIR", "ml/data")

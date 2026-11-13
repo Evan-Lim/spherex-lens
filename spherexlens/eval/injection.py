@@ -73,6 +73,22 @@ def add_stamp(img, stamp, x, y, flux):
     return img
 
 
+def matched_filter_noise(img, stamp, valid):
+    """Measured 1-sigma of the PSF-matched-filtered image on blank sky.
+
+    Includes everything the per-pixel VARIANCE layer misses: noise correlated
+    by resampling 6.2" pixels onto the 3" grid, and extra scatter (on the real
+    DR1 co-adds the sky scatter is ~1.4x the formal noise).  Robust (MAD), so
+    stars barely move it.
+    """
+    from scipy.signal import fftconvolve
+    a = np.where(np.isfinite(img), img, 0.0)
+    f = fftconvolve(a, stamp[::-1, ::-1], mode="same")
+    v = f[valid] if valid is not None and valid.any() else f.ravel()
+    v = v[np.isfinite(v)]
+    return 1.4826 * float(np.median(np.abs(v - np.median(v))))
+
+
 def flux_for_snr(snr, sigma_pix, stamp, mode="psf"):
     if mode == "peak":
         return snr * sigma_pix / float(stamp.max())
@@ -160,7 +176,7 @@ def run_strict_injection(img1, img2, noise1, noise2, psf=None, snr_grid=None,
                          mu_grid=None, categories=CATEGORIES, n_trials=None,
                          seed=None, dt_years=0.5, pixscale=None, valid=None,
                          avoid=(), sigma_thresh=None, per_image=None,
-                         snr_mode="psf", margin=None, min_sep=None,
+                         snr_mode=None, margin=None, min_sep=None,
                          zogy_fn=None, find_fn=None, progress=None,
                          on_recovered=None, on_run=None, normalisation=None):
     """
@@ -201,6 +217,16 @@ def run_strict_injection(img1, img2, noise1, noise2, psf=None, snr_grid=None,
     valid[:margin] = valid[-margin:] = False
     valid[:, :margin] = valid[:, -margin:] = False
     s1, s2 = harness.scalar_noise(n1), harness.scalar_noise(n2)
+    snr_mode = snr_mode or getattr(config, "EVAL_SNR_MODE", "psf")
+    inj_n1, inj_n2, inj_mode = n1, n2, snr_mode
+    if snr_mode == "empirical":
+        # SNR = what a matched filter on THIS image measures: flux * sum(P^2)
+        # / sigma_mf.  Expressed through flux_for_snr's "psf" formula
+        # (flux = snr * sigma / sqrt(sum P^2)) with sigma = sigma_mf / sqrt(sum P^2).
+        k = float(np.sqrt((stamp ** 2).sum()))
+        inj_n1 = matched_filter_noise(img1, stamp1, valid) / k
+        inj_n2 = matched_filter_noise(img2, stamp2, valid) / k
+        inj_mode = "psf"
 
     cells = []
     for cat in categories:
@@ -217,7 +243,7 @@ def run_strict_injection(img1, img2, noise1, noise2, psf=None, snr_grid=None,
             if not pos:
                 break
             srcs = make_sources(cat, snr, mu, pos, rng, dt_years, pixscale)
-            a, b = inject_pair(img1, img2, srcs, stamp1, n1, n2, snr_mode, stamp2)
+            a, b = inject_pair(img1, img2, srcs, stamp1, inj_n1, inj_n2, inj_mode, stamp2)
             try:
                 D, S = harness.subtract(a, b, s1, s2, psf, zogy_fn=zogy_fn,
                                         normalisation=normalisation)
@@ -261,7 +287,9 @@ def summarise(grid, psf=None, snr_mode="psf", dt_years=None, sigma_thresh=None):
         "psf_model": (psf or {}).get("model", "gaussian"),
         "psf_fwhm_px": round(float((psf or {}).get("fwhm_px", 2.3548 * config.PSF_SIGMA_PX_FALLBACK)), 3),
         "snr_definition": ("PSF-matched single-epoch SNR of the injected flux change"
-                           if snr_mode == "psf" else "peak pixel / pixel noise"),
+                           if snr_mode == "psf" else
+                           "matched-filter SNR against the measured image noise"
+                           if snr_mode == "empirical" else "peak pixel / pixel noise"),
         "match": f"kind-correct detection within {config.EVAL_MATCH_TOLERANCE_PX} px",
         "dt_years": dt_years, "sigma_thresh": sigma_thresh,
     }

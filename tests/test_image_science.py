@@ -185,20 +185,70 @@ def _old_find_detections(S, pix_scale_arcsec, dt_years, sigma_thresh=5.0,
     return detections
 
 
+def _brute_force_pairing(S, sigma, max_sep, ratio):
+    """Reference: the documented rule, written plainly (no KD-tree)."""
+    peaks = (S == maximum_filter(S, size=5)) & (S > sigma)
+    troughs = (S == minimum_filter(S, size=5)) & (S < -sigma)
+    py, px = np.where(peaks); pv = S[py, px]
+    o = np.argsort(-pv, kind="stable"); py, px, pv = py[o], px[o], pv[o]
+    ty, tx = np.where(troughs); tv = S[ty, tx]
+    used = np.zeros(len(ty), bool); pairs = []
+    for i in range(len(py)):
+        best, bd = None, None
+        for j in range(len(ty)):
+            if used[j]:
+                continue
+            d = np.hypot(px[i] - tx[j], py[i] - ty[j])
+            hi, lo = max(pv[i], -tv[j]), min(pv[i], -tv[j])
+            if hi > ratio * lo or not (0.5 < d < max_sep):
+                continue
+            if bd is None or d < bd:
+                best, bd = j, d
+        if best is not None:
+            used[best] = True
+            pairs.append(((int(py[i]), int(px[i])), (int(ty[best]), int(tx[best]))))
+    return pairs
+
+
 @pytest.mark.parametrize("seed", [0, 7, 42])
-def test_kdtree_pairing_equals_old_algorithm(seed):
+def test_kdtree_pairing_matches_the_documented_rule(seed):
     rng = np.random.default_rng(seed)
     S = rng.normal(0, 1.7, (180, 180))          # many >2.5 sigma extrema
-    old = _old_find_detections(S, 3.0, 0.5, sigma_thresh=2.5, max_sep_px=12.0)
-    new = find_detections(S, 3.0, 0.5, sigma_thresh=2.5, max_sep_px=12.0)
-    assert len(old) > 50 and any(d["kind"] == "dipole" for d in old)
-    pos = [{k: v for k, v in d.items() if k != "sign"}
-           for d in new if d["kind"] != "monopole_negative"]
-    assert pos == old
-    # every unpaired trough is reported once as fading
+    new = find_detections(S, 3.0, 0.5, sigma_thresh=2.5, max_sep_px=12.0,
+                          max_amplitude_ratio=3.0)
+    ref = _brute_force_pairing(S, 2.5, 12.0, 3.0)
+    got = [(d["pos_plus"], d["pos_minus"]) for d in new if d["kind"] == "dipole"]
+    assert len(ref) > 5 and got == ref
     n_troughs = int(((S == minimum_filter(S, size=5)) & (S < -2.5)).sum())
-    n_pairs = sum(d["kind"] == "dipole" for d in old)
-    assert sum(d["kind"] == "monopole_negative" for d in new) == n_troughs - n_pairs
+    assert sum(d["kind"] == "monopole_negative" for d in new) == n_troughs - len(ref)
+
+
+def test_strong_fading_source_is_not_swallowed_by_a_weak_residual():
+    S = np.zeros((60, 60))
+    S[30, 30] = -12.0           # a star that faded
+    S[30, 38] = 5.5             # unrelated weak residual 8 px away
+    dets = find_detections(S, 3.0, 1.0, sigma_thresh=5.0)
+    kinds = sorted(d["kind"] for d in dets)
+    assert kinds == ["monopole", "monopole_negative"]
+
+
+def test_mover_lobes_of_similar_strength_still_pair():
+    S = np.zeros((60, 60))
+    S[30, 33] = 9.0             # new position
+    S[30, 30] = -8.0            # old position, 3 px = 9" in 1 yr
+    dets = find_detections(S, 3.0, 1.0, sigma_thresh=5.0)
+    assert [d["kind"] for d in dets] == ["dipole"]
+    assert abs(dets[0]["proper_motion_arcsec_yr"] - 9.0) < 1e-6
+
+
+def test_pairing_radius_follows_the_baseline():
+    from step3_zogy import dipole_max_sep_px
+    assert dipole_max_sep_px(0.5, 3.0) < dipole_max_sep_px(1.0, 3.0) <= 25.0
+    S = np.zeros((80, 80))
+    S[40, 60] = 8.0
+    S[40, 40] = -8.0            # 20 px = 60": impossible for a star in 1 yr
+    dets = find_detections(S, 3.0, 1.0, sigma_thresh=5.0)
+    assert sorted(d["kind"] for d in dets) == ["monopole", "monopole_negative"]
 
 
 # ---------------------------------------------------------------------------

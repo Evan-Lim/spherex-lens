@@ -67,7 +67,9 @@ def null_realisation(field, half_a, half_b, sigma=None, psf=None, keep_ctx=False
     for d in dets:
         d["epochs"] = (0, 1)
         d["pair"] = "null"
-    out = {"n_false": len(dets), "valid_npix": int(valid.sum()),
+    n_cand = _count_candidates(field, dets, half_a + half_b)
+    out = {"n_false": len(dets), "n_false_candidates": n_cand,
+           "valid_npix": int(valid.sum()),
            "peaks": null_extrema(S, valid).tolist(),
            "n_a": len(half_a), "n_b": len(half_b), "detections": dets}
     if keep_ctx:
@@ -75,6 +77,34 @@ def null_realisation(field, half_a, half_b, sigma=None, psf=None, keep_ctx=False
                                dets, psf, epoch_mjd={0: None, 1: None}, extras=extras)
         out["ctx"] = ctx
     return out
+
+
+def _count_candidates(field, dets, exposures):
+    """How many null detections the live triage would show as CANDIDATE.
+
+    Blobs on catalogued stars come out KNOWN_* or as bright-star / mask
+    artefacts on the website; only CANDIDATE (and POSSIBLE_UNKNOWN_ASTEROID)
+    reach a visitor as "something new".  Same triage call as app.get_dashboard,
+    catalogues propagated to the exposures' mean epoch.
+    """
+    try:
+        from catalog_tools import propagate_catalogs
+        from step4_triage import triage
+    except Exception:
+        return None
+    mjds = [x["mjd"] for x in exposures if x.get("mjd")]
+    cats = propagate_catalogs(field.get("catalogs") or {},
+                              float(np.mean(mjds)) if mjds else None)
+    n = 0
+    for d in dets:
+        try:
+            t = triage(d, field["ra"], field["dec"], field["npix"], field["pixscale"],
+                       cats, wcs=field["wcs"], context={"baseline_years": None})
+        except Exception:
+            continue
+        if t.get("category") in ("CANDIDATE", "POSSIBLE_UNKNOWN_ASTEROID"):
+            n += 1
+    return n
 
 
 def _on(valid, pos):
@@ -139,7 +169,7 @@ def summarise(results, seed=None, n_boot=None):
     """
     n_boot = int(n_boot or config.EVAL_BOOTSTRAP)
     rng = np.random.default_rng(config.ML_RANDOM_SEED if seed is None else seed)
-    rates, per_field, skipped = [], {}, []
+    rates, per_field, skipped, cand_rates = [], {}, [], []
     n_false = 0
     area_deg2 = 0.0
     for res in results:
@@ -152,12 +182,16 @@ def summarise(results, seed=None, n_boot=None):
         pix_deg2 = (res["pixscale"] / 3600.0) ** 2
         a = sum(x["valid_npix"] for x in reals) * pix_deg2
         nf = sum(x["n_false"] for x in reals)
+        nc = sum((x.get("n_false_candidates") or 0) for x in reals)
+        cand_rates.extend([(x.get("n_false_candidates") or 0) * res["npix"] ** 2
+                           / max(x["valid_npix"], 1) for x in reals])
         n_false += nf
         area_deg2 += a
         per_field[res["target"]] = {
             "n_realisations": len(reals), "n_false": nf,
             "false_alarms_per_field": round(float(r.mean()), 4),
             "false_alarms_per_deg2": round(nf / a, 3) if a else None,
+            "n_false_candidates": nc,
         }
     rates = np.array(rates)
     out = {
@@ -165,6 +199,8 @@ def summarise(results, seed=None, n_boot=None):
         "n_false": int(n_false), "area_deg2": round(area_deg2, 5),
         "false_alarms_per_field": round(float(rates.mean()), 4) if rates.size else None,
         "false_alarms_per_deg2": round(n_false / area_deg2, 3) if area_deg2 else None,
+        "candidate_false_alarms_per_field": (round(float(np.mean(cand_rates)), 4)
+                                             if cand_rates else None),
         "per_field": per_field, "skipped": skipped,
         "definition": "detections in a ZOGY subtraction of two random halves of one "
                       "epoch+band; field = one 180x180 3\" subtraction",
