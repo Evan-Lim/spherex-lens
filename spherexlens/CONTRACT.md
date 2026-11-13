@@ -120,3 +120,57 @@ Payload-level, Phase 3.2 (exposure quality):
                  "split": "GroupKFold by field + held-out fields"}
 }
 ```
+
+## v2 additions agreed at merge (2026-11-13)
+
+Fields the subsystems actually write, beyond the original contract above.
+
+**Detection**
+- `sign` (+1 brighter / -1 fainter), `n_pairs_seen`, `pairs_seen`, `spike`,
+  `edge` (image science); `psf_fwhm_arcsec` (evidence).
+- `asteroid.match` also has `match_radius_arcsec`, `condition_code`,
+  `ssois_n_images`, `ssois_neossat`, `ssois_error`; `asteroid.checked` may
+  include `"jpl_sbdb"`; `asteroid.n_in_field` is null when unavailable.
+  `ssois_url` points to `/en/ssois/results.html?...`.
+- `gaia.astrometry_reliable: false` for RUWE > config.GAIA_RUWE_MAX;
+  `motion_check` may be `{"precise": false, "status": "not tested: ..."}`.
+- `neossat.frames[].url` is a CADC DataLink URL.
+- `ml` absent and `payload.ml_status = {"status": "no_model"}` when no model
+  is loaded (features are still written).
+
+**Payload**
+- `asteroid_check = {"status": ok|partial|unavailable|skipped, "n_queries",
+  "n_in_field", "errors": [], "reason", "ecliptic_latitude_deg", "query_mjds",
+  "objects", "pending"}` (`pending` = JPL queries still running after the
+  web time box, config.ASTEROID_TIME_BOX_S).
+- `epochs[].psf = {"source", "fwhm_arcsec", "grid_fwhm_arcsec"}`.
+- `exposure_quality[]` rows also carry `epoch`, `band`, `components`,
+  `zodi_subtracted`, `psf_source`, `psf_fwhm_arcsec`, `mjd`.
+- `coverage[]` entries may carry `pending`, `cached`, `seconds`, `checked_utc`.
+- `catalog_status.gaia_mirror` (`irsa` | `mast` | `vizier:<host>` | null);
+  target meta `catalog_snapshot_id`.
+- `enrichment.<module>` is `{"status": "error", "error": "failed to load: ..."}`
+  when an enricher module could not be imported.
+
+**Endpoints**
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/health/live` | `{"ok", "pipeline", "uptime_s", "proxy_signature": not_configured|valid|missing_or_invalid}` |
+| `GET /api/health` | `{"ok", "pipeline", "snapshot": {status, published_at, age_hours, ...}, "archives": {name: {status, http|error, latency_ms, checked_at}}, "archives_down": [...]}`; 503 when `ok` is false |
+| `POST /api/jobs/field`, `GET /api/jobs/{id}` | 202 + job id; `{status: queued|running|done|failed|timed_out, result}` |
+| `GET /api/votes/queue` | `{"n", "ranking", "source", "generated_utc", "detections": [flat row + pair, position, reasons, links, votes: {real, bogus, unsure}]}` |
+| `GET /api/credits` | `{"sources": [{"id", "name", "used_for", "acknowledgement", "citation?", "licence", "licence_url?", "url", "wording_source", "wording_verified"}]}` |
+| `GET /api/coverage` | also `radius_deg`, `pipeline` |
+| `GET /api/deep`, `GET /api/deep/{name}` | deep-field list / result (`sources[]` with `variable`, `variable_self`, `ensemble_chi2_median`, `period`, `motion`, `lightcurve`, `spectrum`) |
+
+- `detection_id` input also accepts `->` for `→`; the server normalises to `→`.
+- CSV / VOTable column names are flattened: `ml_real_bogus`, `evidence_score`,
+  `asteroid_status`.
+
+**`eval/metrics.json`** also has: `null_test.{ci95, per_field, skipped,
+n_realisations}`, `injection.grid[].{n_recovered, ci95}`,
+`injection.{by_category, psf_model}`, `answer_key.by_class_n`,
+`pipeline_purity_estimate`, `threshold.bh_fdr`.  The confusion matrix is
+rows = true label, columns = prediction; `classifier.ci95` covers
+`precision`, `recall`, `f1`, `pr_auc`.
