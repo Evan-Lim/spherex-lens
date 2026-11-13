@@ -48,6 +48,9 @@ from snapshot_store import SnapshotStore
 import config
 from version import pipeline_stamp
 from spherexlens.enrich import run_enrichers
+from spherexlens.imaging import (dedup_detections, spike_hit, edge_hit,
+                                 bright_stars_on_grid, psf_sigma_px)
+from catalog_tools import bright_mask_radius
 
 app = FastAPI(title="SPHEREx Discovery Portal API")
 # B9: Gzip responses larger than 1 KB.
@@ -2162,7 +2165,13 @@ def get_dashboard(request: Request = None,
         _emit_progress("coadd", f"Co-adding {len(order)} observing epochs")
         groups = {e: [(s, b) for s, b, pe in zip(sources, bands, epochs) if pe == e]
                   for e in order}
-        stacks, noise_maps, excluded, n_bands = coadd_matched(groups, wcs, npix=npix)
+        # v2: ZODI-subtracted, quality-filtered, with each epoch's measured PSF
+        stacks, noise_maps, excluded, n_bands, coadd_extra = coadd_matched(
+            groups, wcs, npix=npix, return_psf=True)
+        psfs = coadd_extra["psfs"]
+        psf_info = coadd_extra["psf_info"]
+        exposure_quality = coadd_extra["exposure_quality"]
+        edge_map = coadd_extra["edge_map"]
         noises = {e: float(np.nanmedian(np.where(noise_maps[e] < 1e3, noise_maps[e], np.nan)))
                   for e in order}
         _emit_progress("coadd", f"Co-add complete for {len(order)} epochs")
@@ -2179,7 +2188,8 @@ def get_dashboard(request: Request = None,
 
     try:
         _emit_progress("subtraction", "Running ZOGY subtraction")
-        D, S = zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4)
+        D, S = zogy(img1, img2, sigma1, sigma2,
+                    psf1=psfs.get(order[0]), psf2=psfs.get(order[-1]))
         _emit_progress("subtraction", "Initial ZOGY subtraction complete")
     except Exception as e:
         return JSONResponse(
@@ -2206,7 +2216,7 @@ def get_dashboard(request: Request = None,
                 d_img, s_img = D, S
             else:
                 d_img, s_img = zogy(stacks[ea], stacks[eb], noises[ea],
-                                    noises[eb], 1.4, 1.4)
+                                    noises[eb], psf1=psfs.get(ea), psf2=psfs.get(eb))
             found = find_detections(s_img, pix_scale_arcsec=3.0, dt_years=0.5,
                                     sigma_thresh=config.DETECTION_SIGMA)
         except Exception:
@@ -2232,14 +2242,18 @@ def get_dashboard(request: Request = None,
         )
 
     # merge the same object found in several pairs, keeping the strongest
-    detections = []
-    for d in sorted(raw_detections, key=lambda d: -d["snr"]):
-        pos = d.get("pos_plus") or d.get("pos") or (0, 0)
-        if any(abs(pos[0] - (m.get("pos_plus") or m.get("pos") or (0, 0))[0]) <= 2
-               and abs(pos[1] - (m.get("pos_plus") or m.get("pos") or (0, 0))[1]) <= 2
-               for m in detections):
-            continue
-        detections.append(d)
+    # (KD-tree, config.MERGE_RADIUS_PX; records n_pairs_seen)
+    detections = dedup_detections(raw_detections)
+
+    # artefact masks: footprint edges and bright-star detector-axis crosses
+    spike_angles = coadd_extra.get("axis_angles_deg") or []
+    _bright_cache = {}
+
+    def bright_at(e):
+        if e not in _bright_cache:
+            _bright_cache[e] = bright_stars_on_grid(catalogs_at(e), wcs, npix,
+                                                    bright_mask_radius)
+        return _bright_cache[e]
 
     triaged = []
     triage_detections = detections[:config.MAX_TRIAGED_DETECTIONS]
@@ -2254,6 +2268,17 @@ def get_dashboard(request: Request = None,
         if lost:
             context["mask"] = {"bands_excluded": lost, "n_bands": n_bands}
         mask_hits = lost >= n_bands
+        lobes = [d.get(k) for k in ("pos_plus", "pos_minus", "pos") if d.get(k)]
+        n_edge = edge_hit(edge_map, lobes)
+        if n_edge:
+            context["edge"] = {"n_exposures": n_edge, "edge_px": config.EDGE_MASK_PX}
+        spike = spike_hit(lobes, bright_at(eb), spike_angles)
+        if spike:
+            context["spike"] = spike
+        fw = [psf_info.get(e, {}).get("grid_fwhm_arcsec") for e in (ea, eb)]
+        fw = [f for f in fw if f]
+        if fw:
+            context["psf_fwhm_arcsec"] = max(fw)
         if d.get("kind") == "dipole":
             (y1, x1), (y2, x2) = d["pos_plus"], d["pos_minus"]
             d["separation_arcsec"] = float(np.hypot(x1 - x2, y1 - y2) * 3.0)
@@ -2271,6 +2296,10 @@ def get_dashboard(request: Request = None,
         t = triage(d, ra, dec, npix, 3.0, catalogs_at(eb), wcs=wcs, context=context)
         t["kind"] = d["kind"]
         t["snr"] = d["snr"]
+        if d.get("sign") is not None:
+            t["sign"] = d["sign"]
+        t["n_pairs_seen"] = d.get("n_pairs_seen", 1)
+        t["pairs_seen"] = d.get("pairs_seen") or [d.get("pair")]
         t["pair"] = d.get("pair")
         t["position"] = d.get("pos_plus") or d.get("pos")
         if d.get("pos_minus"):
@@ -2409,8 +2438,11 @@ def get_dashboard(request: Request = None,
         "catalog_counts": {k: len(v or []) for k, v in raw_catalogs.items()},
         "catalog_status": meta.get("catalog_status"),
         "epochs": [{"epoch": e, "mjd": epoch_mjd.get(e),
-                    "year": round(mjd_to_year(epoch_mjd[e]), 3) if epoch_mjd.get(e) else None}
+                    "year": round(mjd_to_year(epoch_mjd[e]), 3) if epoch_mjd.get(e) else None,
+                    "psf": {k: (psf_info.get(e) or {}).get(k)
+                            for k in ("source", "fwhm_arcsec", "grid_fwhm_arcsec")}}
                    for e in order],
+        "exposure_quality": exposure_quality,
         "target_position": {"ra": t_ra, "dec": t_dec, "x": tx, "y": ty,
                             "moving": bool(block.get("pm_ra") or block.get("pm_dec")),
                             "pm_ra": block.get("pm_ra"), "pm_dec": block.get("pm_dec")},
@@ -2437,6 +2469,8 @@ def get_dashboard(request: Request = None,
         "raw_catalogs": raw_catalogs, "catalogs_at": catalogs_at,
         "neowise": neowise, "block": block, "S": S, "D": D,
         "raw_detections": detections, "live": live_mode,
+        "psfs": psfs, "psf_info": psf_info, "exposure_quality": exposure_quality,
+        "edge_map": edge_map,
     }
     run_enrichers(payload, enrich_ctx)
     _emit_progress("complete", "Dashboard processing complete")
@@ -2479,8 +2513,15 @@ def _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source="live
     groups = {e: [(s, b) for s, b, pe in zip(sources, bands, epochs) if pe == e]
               for e in (order[0], order[-1])}
     _emit_progress("coadd", "Co-adding matched recovery epochs")
-    stacks, noise_maps, _, _ = coadd_matched(groups, wcs, npix=npix)
+    stacks, noise_maps, _, _, coadd_extra = coadd_matched(groups, wcs, npix=npix,
+                                                          return_psf=True)
     _emit_progress("coadd", "Matched recovery epochs are ready")
+    # step6 injects and subtracts Gaussians: give them the measured co-add PSF
+    # width (largest of the two epochs) instead of the 1.4 px default
+    rec_fwhm = [(coadd_extra["psf_info"].get(e) or {}).get("grid_fwhm_arcsec")
+                for e in (order[0], order[-1])]
+    rec_fwhm = [f for f in rec_fwhm if f]
+    rec_sigma = psf_sigma_px(max(rec_fwhm)) if rec_fwhm else 1.4
     img1, img2 = stacks[order[0]], stacks[order[-1]]
     noise1, noise2 = noise_maps[order[0]], noise_maps[order[-1]]
     noise1 = np.where(noise1 < 1e3, noise1, np.nan)
@@ -2500,7 +2541,7 @@ def _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source="live
     results = run_injection_recovery(
         img1, img2,
         float(np.nanmedian(noise1)), float(np.nanmedian(noise2)),
-        psf_sigma_px=1.4,
+        psf_sigma_px=rec_sigma,
         snr_grid=[3, 5, 7, 10, 15, 20],
         mu_grid=[1, 2, 5, 10],
         n_trials=10,
@@ -2515,6 +2556,7 @@ def _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source="live
     return {
         "target": target,
         "grid": grid,
+        "psf_sigma_px": round(float(rec_sigma), 3),
         "source": "live" if str(source).lower() == "live" else "cache",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }

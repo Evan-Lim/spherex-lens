@@ -16,9 +16,12 @@ changed, and how interesting that is:
     KNOWN_STATIC_CHANGED  matched only to catalogue entries that are *not*
                           known to vary or move -- a catalogued star doing
                           something new: high priority
-    BRIGHT_STAR_ARTEFACT  inside the mask of a star that saturates SPHEREx
+    BRIGHT_STAR_ARTEFACT  inside the mask of a star that saturates SPHEREx, or
+                          on the bleed/crosstalk cross along the detector axes
+                          of such a star (context["spike"])
     MASK_ARTEFACT         unexplained by any catalogue AND no detector band is
-                          unmasked in every epoch at that spot
+                          unmasked in every epoch at that spot, or it sits on
+                          the edge of an exposure footprint (context["edge"])
     CANDIDATE             in no catalogue at all -- high priority
 
 `verdict` stays KNOWN / CANDIDATE so existing callers keep working.
@@ -45,6 +48,8 @@ TIGHT_RADIUS_ARCSEC = 5.0
 
 # A dipole's two lobes are only separated by the true motion when the motion
 # exceeds the PSF; below that the separation is set by the PSF itself.
+# Fallback only: app.py passes the measured co-add PSF FWHM (from the cutouts'
+# EPSF tables) as context["psf_fwhm_arcsec"].
 PSF_FWHM_ARCSEC = 2.355 * 1.4 * 3.0          # psf_sigma 1.4 px on the 3" grid
 MOVER_MIN_DISPLACEMENT_ARCSEC = 2.0
 AMPLITUDE_SLACK_MAG = 0.3                    # V3: allowance on VSX amplitude
@@ -91,9 +96,12 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
                 flat-sky approximation when given.
     context  -- optional extras: baseline_years (of this detection's epoch
                 pair), delta_mag (SPHEREx brightness change), neowise (the
-                step7 summary at this position).
+                step7 summary at this position), psf_fwhm_arcsec (measured
+                PSF), spike (spherexlens.imaging.spike_hit result), edge
+                ({"n_exposures", "edge_px"}: on an exposure footprint edge).
     """
     ctx = context or {}
+    psf_fwhm = ctx.get("psf_fwhm_arcsec") or PSF_FWHM_ARCSEC
     pos = detection.get("pos_plus") or detection.get("pos")
     py, px = pos
     ra, dec = _pixel_to_world(
@@ -223,7 +231,7 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
             if predicted < MOVER_MIN_DISPLACEMENT_ARCSEC:
                 check["status"] = "too slow to explain a dipole"
                 mover = None
-            elif predicted < PSF_FWHM_ARCSEC:
+            elif predicted < psf_fwhm:
                 check["status"] = ("unresolved: motion is below the PSF, so the "
                                    "lobe separation reflects the PSF, not the motion")
             elif measured is not None:
@@ -234,6 +242,14 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
                     reasons.append(f"dipole separation {measured:.1f}\" vs predicted "
                                    f"{predicted:.1f}\" from {mover[0]} motion")
             result["motion_check"] = check
+
+    # ---- brightening / fading (monopoles) ------------------------------------
+    kind = detection.get("kind")
+    change = None
+    if kind == "monopole_negative":
+        change = "got fainter between the epochs"
+    elif kind == "monopole":
+        change = "got brighter between the epochs"
 
     # ---- NEOWISE history (N1/N2) ---------------------------------------------
     neo = ctx.get("neowise")
@@ -267,11 +283,34 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
         ms = mover_src
         bright_is_mover = angular_separation_arcsec(
             ms["ra"], ms["dec"], bright["source"]["ra"], bright["source"]["dec"]) < 6.0
+    # Bright-star cross (bleed / readout crosstalk along the detector axes):
+    # handled exactly like the circular bright-star mask.
+    spike = ctx.get("spike")
+    spike_is_mover = False
+    if spike and mover_src is not None:
+        spike_is_mover = angular_separation_arcsec(
+            mover_src["ra"], mover_src["dec"], spike["ra"], spike["dec"]) < 6.0
+    on_spike = bool(spike) and not bright and not spike_is_mover
+    if on_spike:
+        result["spike"] = {k: v for k, v in spike.items() if k not in ("ra", "dec")}
+    edge = ctx.get("edge") or {}
+    on_edge = bool(edge.get("n_exposures"))
+    edge_text = None
+    if on_edge:
+        result["edge"] = edge
+        edge_text = (f"within {edge.get('edge_px', '?')} px of the edge of "
+                     f"{edge['n_exposures']} exposure footprint(s): the co-add "
+                     "weight jumps there")
     if bright and not vsx_close and not bright_is_mover:
         category = "BRIGHT_STAR_ARTEFACT"
         reasons.insert(0, f"{bright['sep_arcsec']:.0f}\" from a saturating "
                           f"{bright['cat']} star (mag {bright['mag']:.1f}, "
                           f"mask {bright['mask_arcsec']:.0f}\")")
+    elif on_spike and not vsx_close:
+        category = "BRIGHT_STAR_ARTEFACT"
+        reasons.insert(0, f"on the detector-axis cross of a saturating {spike['cat']} "
+                          f"star (mag {spike['mag']:.1f}, {spike['sep_arcsec']:.0f}\" "
+                          f"away along {spike['angle_deg']:.0f} deg)")
     elif vsx_m or gaia_var or (neo and neo.get("variable")):
         category = "KNOWN_VARIABLE"
         if vsx_info:
@@ -288,11 +327,12 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
         if bright_is_mover:
             reasons.append("the mover saturates SPHEREx: its core is masked, the "
                            "dipole comes from the PSF wings")
-    elif mask_holes:
+    elif mask_holes or on_edge:
         # Nothing in the catalogues explains it and no band is clean in every
-        # epoch at this spot: there is nothing like-for-like left to compare.
+        # epoch at this spot (or it sits where an exposure ends): there is
+        # nothing like-for-like left to compare.
         category = "MASK_ARTEFACT"
-        reasons.insert(0, mask_text)
+        reasons.insert(0, mask_text if mask_holes else edge_text)
     elif matches:
         category = "KNOWN_STATIC_CHANGED"
         only_ir = set(matches) == {"wise"}
@@ -304,6 +344,10 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
 
     if mask_text and category != "MASK_ARTEFACT":
         reasons.append(mask_text)
+    if edge_text and edge_text not in reasons:
+        reasons.append(edge_text)
+    if change:
+        reasons.insert(1 if reasons else 0, change)
 
     priority = PRIORITY[category]
     if category == "KNOWN_VARIABLE" and vsx_info and vsx_info.get("amplitude_check") == "exceeds":
