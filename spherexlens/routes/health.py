@@ -118,10 +118,20 @@ def snapshot_health():
 
 
 @router.get("/api/health/live")
-def health_live():
-    """Liveness: answers without touching the network or storage."""
+def health_live(request: Request = None):
+    """Liveness: answers without touching the network or storage.
+
+    ``proxy_signature`` (S8) tells an operator whether *this* request carried a
+    valid Netlify signature: "not_configured" (no SPHEREX_PROXY_SECRET on this
+    service), "valid", or "missing_or_invalid".  Call it through
+    https://<site>/live-api/health/live to check the Netlify side.
+    """
+    from spherexlens.http_guard import netlify_signature_ok
+    sig = netlify_signature_ok(request.headers) if request is not None else None
     return {"ok": True, "pipeline": pipeline_stamp(),
-            "uptime_s": round(time.monotonic() - _STARTED, 1)}
+            "uptime_s": round(time.monotonic() - _STARTED, 1),
+            "proxy_signature": ("not_configured" if sig is None
+                                else "valid" if sig else "missing_or_invalid")}
 
 
 @router.get("/api/health")
