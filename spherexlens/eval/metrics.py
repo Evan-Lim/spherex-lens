@@ -148,6 +148,10 @@ def classifier_block():
     block = {k: m[k] for k in keep if k in m}
     block["split"] = card.get("split", "GroupKFold by field + held-out fields")
     block["model_version"] = card.get("version")
+    met = card.get("metrics", {})
+    if met.get("heldout_by_kind"):
+        block["heldout_by_kind"] = met["heldout_by_kind"]
+        block["caveat"] = met.get("caveat")
     return block
 
 
@@ -187,7 +191,8 @@ def build_metrics(field_results, opts, threshold_choice=None, bh=None):
                                    for g in inj["grid"]],
                           "n_fields": inj.get("n_fields"),
                           "psf_model": inj.get("psf_model"),
-                          "snr_definition": "PSF-matched single-epoch SNR of the injected flux change",
+                          "snr_definition": ("matched-filter SNR of the injected flux change against the "
+                                             "noise measured on each co-add (config.EVAL_SNR_MODE)"),
                           "match": f"kind-correct detection within "
                                    f"{config.EVAL_MATCH_TOLERANCE_PX} px"}
     else:
@@ -198,10 +203,17 @@ def build_metrics(field_results, opts, threshold_choice=None, bh=None):
     if n_det and null_block.get("false_alarms_per_field") is not None:
         mean_det = float(np.mean(n_det))
         fa = null_block["false_alarms_per_field"]
+        # Raw detections and raw null blobs both include residuals on
+        # catalogued stars, which triage labels KNOWN / artefact, so a raw
+        # ratio says nothing about what a visitor sees.  The meaningful false
+        # alarm figure is null_test.candidate_false_alarms_per_field.
         m["pipeline_purity_estimate"] = {
-            "detections_per_field": round(mean_det, 3), "false_alarms_per_field": fa,
-            "purity": round(max(0.0, 1.0 - fa / mean_det), 4) if mean_det > 0 else None,
-            "note": "1 - null false alarms / detections, at the sigma in use"}
+            "detections_per_field": round(mean_det, 3),
+            "raw_false_alarms_per_field": fa,
+            "candidate_false_alarms_per_field": null_block.get("candidate_false_alarms_per_field"),
+            "purity": None,
+            "note": "raw purity is not meaningful (both counts include catalogued-star "
+                    "residuals); use null_test.candidate_false_alarms_per_field"}
     clf = classifier_block()
     if clf:
         m["classifier"] = clf

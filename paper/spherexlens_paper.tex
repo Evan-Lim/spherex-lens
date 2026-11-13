@@ -1926,6 +1926,70 @@ denominator collapses. After revision R1 the pipeline reports ``no estimate'' an
 the $1.6\times10^{6}$ it used to print. Sgr\,A* needed two ingestion attempts: the first returned a
 single usable cutout (IRSA timeouts), which the pipeline correctly refused to subtract.
 
+\subsection{Resolving the completeness defect (v2)}
+\label{sec:v2fix}
+
+The near-zero completeness of Section~\ref{sec:failures} was not a property of SPHEREx data. A
+strict re-measurement on SPHEREx Data Release~1 (18 fields, two exposures per epoch and detector)
+traced it to three defects in the chain, each now fixed and each measured.
+
+\paragraph{Diagnosis.} (i)~The significance map was divided by its global standard deviation.
+A single bright-star residual of $\sim$2000$\sigma$ inflates that deviation and scales every other
+pixel down: a source injected at matched-filter SNR~50 into Barnard's Star appeared at $S\approx0.2$.
+(ii)~Every negative extremum was paired with the nearest positive one up to 25~px (75$''$) away,
+with no strength condition, so genuine fading sources were absorbed into spurious ``movers''.
+(iii)~The injection SNR was defined against the formal \texttt{VARIANCE}, which misses the noise
+correlated by resampling $6.2''$ pixels onto the $3''$ grid and a further $\times1.4$ sky scatter,
+overstating detectability by about $\times2$.
+
+\paragraph{Fixes.} $S$ is now divided by $1.4826\,\mathrm{MAD}(S)$. A dipole requires lobes within
+$\mu_{\max}\Delta t/p + 2$~px ($\mu_{\max}=25''\,\mathrm{yr}^{-1}$, $\Delta t$ the real epoch
+baseline) and of comparable strength ($\le2\times$), strongest peaks first. AllWISE bright-star masks
+grow as $30''\times10^{0.2(5.5-W1)}$ (capped at $10'$): the halo of $\epsilon$~Indi~A ($W1=0.87$)
+had produced 44 fake candidates at $3.2$--$3.8'$ in the null test. The ZOGY astrometric-noise term
+(Zackay, Ofek \& Gal-Yam 2016, Sec.~3.3) was implemented and measured, but raised the candidate false-alarm
+rate and is left off. Injection SNR is the matched-filter SNR against the noise measured on each
+co-add.
+
+\paragraph{False alarms that a user would see.} The null test subtracts two halves of the same
+epoch, so every detection is false by construction; what matters is how many survive triage as
+\textsc{candidate}. At $5\sigma$ that is 0.86 per field and at $6\sigma$ 0.48 (seven fields) at
+identical completeness, so the threshold is now $6\sigma$. Over all 18 fields the rate is
+1.66 per field, concentrated in extended objects (Crab~Nebula 5.3, M51 2.1) and Sirius (3.7, too
+bright for Gaia); six star fields produce none.
+
+\begin{table}[H]
+\centering
+\caption{Strict injection--recovery on 18 DR1 fields at $6\sigma$ (12{,}240 injections; a source
+counts only within 1.5~px and with the correct kind).}
+\label{tab:v2recovery}
+\begin{tabular}{lrr}
+\toprule
+Category & Recovered & Before v2 \
+\midrule
+Brightening & 96.7\,\% & \multirow{3}{*}{$\approx$0.2\,\% overall} \
+Fading      & 95.3\,\% & \
+Mover       & 56.0\,\% & \
+\midrule
+Overall     & 69.3\,\% & \
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The real/bogus model.} A histogram gradient-boosted classifier on 22 features, trained
+on 12{,}150 labels (injections real; null-test residuals and masked detections bogus), validated with
+\texttt{GroupKFold} by field and four fields never used in training, isotonic-calibrated. Its
+headline held-out score (precision 0.96, PR-AUC 0.99) is inflated: injected movers are dipoles and
+null residuals almost never are. Per kind on the held-out fields: brightening precision 0.90 /
+recall 0.82, fading 0.72 / 0.63; dipole skill is untested (17 bogus dipoles). The model ranks
+candidates and never changes the catalogue verdict.
+
+\paragraph{What RQ4 now says.} Completeness on real frames is high for brightness changes and
+moderate for movers; the remaining mover losses are slow movers whose lobes overlap within the
+$6.9''$ PSF. Barnard's Star itself ($5.7''$ in the 0.55-year DR1 baseline) is not resolvable as a
+mover and is reported as a brightness change at its position; its v1 ``\textsc{known\_mover}''
+detections were glare-ring fragments paired by the old rule.
+
 \subsection{Where the candidates are}
 
 The 17 candidates are not uniformly distributed. Five are in WISE 0855 -- the field with the fewest

@@ -627,20 +627,33 @@ bar in the corner always shows how long one arcminute is at the current zoom.
 
 ## 7. Worked example: Barnard's Star, number by number
 
-The page for Barnard's Star, as built from the live archive:
+The page for Barnard's Star, built from SPHEREx Data Release 1 (v2 pipeline,
+November 2026):
 
-* **4 exposures, 2 epochs.** Two detectors (D1, near 0.94 micrometres, and D4,
-  near 3.1) in each of two visits: MJD 60918 (2025-271) and MJD 61110
-  (2026-094). That is a **192-day baseline**, just over six months.
-* **Noise sigma1 = 0.0106, sigma2 = 0.0119 MJy/sr.** The second epoch is
-  marginally noisier; inverse-variance weighting handles that automatically.
-* **12 detections above 5 sigma** (the dashboard table shows the ten strongest).
-  **4 KNOWN** (matched to a Gaia DR3 star or a VSX variable), **8 CANDIDATE**.
-* **Strongest peak: 29.5 sigma**, mean 10.8 sigma. The bright saturated star at
-  the top of the frame is also detected as a dipole: its core is masked, and a
-  small residual ring is left over -- an honest artefact, not a discovery.
-* **300 Gaia DR3 sources and 47 VSX variables** were available inside the 9'
-  field, which is what makes the triage verdicts meaningful.
+* **24 exposures, 2 epochs.** All six detectors, two exposures each, in two
+  visits: 2025.656 (MJD 60916) and 2026.203 (MJD 61115). That is a
+  **0.55-year baseline**.
+* **Noise sigma1 = 0.0059, sigma2 = 0.0066 MJy/sr**, and the real blur of the
+  telescope from the files: **6.9 arcseconds** (9.3" after the images are
+  resampled onto the common 3" grid).
+* **61 changes above 6 sigma**; the ten strongest are classified:
+  **9 KNOWN** (4 bright-star artefacts, 3 catalogued stars that changed,
+  2 known variables) and **1 CANDIDATE** (125 sigma). The machine-learning
+  score gives that candidate only 14 % "real", and its card says why
+  ("poor PSF fit", "wrong size for a point source"): it looks like an
+  imaging artefact, so it sinks to the bottom of the follow-up list.
+* **Does it see Barnard's Star move?** Honestly: *not as a clean mover*. In
+  0.55 years the star shifts **5.7 arcseconds**, less than the width of its
+  own blurred image (6.9") and its saturated core is masked. The two halves
+  of the move overlap, so the pipeline reports a strong *brightness change at
+  the star* (2,043 sigma), and the "expected movers" panel says
+  **resolvable: no**. The big rings 6 pixels around it are glare from a
+  saturated star, correctly labelled artefacts. (Version 1 called two weak
+  blobs there "KNOWN_MOVER"; they were pieces of that glare ring paired up by
+  a too-generous rule. Version 2 refuses: no star moves 66 arcseconds a year.)
+* **15,411 Gaia DR3 sources, 4,617 AllWISE sources and 43 VSX variables**
+  are inside the 15' catalogue cone, which is what makes the verdicts
+  meaningful.
 
 For comparison, **R Draconis** (a Mira variable in a crowded field) has 6
 detections and *all six* are KNOWN: every change it shows is already catalogued,
@@ -674,10 +687,23 @@ Gaia DR3 300 / VSX 47 entries cross-matched`.
   30 arcseconds", which is most often a faint star too dim for Gaia, a cosmic ray
   that slipped through, or a residual from a bright star's mask. Real follow-up
   means re-observing the position.
-* **The real cutouts carry two bands, not 102.** With two file pairs the
-  "spectrum" is four aperture measurements, so the 102-band classifier is *not*
-  run on real data -- the API returns `classification: null` rather than making
-  something up. The synthetic demo cache is what exercises the classifier.
+* **The real cutouts carry six bands with a few exposures each, not 102
+  channels.** A field has 12-36 exposures, so the target "spectrum" is 12-36
+  points; the 102-band classifier needs at least 30 well-sampled channels, so
+  on most fields the API returns `classification: null` rather than making
+  something up. The deep fields (thousands of visits) are where full spectra
+  are possible.
+* **Slow movers are not resolved.** If a star shifts less than the telescope's
+  blur (about 7 arcseconds) between the two epochs, its two halves overlap and
+  the pipeline reports a brightness change instead of a mover. Barnard's Star
+  moves 5.7" in the 0.55-year DR1 baseline: not resolvable yet.
+* **Nebulae and galaxies make fake candidates.** Their glowing gas is in no
+  star catalogue, so subtraction leftovers there look "new" (Crab Nebula: 5 per
+  null field). The ML score ranks most of them low; it does not remove them.
+* **The ML score is only as good as its examples.** Its "real" examples are
+  planted fakes and its "bogus" ones are same-epoch leftovers; real fake
+  *movers* are barely represented, so its mover scores are untested. Public
+  votes are meant to fix that.
 * **The catalogue checks are heuristics.** The brightness-dependent radii, the
   bright-star mask, the AllWISE motion threshold and the NEOWISE "variable" rule
   are tuned constants (`catalog_tools.py`, `step7_neowise.is_variable`), not
@@ -833,13 +859,23 @@ system (*zodiacal light*), also stored in each file, is removed first.
 * **Known objects.** Stars that Gaia says move fast, catalogued variable
   stars, and known asteroids: does the detector find them?
 
-The results are on the website's **Accuracy** page, with error bars.
+The results are on the website's **Accuracy** page, with error bars. On all
+18 fields: the detector finds **69 %** of planted objects in the right place
+and as the right kind of thing: **97 %** of stars that brightened, **95 %**
+of stars that faded, **56 %** of movers (slow movers are hard: their two
+halves overlap). It produces about **1.7 fake candidates per field**, mostly
+in nebulae and galaxies, whose glowing gas is in no star catalogue; six of the
+star fields produce none. Before version 2 it found **0.2 %**: one bright
+star's leftover shrank every other signal in the map, and fading stars were
+glued to unrelated blobs as fake "movers".
 
 **The machine-learning score.** A model trained on those tests looks at about
 20 measurements of each detection (how strong, how round, how close to a
 bright star, how many masked pixels, ...) and gives a percentage: how likely
 this is a real change rather than an imaging artefact. It **only re-orders
-the list**. The KNOWN / CANDIDATE answer still comes from the catalogue check,
+the list**. Tested on four fields it never saw during training, it is right
+about 90 % of the time when it calls a brightening "real" (and catches 82 %
+of them); for fading sources the figures are 72 % and 63 %. The KNOWN / CANDIDATE answer still comes from the catalogue check,
 so a scientist can always see why. Each card shows the three things that
 moved the score most, in words.
 

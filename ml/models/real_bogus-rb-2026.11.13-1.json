@@ -1,0 +1,774 @@
+{
+ "version": "rb-2026.11.13-1",
+ "kind": "real_bogus",
+ "generated_utc": "2026-11-13T10:33:11Z",
+ "pipeline": {
+  "pipeline_version": "2.0.0-dev",
+  "config_hash": "d8d398effb40"
+ },
+ "features": [
+  "snr",
+  "snr_minus",
+  "fwhm_ratio",
+  "ellipticity",
+  "psf_chi2",
+  "dipole_symmetry",
+  "dipole_sep_px",
+  "kind_dipole",
+  "kind_monopole",
+  "kind_monopole_negative",
+  "bright_star_dist_arcsec",
+  "bright_star_gmag",
+  "masked_frac",
+  "noise_ratio",
+  "exposure_quality",
+  "n_pairs_seen",
+  "colour_cross_detector",
+  "spec_ch4",
+  "spec_h2o",
+  "spec_nir_slope",
+  "abs_ecl_lat_deg",
+  "asteroid_match"
+ ],
+ "medians": {
+  "snr": 22.85478986945439,
+  "snr_minus": 43.63277146367939,
+  "fwhm_ratio": 0.9726454771422983,
+  "ellipticity": 0.1965106636947525,
+  "psf_chi2": 89.04785152350499,
+  "dipole_symmetry": 0.021507337093173408,
+  "dipole_sep_px": 4.123105625617661,
+  "kind_dipole": 0.0,
+  "kind_monopole": 0.0,
+  "kind_monopole_negative": 0.0,
+  "bright_star_dist_arcsec": 28.619114639030066,
+  "bright_star_gmag": 14.859589,
+  "masked_frac": 0.0,
+  "noise_ratio": 1.0611389154238975,
+  "exposure_quality": 1.0,
+  "n_pairs_seen": 0.0,
+  "colour_cross_detector": 0.0,
+  "spec_ch4": 0.0,
+  "spec_h2o": 0.0,
+  "spec_nir_slope": 0.0,
+  "abs_ecl_lat_deg": 33.32649342988324,
+  "asteroid_match": 0.0
+ },
+ "train_fields": [
+  "Andromeda_M31",
+  "Barnards_Star",
+  "Crab_M1",
+  "Epsilon_Indi_B",
+  "Orion_M42",
+  "Pleiades_M45",
+  "Proxima_Cen",
+  "Quasar_3C273",
+  "RW_Aurigae",
+  "R_Draconis",
+  "Ring_M57",
+  "SgrA_star",
+  "Sirius",
+  "Whirlpool_M51"
+ ],
+ "heldout_fields": [
+  "Betelgeuse",
+  "Sombrero_M104",
+  "TRAPPIST_1",
+  "WISE_0855"
+ ],
+ "folds": [
+  {
+   "train": [
+    "Barnards_Star",
+    "Crab_M1",
+    "Epsilon_Indi_B",
+    "Pleiades_M45",
+    "Proxima_Cen",
+    "Quasar_3C273",
+    "RW_Aurigae",
+    "R_Draconis",
+    "Ring_M57",
+    "SgrA_star",
+    "Whirlpool_M51"
+   ],
+   "test": [
+    "Andromeda_M31",
+    "Orion_M42",
+    "Sirius"
+   ]
+  },
+  {
+   "train": [
+    "Andromeda_M31",
+    "Barnards_Star",
+    "Crab_M1",
+    "Epsilon_Indi_B",
+    "Orion_M42",
+    "Proxima_Cen",
+    "Quasar_3C273",
+    "RW_Aurigae",
+    "Ring_M57",
+    "Sirius",
+    "Whirlpool_M51"
+   ],
+   "test": [
+    "Pleiades_M45",
+    "R_Draconis",
+    "SgrA_star"
+   ]
+  },
+  {
+   "train": [
+    "Andromeda_M31",
+    "Barnards_Star",
+    "Crab_M1",
+    "Epsilon_Indi_B",
+    "Orion_M42",
+    "Pleiades_M45",
+    "RW_Aurigae",
+    "R_Draconis",
+    "Ring_M57",
+    "SgrA_star",
+    "Sirius"
+   ],
+   "test": [
+    "Proxima_Cen",
+    "Quasar_3C273",
+    "Whirlpool_M51"
+   ]
+  },
+  {
+   "train": [
+    "Andromeda_M31",
+    "Barnards_Star",
+    "Orion_M42",
+    "Pleiades_M45",
+    "Proxima_Cen",
+    "Quasar_3C273",
+    "RW_Aurigae",
+    "R_Draconis",
+    "SgrA_star",
+    "Sirius",
+    "Whirlpool_M51"
+   ],
+   "test": [
+    "Crab_M1",
+    "Epsilon_Indi_B",
+    "Ring_M57"
+   ]
+  },
+  {
+   "train": [
+    "Andromeda_M31",
+    "Crab_M1",
+    "Epsilon_Indi_B",
+    "Orion_M42",
+    "Pleiades_M45",
+    "Proxima_Cen",
+    "Quasar_3C273",
+    "R_Draconis",
+    "Ring_M57",
+    "SgrA_star",
+    "Sirius",
+    "Whirlpool_M51"
+   ],
+   "test": [
+    "Barnards_Star",
+    "RW_Aurigae"
+   ]
+  }
+ ],
+ "split": "GroupKFold(5) by field on 14 training fields + 4 held-out fields",
+ "seed": 20261113,
+ "metrics": {
+  "cv": {
+   "precision": 0.9905,
+   "recall": 0.9711,
+   "f1": 0.9807,
+   "n": 9863,
+   "n_real": 5393,
+   "threshold": 0.5,
+   "confusion": {
+    "labels": [
+     "real",
+     "bogus"
+    ],
+    "matrix": [
+     [
+      5237,
+      156
+     ],
+     [
+      50,
+      4420
+     ]
+    ]
+   },
+   "pr_auc": 0.9966,
+   "pr_curve": [
+    [
+     1.0,
+     0.5468
+    ],
+    [
+     1.0,
+     0.5505
+    ],
+    [
+     0.9994,
+     0.6236
+    ],
+    [
+     0.9993,
+     0.6371
+    ],
+    [
+     0.9985,
+     0.6794
+    ],
+    [
+     0.9972,
+     0.7671
+    ],
+    [
+     0.997,
+     0.7771
+    ],
+    [
+     0.9967,
+     0.7909
+    ],
+    [
+     0.9957,
+     0.8269
+    ],
+    [
+     0.9954,
+     0.8394
+    ],
+    [
+     0.9943,
+     0.8585
+    ],
+    [
+     0.9878,
+     0.9184
+    ],
+    [
+     0.9874,
+     0.921
+    ],
+    [
+     0.9809,
+     0.9573
+    ],
+    [
+     0.9785,
+     0.9715
+    ],
+    [
+     0.9774,
+     0.9765
+    ],
+    [
+     0.9772,
+     0.9772
+    ],
+    [
+     0.9761,
+     0.9801
+    ],
+    [
+     0.9731,
+     0.987
+    ],
+    [
+     0.9726,
+     0.9883
+    ],
+    [
+     0.9711,
+     0.9905
+    ],
+    [
+     0.9709,
+     0.9907
+    ],
+    [
+     0.9648,
+     0.9945
+    ],
+    [
+     0.9637,
+     0.995
+    ],
+    [
+     0.9624,
+     0.9956
+    ],
+    [
+     0.9548,
+     0.9986
+    ],
+    [
+     0.9533,
+     0.9988
+    ],
+    [
+     0.9347,
+     0.9994
+    ],
+    [
+     0.9141,
+     1.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "calibration": [
+    [
+     0.0162,
+     0.0162,
+     4063
+    ],
+    [
+     0.1393,
+     0.1393,
+     402
+    ],
+    [
+     0.2857,
+     0.2857,
+     91
+    ],
+    [
+     0.4,
+     0.4,
+     20
+    ],
+    [
+     0.5,
+     0.5,
+     2
+    ],
+    [
+     0.6389,
+     0.6389,
+     72
+    ],
+    [
+     0.7193,
+     0.7193,
+     57
+    ],
+    [
+     0.8889,
+     0.8889,
+     9
+    ],
+    [
+     0.9988,
+     0.9988,
+     5147
+    ]
+   ],
+   "ci95": {
+    "precision": [
+     0.9854,
+     0.9948
+    ],
+    "recall": [
+     0.9322,
+     0.9974
+    ],
+    "f1": [
+     0.9603,
+     0.9938
+    ],
+    "pr_auc": [
+     0.9926,
+     0.9996
+    ],
+    "method": "field bootstrap, n=500"
+   },
+   "n_fields": 14,
+   "note": "isotonic fitted on these same OOF scores: calibration is optimistic"
+  },
+  "heldout": {
+   "precision": 0.957,
+   "recall": 0.9298,
+   "f1": 0.9432,
+   "n": 2287,
+   "n_real": 1126,
+   "threshold": 0.5,
+   "confusion": {
+    "labels": [
+     "real",
+     "bogus"
+    ],
+    "matrix": [
+     [
+      1047,
+      79
+     ],
+     [
+      47,
+      1114
+     ]
+    ]
+   },
+   "pr_auc": 0.9871,
+   "pr_curve": [
+    [
+     1.0,
+     0.4923
+    ],
+    [
+     1.0,
+     0.4973
+    ],
+    [
+     1.0,
+     0.5512
+    ],
+    [
+     1.0,
+     0.555
+    ],
+    [
+     1.0,
+     0.5748
+    ],
+    [
+     1.0,
+     0.5751
+    ],
+    [
+     1.0,
+     0.6445
+    ],
+    [
+     0.9991,
+     0.6545
+    ],
+    [
+     0.9991,
+     0.6548
+    ],
+    [
+     0.9991,
+     0.6552
+    ],
+    [
+     0.9982,
+     0.6667
+    ],
+    [
+     0.9982,
+     0.7029
+    ],
+    [
+     0.9982,
+     0.715
+    ],
+    [
+     0.9982,
+     0.7155
+    ],
+    [
+     0.9973,
+     0.733
+    ],
+    [
+     0.984,
+     0.8147
+    ],
+    [
+     0.984,
+     0.8153
+    ],
+    [
+     0.9831,
+     0.8176
+    ],
+    [
+     0.9831,
+     0.8182
+    ],
+    [
+     0.9583,
+     0.8758
+    ],
+    [
+     0.9485,
+     0.8945
+    ],
+    [
+     0.9485,
+     0.8952
+    ],
+    [
+     0.9449,
+     0.9071
+    ],
+    [
+     0.9449,
+     0.9078
+    ],
+    [
+     0.9405,
+     0.9137
+    ],
+    [
+     0.9405,
+     0.9145
+    ],
+    [
+     0.9405,
+     0.9153
+    ],
+    [
+     0.9361,
+     0.9436
+    ],
+    [
+     0.9361,
+     0.9444
+    ],
+    [
+     0.9343,
+     0.9486
+    ],
+    [
+     0.9343,
+     0.9495
+    ],
+    [
+     0.9343,
+     0.9503
+    ],
+    [
+     0.9334,
+     0.9503
+    ],
+    [
+     0.9298,
+     0.957
+    ],
+    [
+     0.9298,
+     0.9579
+    ],
+    [
+     0.9298,
+     0.9588
+    ],
+    [
+     0.9298,
+     0.9597
+    ],
+    [
+     0.9076,
+     0.9884
+    ],
+    [
+     0.9041,
+     0.9903
+    ],
+    [
+     0.9023,
+     0.9932
+    ],
+    [
+     0.8925,
+     0.999
+    ],
+    [
+     0.8917,
+     0.999
+    ],
+    [
+     0.8694,
+     1.0
+    ],
+    [
+     0.8686,
+     1.0
+    ],
+    [
+     0.8677,
+     1.0
+    ],
+    [
+     0.8561,
+     1.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "calibration": [
+    [
+     0.0224,
+     0.0194,
+     928
+    ],
+    [
+     0.1406,
+     0.2366,
+     186
+    ],
+    [
+     0.2899,
+     0.1875,
+     64
+    ],
+    [
+     0.3759,
+     0.3333,
+     3
+    ],
+    [
+     0.4,
+     0.3333,
+     12
+    ],
+    [
+     0.5624,
+     0.0,
+     3
+    ],
+    [
+     0.6322,
+     0.4559,
+     68
+    ],
+    [
+     0.7236,
+     0.6667,
+     18
+    ],
+    [
+     0.9988,
+     0.999,
+     1005
+    ]
+   ],
+   "ci95": {
+    "precision": [
+     0.7355,
+     1.0
+    ],
+    "recall": [
+     0.7967,
+     0.9975
+    ],
+    "f1": [
+     0.8302,
+     0.993
+    ],
+    "pr_auc": [
+     0.9199,
+     0.9998
+    ],
+    "method": "field bootstrap, n=500"
+   },
+   "n_fields": 4
+  },
+  "heldout_by_kind": {
+   "dipole": {
+    "n": 814,
+    "n_real": 797,
+    "n_bogus": 17,
+    "precision": 1.0,
+    "recall": 1.0
+   },
+   "brightening/monopole": {
+    "n": 797,
+    "n_real": 229,
+    "n_bogus": 568,
+    "precision": 0.895,
+    "recall": 0.817
+   },
+   "fading": {
+    "n": 676,
+    "n_real": 100,
+    "n_bogus": 576,
+    "precision": 0.716,
+    "recall": 0.63
+   }
+  },
+  "caveat": "Held-out headline numbers are inflated by dipoles: injected movers are dipoles while null-test bogus examples almost never are, so 'is a dipole' alone separates them. Quote the per-kind numbers; the model's judgement of fake dipoles is untested (17 bogus dipoles)."
+ },
+ "permutation_importance": {
+  "dipole_sep_px": 0.32535,
+  "psf_chi2": 0.05096,
+  "exposure_quality": 0.04495,
+  "snr": 0.04438,
+  "fwhm_ratio": 0.01594,
+  "noise_ratio": 0.0071,
+  "masked_frac": 0.004,
+  "ellipticity": 0.00169,
+  "bright_star_dist_arcsec": 0.00117,
+  "abs_ecl_lat_deg": 0.0005,
+  "kind_monopole": 0.00032,
+  "bright_star_gmag": 0.00025,
+  "kind_monopole_negative": 0.00018,
+  "snr_minus": 1e-05,
+  "dipole_symmetry": 0.0,
+  "kind_dipole": 0.0,
+  "n_pairs_seen": 0.0,
+  "colour_cross_detector": 0.0,
+  "spec_ch4": 0.0,
+  "spec_h2o": 0.0,
+  "spec_nir_slope": 0.0,
+  "asteroid_match": 0.0
+ },
+ "data": {
+  "n": 12150,
+  "n_real": 6519,
+  "fields": [
+   "Andromeda_M31",
+   "Barnards_Star",
+   "Betelgeuse",
+   "Crab_M1",
+   "Epsilon_Indi_B",
+   "Orion_M42",
+   "Pleiades_M45",
+   "Proxima_Cen",
+   "Quasar_3C273",
+   "RW_Aurigae",
+   "R_Draconis",
+   "Ring_M57",
+   "SgrA_star",
+   "Sirius",
+   "Sombrero_M104",
+   "TRAPPIST_1",
+   "WISE_0855",
+   "Whirlpool_M51"
+  ],
+  "by_source": {
+   "null_test:bogus": 5353,
+   "injection:real": 6512,
+   "mask:bogus": 278,
+   "answer_key:real": 7
+  },
+  "n_bogus": 5631
+ },
+ "unused_features": [
+  "n_pairs_seen",
+  "colour_cross_detector",
+  "spec_ch4",
+  "spec_h2o",
+  "spec_nir_slope",
+  "asteroid_match"
+ ],
+ "calibration": "isotonic on GroupKFold out-of-fold scores",
+ "uncertain_band": [
+  0.35,
+  0.65
+ ]
+}

@@ -82,7 +82,26 @@ python -m spherexlens.ml.train --labels ml/data/labels.parquet
   precision, recall or PR-AUC (or loses a metric).
 
 <!-- METRICS:START -->
-Measured numbers are filled in by the final evaluation run.
+**Measured on all 18 DR1 fields** (2 exposures per epoch and band, 6 sigma,
+`eval/metrics.json`, model `rb-2026.11.13-1`):
+
+| What | Result |
+|---|---|
+| Planted objects found (strict: right place, right kind) | **69.3 %** overall: brightening **96.7 %**, fading **95.3 %**, movers **56.0 %** (12,240 injections) |
+| Fake CANDIDATEs per field (null test, after triage) | **1.66** overall; 0 in 6 star fields, 0.5 in Barnard's Star / RW Aurigae; highest in nebulae and galaxies (Crab 5.3, Whirlpool 2.1) and Sirius (3.7, too bright for Gaia) |
+| Before the v2 fixes | **0.2 %** of planted objects found |
+| ML real/bogus, 4 fields never seen in training | brightening precision **0.90** / recall **0.82**; fading **0.72** / **0.63** |
+| Known variables (VSX) re-found | 7 of 101: a lower bound, a catalogued variable need not have changed between the two epochs |
+
+The ML's headline held-out score (precision 0.96, PR-AUC 0.99) is
+**inflated by movers**: planted movers are dipoles and null-test artefacts
+almost never are. Quote the per-kind numbers (`ml/MODEL_CARD.md`).
+
+What changed between 0.2 % and 69 %: the significance map is scaled by a
+robust spread so one bright star cannot shrink every other detection; a
+"mover" now needs two halves of similar strength within a physically possible
+distance (fading stars were being glued to unrelated blobs up to 75" away);
+and very bright infrared stars get masks that grow with their brightness.
 <!-- METRICS:END -->
 
 ### Other v2 pieces
