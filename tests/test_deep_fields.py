@@ -145,3 +145,47 @@ class EnsembleTests(unittest.TestCase):
         self.assertAlmostEqual(med, 2.5)
         self.assertEqual([r["variable"] for r in res], [False] * 4 + [True])
         self.assertTrue(all(r["variable_self"] for r in res))
+
+
+class DeepCloudTests(unittest.TestCase):
+    def test_publish_writes_strict_json_to_bucket_and_route_reads_it(self):
+        import json
+        import os
+        from unittest.mock import patch
+        from spherexlens.deep import run as deep_run
+        from spherexlens.routes import deep as deep_route
+
+        class Blob:
+            def __init__(self, name): self.name = name
+
+        class Bucket:
+            def __init__(self): self.objects = {}
+            def list_blobs(self, prefix=""):
+                return [Blob(k) for k in self.objects if k.startswith(prefix)]
+
+        class FakeStore:
+            bucket = Bucket()
+            def __init__(self, *a, **k): pass
+            def write_json(self, name, value):
+                self.bucket.objects[name] = json.dumps(value, allow_nan=False)
+            def read_json(self, name):
+                raw = self.bucket.objects.get(name)
+                return None if raw is None else json.loads(raw)
+
+        os.environ["SPHEREX_SNAPSHOT_BUCKET"] = "fake-bucket"
+        try:
+            with patch("snapshot_store.SnapshotStore", FakeStore):
+                deep_route._BUCKET_CACHE.clear()
+                key = deep_run.publish("NEP", {"name": "NEP", "ra": 270.0,
+                                               "sources": [{"chi2": float("inf")}]})
+                self.assertEqual(key, "deep/NEP.json")
+                from fastapi.testclient import TestClient
+                import app
+                c = TestClient(app.app)
+                self.assertEqual(c.get("/api/deep").json()["fields"][0]["name"], "NEP")
+                body = c.get("/api/deep/NEP").json()
+                self.assertIsNone(body["sources"][0]["chi2"])       # inf -> null
+                self.assertEqual(c.get("/api/deep/nope").status_code, 404)
+        finally:
+            os.environ.pop("SPHEREX_SNAPSHOT_BUCKET", None)
+            deep_route._BUCKET_CACHE.clear()

@@ -389,3 +389,26 @@ which publishes `site/` per `[build] publish`).
    call to the Cloud Run URL shows `"missing_or_invalid"`.
 
 Rollback: `proxy_signing = false` and apply.
+
+## Phase 7: deep-field light curves in the cloud
+
+`terraform apply` (with `deploy_runtime=true`) creates the on-demand job
+`spherex-deep`.  It samples `spherex_dr1_deep` visits over the whole year,
+measures the field's Gaia stars on every visit, and publishes
+`deep/<name>.json` to the snapshot bucket; `/api/deep` serves it.
+
+```powershell
+# default: North Ecliptic Pole, 200 visits
+gcloud run jobs execute spherex-deep --region us-central1 --project spherex-lens
+
+# South Ecliptic Pole (or any position inside the deep footprint)
+gcloud run jobs execute spherex-deep --region us-central1 --project spherex-lens `
+  --args="--name,SEP,--ra,90.0,--dec,-66.56,--max-exposures,200"
+
+# follow it
+gcloud run jobs executions list --job spherex-deep --region us-central1 --project spherex-lens
+```
+
+Cost: a 200-visit run is one task of 2 vCPU / 4 GiB for roughly 1-3 hours
+(mostly waiting on IRSA's cutout service), with no persistent storage beyond
+one small JSON file.  Nothing is scheduled; it runs only when executed.

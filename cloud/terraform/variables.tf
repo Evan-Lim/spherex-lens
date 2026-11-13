@@ -68,3 +68,27 @@ variable "proxy_signing" {
   type        = bool
   default     = false
 }
+
+variable "deep_default_name" {
+  description = "Phase 7 deep-field job: result name (deep/<name>.json)."
+  type        = string
+  default     = "NEP"
+}
+
+variable "deep_default_ra" {
+  description = "Phase 7 deep-field job: RA (deg). Default: North Ecliptic Pole."
+  type        = number
+  default     = 270.0
+}
+
+variable "deep_default_dec" {
+  description = "Phase 7 deep-field job: Dec (deg). Default: North Ecliptic Pole."
+  type        = number
+  default     = 66.56
+}
+
+variable "deep_max_exposures" {
+  description = "Phase 7 deep-field job: visits sampled over the year (cost scales with this)."
+  type        = number
+  default     = 200
+}

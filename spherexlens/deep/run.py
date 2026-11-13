@@ -99,9 +99,39 @@ def run(name, ra, dec, max_exposures=200, size_deg=0.1, gmax=17.0,
     with open(tmp, "w") as f:
         json.dump(payload, f)
     os.replace(tmp, out)              # atomic: a crash never leaves half a file
+    publish(name, payload)
     print(f"{name}: {payload['n_analysed']} analysed, {payload['n_variable']} variable, "
           f"{payload['n_periodic']} periodic, {payload['n_moving']} moving -> {out}")
     return payload
+
+
+DEEP_PREFIX = "deep/"
+
+
+def _finite(value):
+    """NaN / inf -> None: the snapshot store writes strict JSON."""
+    import math
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {k: _finite(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_finite(v) for v in value]
+    return value
+
+
+def publish(name, payload):
+    """On the cloud the job and the API run on different machines, so the
+    result is also written to the snapshot bucket (deep/<name>.json), which
+    /api/deep reads.  No bucket configured (a laptop run) -> local file only."""
+    bucket = os.environ.get("SPHEREX_SNAPSHOT_BUCKET")
+    if not bucket:
+        return None
+    from snapshot_store import SnapshotStore
+    store = SnapshotStore(bucket)
+    store.write_json(f"{DEEP_PREFIX}{name}.json", _finite(payload))
+    print(f"{name}: published gs://{bucket}/{DEEP_PREFIX}{name}.json")
+    return f"{DEEP_PREFIX}{name}.json"
 
 
 def main(argv=None):

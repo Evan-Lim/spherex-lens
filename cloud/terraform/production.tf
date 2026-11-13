@@ -268,3 +268,64 @@ resource "google_billing_budget" "monthly" {
 
   depends_on = [google_project_service.billing_budgets]
 }
+
+# ---------------------------------------------------------------------------
+# Phase 7: SPHEREx deep-field light curves as an on-demand Cloud Run Job.
+# Downloads a time-spread sample of spherex_dr1_deep cutouts into /tmp
+# (memory), measures the field's Gaia stars on every visit and publishes
+# deep/<name>.json to the snapshot bucket, which /api/deep serves.
+# Run it with:  gcloud run jobs execute spherex-deep --region us-central1
+# (default: North Ecliptic Pole) or override --args, see cloud/README.md.
+# ---------------------------------------------------------------------------
+resource "google_cloud_run_v2_job" "deep" {
+  count               = var.deploy_runtime ? 1 : 0
+  name                = "spherex-deep"
+  project             = var.project_id
+  location            = var.region
+  deletion_protection = false
+
+  template {
+    task_count  = 1
+    parallelism = 1
+
+    template {
+      service_account = google_service_account.worker.email
+      max_retries     = 0
+      timeout         = "21600s"
+
+      containers {
+        image   = local.image
+        command = ["python", "-m", "spherexlens.deep.run"]
+        args = ["--name", var.deep_default_name,
+          "--ra", tostring(var.deep_default_ra),
+          "--dec", tostring(var.deep_default_dec),
+        "--max-exposures", tostring(var.deep_max_exposures)]
+
+        resources {
+          limits = {
+            cpu    = "2"
+            memory = "4Gi"
+          }
+        }
+
+        env {
+          name  = "SPHEREX_SNAPSHOT_BUCKET"
+          value = google_storage_bucket.snapshots.name
+        }
+        env {
+          name  = "SPHEREX_CACHE"
+          value = "/tmp/spherex-data"
+        }
+        env {
+          name  = "SPHEREX_DEEP_DIR"
+          value = "/tmp/deep"
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_service.required,
+    google_storage_bucket_iam_member.worker_write,
+  ]
+}
