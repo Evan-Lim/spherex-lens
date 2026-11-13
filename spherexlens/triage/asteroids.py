@@ -24,6 +24,8 @@ Fail, don't fake: when JPL cannot be reached every detection is marked
 ``asteroid.status = "unavailable"`` and keeps its category.
 """
 import math
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 import numpy as np
 
@@ -33,6 +35,10 @@ from spherexlens.ingest.base import ArchiveUnavailable
 from spherexlens.ingest.jpl import JPLSbdb, JPLSbIdent, mjd_to_datetime
 from spherexlens.ingest import ssois as ssois_mod
 from spherexlens.ingest.ssois import CadcSsois
+
+# shared, long-lived: a time-boxed request leaves its slow JPL queries running
+# here so they finish and fill the on-disk cache
+_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="sb_ident")
 
 OBLIQUITY_DEG = 23.4392911                 # J2000 mean obliquity
 UNAVAILABLE_REASON = "asteroid check unavailable — treat CANDIDATE with caution"
@@ -241,18 +247,41 @@ def check_asteroids(payload, ctx):
     field["ecliptic_latitude_deg"] = round(beta, 2)
 
     # -- 1. predictions per exposure time ---------------------------------
+    # A two-pass sb_ident query takes 1-5 minutes.  All of a field's queries
+    # run at once on a shared pool; a web request waits at most
+    # config.ASTEROID_TIME_BOX_S, and queries still running keep going and
+    # fill the 30-day cache for the next load.  0 = wait for every answer
+    # (the scheduled cloud refresh sets that).
     predictions = {}                 # epoch -> [row, ...]
     n_ok = 0
+    jobs = []
     for e, mjds in times.items():
         for m in mjds:
             field["n_queries"] += 1
-            try:
-                res = sb_ident.query(ra0, dec0, m, half_query)
-            except ArchiveUnavailable as ex:
-                field["errors"].append(str(ex))
-                continue
-            n_ok += 1
-            predictions.setdefault(e, []).extend(res.rows)
+            jobs.append((e, _POOL.submit(sb_ident.query, ra0, dec0, m, half_query)))
+    box = float(config.ASTEROID_TIME_BOX_S or 0)
+    deadline = time.monotonic() + box if box > 0 else None
+    n_pending = 0
+    for e, fut in jobs:
+        try:
+            timeout = None if deadline is None else max(0.0, deadline - time.monotonic())
+            res = fut.result(timeout=timeout)
+        except FutureTimeout:
+            n_pending += 1
+            continue
+        except ArchiveUnavailable as ex:
+            field["errors"].append(str(ex))
+            continue
+        except Exception as ex:      # never let one query break the field
+            field["errors"].append(f"{type(ex).__name__}: {ex}")
+            continue
+        n_ok += 1
+        predictions.setdefault(e, []).extend(res.rows)
+    if n_pending:
+        field["errors"].append(
+            f"{n_pending} JPL quer{'y' if n_pending == 1 else 'ies'} still running "
+            f"after {box:.0f} s; results are cached for the next load")
+        field["pending"] = n_pending
     if n_ok == 0:
         field["status"] = "unavailable"
         _mark_unavailable(dets, field["errors"][0] if field["errors"]

@@ -316,3 +316,39 @@ class EnricherTests(_NoBackoff):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TimeBoxTests(unittest.TestCase):
+    def test_slow_jpl_is_time_boxed_not_blocking(self):
+        import threading
+        import config
+        from spherexlens.triage import asteroids as ast
+        release = threading.Event()
+
+        class SlowIdent:
+            def query(self, *a, **k):
+                release.wait(5)
+                raise ast.ArchiveUnavailable("late")
+
+        payload = {"ra": 10.0, "dec": 0.0, "detections": [
+            {"kind": "monopole", "snr": 8, "category": "CANDIDATE",
+             "verdict": "CANDIDATE", "position": (50, 50), "ra": 10.0, "dec": 0.0,
+             "epochs": [1, 2], "mjd_a": 60800.0, "mjd_b": 60990.0, "reasons": []}]}
+        ctx = {"ra": 10.0, "dec": 0.0, "npix": 180, "pixscale_arcsec": 3.0,
+               "mjds": [60800.0, 60990.0], "epochs": [1, 2],
+               "asteroid_adapters": {"sb_ident": SlowIdent(), "sbdb": object(),
+                                     "ssois": object()}}
+        old = config.ASTEROID_TIME_BOX_S
+        config.ASTEROID_TIME_BOX_S = 0.3
+        try:
+            import time as _t
+            t0 = _t.monotonic()
+            ast.check_asteroids(payload, ctx)
+            self.assertLess(_t.monotonic() - t0, 3.0)
+        finally:
+            config.ASTEROID_TIME_BOX_S = old
+            release.set()
+        self.assertEqual(payload["asteroid_check"]["status"], "unavailable")
+        self.assertEqual(payload["asteroid_check"]["pending"], 2)
+        self.assertEqual(payload["detections"][0]["asteroid"]["status"], "unavailable")
+        self.assertEqual(payload["detections"][0]["category"], "CANDIDATE")

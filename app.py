@@ -2473,8 +2473,9 @@ def get_dashboard(request: Request = None,
     return payload
 
 
-@app.get("/api/dashboard/stream")
-async def stream_dashboard(target: str = Query("WISE_0855"),
+@_rate_limited_route("get", "/api/dashboard/stream", "10/minute")
+async def stream_dashboard(request: Request = None,
+                           target: str = Query("WISE_0855", max_length=80),
                            live_slots: int = Query(0, ge=0, le=12),
                            live_size: float = Query(0.2, ge=0.05, le=0.5),
                            live_epochs: str = Query(
@@ -2681,8 +2682,9 @@ def get_recovery(request: Request = None,
     return _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source=source)
 
 
-@app.get("/api/recovery/stream")
-async def stream_recovery(target: str = Query("WISE_0855"),
+@_rate_limited_route("get", "/api/recovery/stream", "10/minute")
+async def stream_recovery(request: Request = None,
+                          target: str = Query("WISE_0855", max_length=80),
                           source: str = Query(
                               "live", pattern="^(cache|live)$"),
                           result: str = _RESULT_PARAM):
@@ -3065,8 +3067,9 @@ def live_mosaic_tile(target, thumb=48):
     return tile
 
 
-@app.get("/api/mosaic/tile/stream")
-async def stream_mosaic_tile(target: str = Query(..., max_length=80),
+@_rate_limited_route("get", "/api/mosaic/tile/stream", "60/minute")
+async def stream_mosaic_tile(request: Request = None,
+                             target: str = Query(..., max_length=80),
                              result: str = _RESULT_PARAM):
     return _progress_stream(
         lambda: live_mosaic_tile(target),

@@ -127,3 +127,8 @@ class Production:
     VOTE_RATE_PER_MIN = int(_env("VOTE_RATE_PER_MIN", 30, int))
     VOTES_QUEUE_CACHE_S = _env("VOTES_QUEUE_CACHE_S", 180.0)
     CONE_MAX_SR_DEG = 1.0                                     # IVOA SCS cap
+
+# ---- asteroid check time box (integration) ---------------------------------
+# Web requests wait at most this long for JPL sb_ident (1-5 min per query);
+# 0 = wait for every answer.  cloud_refresh.py sets 0 for published snapshots.
+ASTEROID_TIME_BOX_S = _env("ASTEROID_TIME_BOX_S", 25.0)

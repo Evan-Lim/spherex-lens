@@ -9,6 +9,8 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 os.environ.setdefault("SPHEREX_CACHE", "/tmp/spherex-data")
+# published snapshots must carry the complete asteroid check
+os.environ.setdefault("SPHEREX_ASTEROID_TIME_BOX_S", "0")
 os.environ["SPHEREX_SNAPSHOT_READS"] = "false"
 os.makedirs(os.environ["SPHEREX_CACHE"], exist_ok=True)
 
