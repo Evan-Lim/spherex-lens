@@ -91,7 +91,8 @@ def _rank_fallback(rows):
 
 def _rank(rows, n):
     try:
-        from spherexlens.ml import active
+        import importlib
+        active = importlib.import_module("spherexlens.ml.active")
         queue_fn = getattr(active, "uncertainty_queue")
     except Exception:
         queue_fn = None

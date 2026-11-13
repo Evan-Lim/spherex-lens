@@ -1,0 +1,14 @@
+[
+ {
+  "pipeline_version": "2.0.0-dev",
+  "config_hash": "989be7d02857",
+  "generated_utc": "2026-11-13T09:16:34Z",
+  "precision": null,
+  "recall": null,
+  "pr_auc": null,
+  "injection_recall": 0.0373,
+  "false_alarms_per_field": null,
+  "answer_key_recall": 0.0139,
+  "quick": true
+ }
+]

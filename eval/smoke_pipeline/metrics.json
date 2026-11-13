@@ -1,0 +1,2424 @@
+{
+ "pipeline": {
+  "pipeline_version": "2.0.0-dev",
+  "config_hash": "0f5717047dc4"
+ },
+ "generated_utc": "2026-11-13T09:16:15Z",
+ "options": {
+  "quick": true,
+  "seed": 20261113,
+  "n_splits": 2,
+  "max_groups": 4,
+  "max_per_half": 4,
+  "max_per_band": 4,
+  "n_trials": 6,
+  "snr_grid": [
+   5,
+   10,
+   20
+  ],
+  "mu_grid": [
+   5,
+   20
+  ],
+  "n_boot": 300
+ },
+ "detection_sigma_used": 5.0,
+ "s_normalisation": "pipeline",
+ "threshold": {
+  "sigma": null,
+  "false_alarms_per_field": null,
+  "method": "not enough null-test data",
+  "bh_fdr": {
+   "sigma_median": 3.626,
+   "sigma_range": [
+    2.98,
+    4.735
+   ],
+   "n_maps": 16,
+   "n_rejected_total": 3373,
+   "q": 0.05
+  }
+ },
+ "null_test": {
+  "n_fields": 0,
+  "n_realisations": 0,
+  "n_false": 0,
+  "area_deg2": 0.0,
+  "false_alarms_per_field": null,
+  "false_alarms_per_deg2": null,
+  "per_field": {},
+  "skipped": [
+   {
+    "field": "Andromeda_M31",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Andromeda_M31",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Barnards_Star",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Betelgeuse",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Crab_M1",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 3,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 3,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 3,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 3,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 3,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Epsilon_Indi_B",
+    "epoch": 3,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Orion_M42",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Pleiades_M45",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Proxima_Cen",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "RW_Aurigae",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 3,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "R_Draconis",
+    "epoch": 3,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 3,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 3,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 3,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 3,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 3,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Ring_M57",
+    "epoch": 3,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sirius",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 3,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Sombrero_M104",
+    "epoch": 3,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "TRAPPIST_1",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 3,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 3,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 3,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 3,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 3,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "WISE_0855",
+    "epoch": 3,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Whirlpool_M51",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   }
+  ],
+  "definition": "detections in a ZOGY subtraction of two random halves of one epoch+band; field = one 180x180 3\" subtraction"
+ },
+ "injection": {
+  "recall_overall": 0.0017,
+  "ci95": [
+   0.0005,
+   0.0063
+  ],
+  "n": 1152,
+  "by_category": {
+   "brightening": {
+    "recall": 0.0,
+    "n": 288,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0132
+    ]
+   },
+   "fading": {
+    "recall": 0.0069,
+    "n": 288,
+    "n_recovered": 2,
+    "ci95": [
+     0.0019,
+     0.025
+    ]
+   },
+   "mover": {
+    "recall": 0.0,
+    "n": 576,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0066
+    ]
+   }
+  },
+  "grid": [
+   {
+    "snr": 5,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.0104,
+    "n": 96,
+    "n_recovered": 1,
+    "ci95": [
+     0.0018,
+     0.0567
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.0104,
+    "n": 96,
+    "n_recovered": 1,
+    "ci95": [
+     0.0018,
+     0.0567
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.0,
+    "n": 96,
+    "n_recovered": 0,
+    "ci95": [
+     0.0,
+     0.0385
+    ]
+   }
+  ],
+  "n_fields": 18,
+  "psf_model": "epsf",
+  "snr_definition": "PSF-matched single-epoch SNR of the injected flux change",
+  "match": "kind-correct detection within 1.5 px"
+ },
+ "answer_key": {
+  "n": 72,
+  "n_detected": 1,
+  "recall": 0.0139,
+  "by_class": {
+   "vsx_variable": 0.0139
+  },
+  "by_class_n": {
+   "vsx_variable": 72
+  },
+  "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall",
+  "ci95": [
+   0.0,
+   0.0417
+  ]
+ },
+ "fields": [
+  {
+   "target": "Andromeda_M31",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4563,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 7,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.3,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Barnards_Star",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5572,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 2,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.1,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Betelgeuse",
+   "n_exposures": 9,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4809,
+   "n_exposures_pair": {
+    "1": 4,
+    "2": 4
+   },
+   "n_detections": 7,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 0.6,
+   "injection_recall": null,
+   "injection_n": 0
+  },
+  {
+   "target": "Crab_M1",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4751,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 6,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.1,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Epsilon_Indi_B",
+   "n_exposures": 18,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.975,
+   "n_exposures_pair": {
+    "1": 6,
+    "3": 6
+   },
+   "n_detections": 1,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.0,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Orion_M42",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4869,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 8,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.0,
+   "injection_recall": null,
+   "injection_n": 0
+  },
+  {
+   "target": "Pleiades_M45",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4616,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 8,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 1,
+    "n_detected": 0,
+    "recall": 0.0,
+    "by_class": {
+     "vsx_variable": 0.0
+    },
+    "by_class_n": {
+     "vsx_variable": 1
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.0,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Proxima_Cen",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5454,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 22,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.1,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Quasar_3C273",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5785,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 7,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.3,
+   "injection_recall": 0.0278,
+   "injection_n": 72
+  },
+  {
+   "target": "RW_Aurigae",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4826,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 6,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.5,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "R_Draconis",
+   "n_exposures": 14,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.8855,
+   "n_exposures_pair": {
+    "1": 2,
+    "3": 2
+   },
+   "n_detections": 10,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 0.6,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Ring_M57",
+   "n_exposures": 14,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.8742,
+   "n_exposures_pair": {
+    "1": 2,
+    "3": 2
+   },
+   "n_detections": 3,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 0.5,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "SgrA_star",
+   "n_exposures": 10,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5722,
+   "n_exposures_pair": {
+    "1": 4,
+    "2": 4
+   },
+   "n_detections": 28,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 70,
+    "n_detected": 1,
+    "recall": 0.0143,
+    "by_class": {
+     "vsx_variable": 0.0143
+    },
+    "by_class_n": {
+     "vsx_variable": 70
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall",
+    "ci95": [
+     0.0,
+     0.0429
+    ]
+   },
+   "seconds": 0.5,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Sirius",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4726,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 7,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.3,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Sombrero_M104",
+   "n_exposures": 14,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.6946,
+   "n_exposures_pair": {
+    "1": 2,
+    "3": 2
+   },
+   "n_detections": 9,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 0.4,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "TRAPPIST_1",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.487,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 4,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.1,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "WISE_0855",
+   "n_exposures": 18,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.9897,
+   "n_exposures_pair": {
+    "1": 6,
+    "3": 6
+   },
+   "n_detections": 11,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.0,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  },
+  {
+   "target": "Whirlpool_M51",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5711,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 5,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 1,
+    "n_detected": 0,
+    "recall": 0.0,
+    "by_class": {
+     "vsx_variable": 0.0
+    },
+    "by_class_n": {
+     "vsx_variable": 1
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 1.1,
+   "injection_recall": 0.0,
+   "injection_n": 72
+  }
+ ]
+}
