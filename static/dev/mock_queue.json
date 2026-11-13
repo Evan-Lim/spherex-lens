@@ -1,0 +1,95 @@
+{
+ "_mock": "dev mock for /api/votes/queue",
+ "items": [
+  {
+   "target": "Barnards_Star",
+   "common": "Barnard's Star",
+   "detection_id": "Barnards_Star:E1\u2192E2:150,120",
+   "ra": 269.4211815780634,
+   "dec": 4.8182045,
+   "kind": "monopole",
+   "snr": 6.1,
+   "category": "POSSIBLE_UNKNOWN_ASTEROID",
+   "ml": {
+    "real_bogus": 0.54,
+    "uncertain": true
+   },
+   "n_votes": 0
+  },
+  {
+   "target": "Barnards_Star",
+   "common": "Barnard's Star",
+   "detection_id": "Barnards_Star:E1\u2192E2:60,60",
+   "ra": 269.4713552219366,
+   "dec": 4.7432045,
+   "kind": "monopole_negative",
+   "snr": 7.3,
+   "category": "KNOWN_STATIC_CHANGED",
+   "ml": {
+    "real_bogus": 0.71,
+    "uncertain": false
+   },
+   "n_votes": 2
+  },
+  {
+   "target": "Barnards_Star",
+   "common": "Barnard's Star",
+   "detection_id": "Barnards_Star:E1\u2192E2:40,130",
+   "ra": 269.4128193040845,
+   "dec": 4.726537833333333,
+   "kind": "dipole",
+   "snr": 11.4,
+   "category": "CANDIDATE",
+   "ml": {
+    "real_bogus": 0.88,
+    "uncertain": false
+   },
+   "n_votes": 5
+  },
+  {
+   "target": "Barnards_Star",
+   "common": "Barnard's Star",
+   "detection_id": "Barnards_Star:E1\u2192E2:120,40",
+   "ra": 269.4880797698944,
+   "dec": 4.793204500000001,
+   "kind": "monopole",
+   "snr": 8.2,
+   "category": "KNOWN_ASTEROID",
+   "ml": {
+    "real_bogus": 0.95,
+    "uncertain": false
+   },
+   "n_votes": 1
+  },
+  {
+   "target": "Barnards_Star",
+   "common": "Barnard's Star",
+   "detection_id": "Barnards_Star:E1\u00e2\u2020\u2019E2:93,84",
+   "ra": 269.45044955727235,
+   "dec": 4.7715378206832,
+   "kind": "dipole",
+   "snr": 25.1,
+   "category": "KNOWN_MOVER",
+   "ml": {
+    "real_bogus": 0.97,
+    "uncertain": false
+   },
+   "n_votes": 0
+  },
+  {
+   "target": "Barnards_Star",
+   "common": "Barnard's Star",
+   "detection_id": "Barnards_Star:E1\u00e2\u2020\u2019E2:95,92",
+   "ra": 269.4437596995466,
+   "dec": 4.773204495433014,
+   "kind": "dipole",
+   "snr": 7.7,
+   "category": "KNOWN_MOVER",
+   "ml": {
+    "real_bogus": 0.97,
+    "uncertain": false
+   },
+   "n_votes": 3
+  }
+ ]
+}
