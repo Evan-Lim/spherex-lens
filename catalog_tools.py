@@ -401,6 +401,22 @@ def gaia_distance(src):
     return out
 
 
+def gaia_reliable(src):
+    """
+    False when a Gaia row's astrometry is unreliable: RUWE above
+    config.GAIA_RUWE_MAX (1.4, the usual single-star cut -- higher values
+    flag unresolved binaries or bad fits whose proper motion may be biased).
+    Rows without a RUWE (VizieR-era caches, AllWISE) count as reliable.
+    """
+    import config
+    ruwe = (src or {}).get("ruwe")
+    try:
+        ruwe = float(ruwe)
+    except (TypeError, ValueError):
+        return True
+    return not (math.isfinite(ruwe) and ruwe > config.GAIA_RUWE_MAX)
+
+
 # ---------------------------------------------------------------------------
 # Photometric zero points for the SED (W6)
 # ---------------------------------------------------------------------------

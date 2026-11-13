@@ -8,3 +8,5 @@ import os
 os.environ["SPHEREX_SNAPSHOT_READS"] = "false"
 # No background warm-up threads racing the fake stores tests inject.
 os.environ["SPHEREX_SNAPSHOT_WARM"] = "false"
+# The dashboard's archive-coverage enricher queries live archives; off in tests.
+os.environ.setdefault("SPHEREX_COVERAGE_ENRICH", "false")

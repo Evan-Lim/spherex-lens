@@ -6,3 +6,12 @@
   WCS-WAVE. Source: NASA/IPAC IRSA, collection `spherex_dr1`.
 * `archive/` -- recorded responses from JPL, SSOIS, Gaia, CADC, NEOWISE so the
   adapters are tested without network access.
+  Recorded 2026-11-13 (trimmed): `spherex_sia2_dr1_wise0855.xml` (6 SIA2 rows),
+  `spherex_s3_list_*.xml` (bucket `nasa-irsa-spherex` ListObjectsV2),
+  `gaia_irsa_tap_wise0855.tsv`, `gaia_mast_dr3_wise0855.json` (4 rows, used
+  columns), `gaia_vizier_harvard_sentinel.xml` (the Harvard mirror's broken
+  I/355/gaiadr3 reply), `gaia_esa_vari_classes.csv`, `cadc_neossat_*`
+  (CADC argus ObsCore + DataLink).
+* `neossat_NEOS_SCI_2024251021442.fits.gz` -- one raw NEOSSat science frame of
+  HD 80606 (primary HDU only), CADC collection NEOSSAT. NEOSSat data (c)
+  Canadian Space Agency, Open Government Licence - Canada.

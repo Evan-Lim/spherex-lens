@@ -36,7 +36,7 @@ import numpy as np
 from catalog_tools import (match_radius, bright_mask_radius, wise_reliable,
                            wise_colour_class, decode_vsx_type, vsx_amplitude,
                            aavso_url, gaia_distance, source_pm, source_mag,
-                           chance_match_probability,
+                           chance_match_probability, gaia_reliable,
                            MAX_MATCH_ARCSEC, MAX_MASK_ARCSEC)
 
 CHANCE_WARN = 0.3            # flag a match this likely to be a coincidence
@@ -196,6 +196,9 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
         dist = gaia_distance(src)
         if dist:
             info.update(dist)
+        if not gaia_reliable(src):                                     # 3.4 RUWE
+            info["astrometry_reliable"] = False
+            reasons.append(f"Gaia astrometry unreliable (RUWE {src['ruwe']:.1f})")
         result["gaia"] = info
 
     if wise_m:                                                         # W2
@@ -234,6 +237,10 @@ def triage(detection, ra_center, dec_center, npix, pix_scale_arcsec, catalogs,
             elif predicted < psf_fwhm:
                 check["status"] = ("unresolved: motion is below the PSF, so the "
                                    "lobe separation reflects the PSF, not the motion")
+            elif mover[0] == "gaia" and not gaia_reliable(mover_src):    # 3.4 RUWE
+                check["status"] = ("not tested: Gaia astrometry unreliable (RUWE "
+                                   f"{mover_src['ruwe']:.1f}), motion too uncertain")
+                check["precise"] = False
             elif measured is not None:
                 ratio = measured / predicted
                 check["ratio"] = round(ratio, 2)
