@@ -11,6 +11,7 @@ real data still passes CI.
 """
 import argparse
 import json
+import math
 import os
 import sys
 
@@ -27,18 +28,26 @@ CHECKS = (
 
 
 def _get(d, path):
+    """A finite, non-boolean number at ``path``, else None."""
     for key in path:
         if not isinstance(d, dict) or key not in d:
             return None
         d = d[key]
-    return d if isinstance(d, (int, float)) else None
+    if isinstance(d, bool) or not isinstance(d, (int, float)) or not math.isfinite(d):
+        return None
+    return d
 
 
 def compare(metrics, baseline, tolerance=TOLERANCE):
     failures = []
     for path, higher in CHECKS:
         new, old = _get(metrics, path), _get(baseline, path)
-        if new is None or old is None:
+        if old is None:
+            continue                    # not baselined yet: nothing to protect
+        if new is None:
+            # a baselined metric that vanished, became null/NaN or a bool is a
+            # regression, not a pass
+            failures.append(f"{'.'.join(path)}: {old:.3f} -> missing/non-finite")
             continue
         worse = (old - new) if higher else (new - old)
         if worse > tolerance:

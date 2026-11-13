@@ -976,7 +976,7 @@ def exposure_provenance(meta, target_wcs, npix=180):
         info.setdefault("path", path)
         info.setdefault("file", os.path.basename(path))
         info.setdefault("epoch", epoch)
-        info.setdefault("collection", meta.get("collection", "spherex_dr1"))
+        info.setdefault("collection", meta.get("collection", config.SPHEREX_COLLECTION))
 
         try:
             with fits.open(path) as hdul:
@@ -2308,14 +2308,10 @@ def get_dashboard(request: Request = None,
             t["proper_motion_arcsec_yr"] = d["proper_motion_arcsec_yr"]
         if context.get("delta_mag") is not None:
             t["delta_mag"] = context["delta_mag"]
-        # v2: sky position, epochs and a stable id for every detection, so
-        # enrichers (asteroids, links, ML) and votes can refer to it.
+        # v2: epochs and a stable id for every detection, so enrichers
+        # (asteroids, links, ML) and votes can refer to it.  t["ra"]/t["dec"]
+        # are already set by triage (WCS, with a flat-sky fallback).
         _py, _px = t["position"]
-        try:
-            _dra, _ddec = wcs.pixel_to_world_values(float(_px), float(_py))
-            t["ra"], t["dec"] = float(_dra), float(_ddec)
-        except Exception:
-            t["ra"] = t["dec"] = None
         t["mjd_a"], t["mjd_b"] = epoch_mjd.get(ea), epoch_mjd.get(eb)
         t["epochs"] = [ea, eb]
         t["detection_id"] = f"{target}:{t.get('pair')}:{_py},{_px}"
@@ -2589,7 +2585,7 @@ def _meta_from_targets_registry(target):
         "paths": [],
         "epochs": [],
         "catalogs": {},
-        "collection": "spherex_dr1",
+        "collection": config.SPHEREX_COLLECTION,
     }
 
 
@@ -2822,7 +2818,7 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
         "meta": {"ra": float(ra), "dec": float(dec), "common": name or safe,
                  "type": "Custom field"},
         "paths": [], "epochs": [], "catalogs": {},
-        "collection": "spherex_dr1", "cutout_size_deg": size,
+        "collection": config.SPHEREX_COLLECTION, "cutout_size_deg": size,
         "custom": True,
     }
     from datetime import datetime, timezone
