@@ -135,3 +135,13 @@ class RealCutoutPhotometryTests(unittest.TestCase):
         self.assertGreater(len(unflagged), len(out) // 2)
         self.assertTrue(all(m["wavelength_um"] for m in out))
         self.assertTrue(all(m["flux_mjy"] > 0 for m in unflagged[:5]))
+
+
+class EnsembleTests(unittest.TestCase):
+    def test_only_stars_standing_out_from_the_field_stay_variable(self):
+        res = [{"status": "ok", "variable": True, "chi2_dof": c}
+               for c in (2.0, 2.5, 3.0, 2.2, 40.0)]
+        med = lightcurve.flag_variables_against_ensemble(res)
+        self.assertAlmostEqual(med, 2.5)
+        self.assertEqual([r["variable"] for r in res], [False] * 4 + [True])
+        self.assertTrue(all(r["variable_self"] for r in res))

@@ -26,6 +26,13 @@ import numpy as np
 from scipy import stats
 
 MIN_POINTS = 12
+# SPHEREx pixels (6.2") are large compared with the PSF (~7"), so the flux in
+# a small aperture changes with where the star lands inside a pixel.  The
+# VARIANCE layer does not include that, so a fractional floor is added in
+# quadrature.  Measured on the NEP deep field (2026-11-13): without it every
+# star -- including Gaia-constant ones -- had chi2/dof 2-28.
+SYSTEMATIC_FRAC = 0.03
+ENSEMBLE_CHI2_FACTOR = 3.0   # variable = chi2/dof > 3x the field's median star
 N_LAMBDA_BINS = 24
 VAR_P_VALUE = 1e-3          # chi-square p below this -> variable
 VAR_MIN_AMPLITUDE = 0.05    # and robust amplitude above 5 %
@@ -81,6 +88,7 @@ def analyse_source(points):
     lam = np.array([p["wavelength_um"] for p in pts], float)
     f = np.array([p["flux_mjy"] for p in pts], float)
     e = np.array([p["err_mjy"] for p in pts], float)
+    e = np.sqrt(e ** 2 + (SYSTEMATIC_FRAC * np.abs(f)) ** 2)
     order = np.argsort(t)
     t, lam, f, e = t[order], lam[order], f[order], e[order]
     pts = [pts[i] for i in order]
@@ -172,3 +180,22 @@ def fit_motion(points, min_points=MIN_POINTS):
     out["significance"] = float(total / err) if err > 0 else 0.0
     out["n_points"] = len(pts)
     return out
+
+
+def flag_variables_against_ensemble(results, factor=ENSEMBLE_CHI2_FACTOR):
+    """Second opinion across the field: stars measured the same way share the
+    same unmodelled systematics, so a real variable must stand out from the
+    field's typical star, not just from its own error bars.  Keeps the
+    per-star flag as ``variable_self`` and rewrites ``variable``."""
+    ok = [r for r in results if r.get("status") == "ok"]
+    if len(ok) < 5:            # too few stars for an ensemble: keep per-star flags
+        for r in ok:
+            r["variable_self"] = r["variable"]
+            r["ensemble_chi2_median"] = None
+        return None
+    med = float(np.median([r["chi2_dof"] for r in ok]))
+    for r in ok:
+        r["variable_self"] = r["variable"]
+        r["ensemble_chi2_median"] = med
+        r["variable"] = bool(r["variable"] and r["chi2_dof"] > factor * max(med, 1.0))
+    return med

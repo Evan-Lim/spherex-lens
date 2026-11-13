@@ -74,6 +74,7 @@ def run(name, ra, dec, max_exposures=200, size_deg=0.1, gmax=17.0,
     for s in sources:
         summary = lightcurve.analyse_source(per_source[s["id"]])
         results.append({**s, **(summary or {})})
+    ensemble = lightcurve.flag_variables_against_ensemble(results)
     ok = [r for r in results if r.get("status") == "ok"]
     payload = {
         "name": name, "ra": ra, "dec": dec, "collection": select.DEEP_COLLECTION,
@@ -86,7 +87,9 @@ def run(name, ra, dec, max_exposures=200, size_deg=0.1, gmax=17.0,
         "n_moving": sum(1 for r in ok if (r.get("motion") or {}).get("significance", 0) > 5),
         "method": ("forced aperture photometry; flux divided by each source's own "
                    "mean SPHEREx spectrum (LVF wavelength differs per visit); "
-                   "chi-square vs constant, Lomb-Scargle, centroid motion fit"),
+                   "3% systematic floor; chi-square vs constant and vs the field's median "
+                   "star; Lomb-Scargle; centroid motion fit"),
+        "ensemble_chi2_median": ensemble,
         "seconds": round(time.time() - t0, 1),
         "sources": results,
     }
