@@ -352,3 +352,40 @@ if that risk is unacceptable.
 
 Cloud Storage is in `us-central1`, and the API and worker use the same region.
 No cloud resource is created until you run Terraform with your own project.
+
+## S8 signed Netlify proxy (stops forged visitor IPs)
+
+Netlify signs every proxied `/live-api/*` and `/data-live-api/*` request with a
+shared secret (`signed = "SPHEREX_PROXY_SECRET"` in `netlify.toml`); the API
+trusts the visitor-IP header only when that signature verifies.
+
+`site/_redirects` holds the same proxy rules **unsigned**, and Netlify applies
+`_redirects` before `netlify.toml`.  For signing to take effect the proxy rules
+must come from `netlify.toml`: remove the two proxy lines from
+`site/_redirects` and deploy from the repository root (`netlify deploy --prod`,
+which publishes `site/` per `[build] publish`).
+
+1. Create the secret value once and store it in Secret Manager:
+
+   ```powershell
+   $b = New-Object byte[] 32
+   [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+   $secret = [Convert]::ToBase64String($b)
+   $secret | gcloud secrets versions add spherex-proxy-secret --data-file=- --project spherex-lens
+   ```
+
+   (`terraform apply` creates the empty secret first; run this after it.)
+
+2. Netlify: Site configuration -> Environment variables -> add
+   `SPHEREX_PROXY_SECRET` with the same value (scope: Builds, Functions,
+   Runtime / all deploy contexts).  Then redeploy the site.
+
+3. Check the Netlify side reaches the API signed:
+   `curl.exe https://spherex-lens.netlify.app/live-api/health/live`
+   shows `"proxy_signature": "not_configured"` until step 4.
+
+4. Set `proxy_signing = true` in `terraform.tfvars`, `terraform plan` /
+   `apply`.  Now the same curl must show `"proxy_signature": "valid"`; a direct
+   call to the Cloud Run URL shows `"missing_or_invalid"`.
+
+Rollback: `proxy_signing = false` and apply.

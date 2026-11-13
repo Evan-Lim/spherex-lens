@@ -62,3 +62,9 @@ variable "votes_retention_days" {
   type        = number
   default     = 0
 }
+
+variable "proxy_signing" {
+  description = "S8: give both Cloud Run services SPHEREX_PROXY_SECRET so only Netlify-signed requests may set the visitor IP. Turn on only after adding a version to the spherex-proxy-secret secret."
+  type        = bool
+  default     = false
+}

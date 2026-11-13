@@ -114,6 +114,26 @@ resource "google_secret_manager_secret" "refresh_operator_token" {
   depends_on = [google_project_service.required]
 }
 
+# S8: shared secret Netlify signs proxied requests with (X-Nf-Sign).  The
+# value is added by hand (gcloud secrets versions add), never stored in Terraform.
+resource "google_secret_manager_secret" "proxy_secret" {
+  project   = var.project_id
+  secret_id = "spherex-proxy-secret"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_iam_member" "api_proxy_secret_access" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.proxy_secret.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.api.email}"
+}
+
 resource "google_secret_manager_secret_iam_member" "api_token_access" {
   project   = var.project_id
   secret_id = google_secret_manager_secret.refresh_operator_token.secret_id
@@ -213,6 +233,20 @@ resource "google_cloud_run_v2_service" "api" {
           }
         }
       }
+      # S8: verify Netlify's signed-proxy header (X-Nf-Sign).  Off until the
+      # secret has a version: see cloud/README.md "S8 signed Netlify proxy".
+      dynamic "env" {
+        for_each = var.proxy_signing ? [1] : []
+        content {
+          name = "SPHEREX_PROXY_SECRET"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.proxy_secret.secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
     }
   }
 
@@ -221,6 +255,7 @@ resource "google_cloud_run_v2_service" "api" {
     google_storage_bucket_iam_member.api_read,
     google_storage_bucket_iam_member.api_votes,
     google_secret_manager_secret_iam_member.api_token_access,
+    google_secret_manager_secret_iam_member.api_proxy_secret_access,
     google_cloud_run_v2_job_iam_member.api_invoke,
   ]
 }
@@ -308,6 +343,20 @@ resource "google_cloud_run_v2_service" "live_api" {
           }
         }
       }
+      # S8: verify Netlify's signed-proxy header (X-Nf-Sign).  Off until the
+      # secret has a version: see cloud/README.md "S8 signed Netlify proxy".
+      dynamic "env" {
+        for_each = var.proxy_signing ? [1] : []
+        content {
+          name = "SPHEREX_PROXY_SECRET"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.proxy_secret.secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
     }
   }
 
@@ -316,6 +365,7 @@ resource "google_cloud_run_v2_service" "live_api" {
     google_storage_bucket_iam_member.api_read,
     google_storage_bucket_iam_member.api_votes,
     google_secret_manager_secret_iam_member.api_token_access,
+    google_secret_manager_secret_iam_member.api_proxy_secret_access,
     google_cloud_run_v2_job_iam_member.api_invoke,
   ]
 }
