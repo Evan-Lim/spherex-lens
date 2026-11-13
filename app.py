@@ -17,6 +17,7 @@ import logging
 import threading
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 import numpy as np
 import requests
@@ -119,6 +120,13 @@ MAX_CUSTOM_FIELDS = int(os.environ.get("SPHEREX_MAX_CUSTOM_FIELDS", "8"))
 from snapshot_store import DEFAULT_GCP_PROJECT
 SNAPSHOT_BUCKET = (os.environ.get("SPHEREX_SNAPSHOT_BUCKET")
                    or f"{DEFAULT_GCP_PROJECT}-spherex-snapshots")
+# How far the previous_manifest chain is offered to the snapshot-history
+# control.  Keep the same retention the scheduled refresh uses for garbage
+# collection, so every listed manifest still has its dashboard object.
+SNAPSHOT_RETENTION_HOURS = int(
+    os.environ.get("SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS", "48"))
+SNAPSHOT_HISTORY_LIMIT = int(
+    os.environ.get("SPHEREX_SNAPSHOT_HISTORY_LIMIT", "24"))
 _SNAPSHOT_STORE = None
 # Where snapshot reads come from:
 #   bucket -- read the private GCS bucket directly (needs a Google login with
@@ -605,16 +613,87 @@ def _published_json(store, object_name, description):
     return payload
 
 
-def _published_object_response(store, object_name, description):
+def _published_object_response(store, object_name, description, manifest=None):
     """A published object returned unchanged, labelled with its object name."""
     payload = _published_json(store, object_name, description)
-    _note_snapshot(object=object_name)
+    _note_snapshot(object=object_name, manifest=manifest)
     return payload
+
+
+def _snapshot_chain(store, pointer, manifest, limit=None):
+    """Published manifests, newest first, following ``previous_manifest``.
+
+    Each item is ``(manifest_object, manifest, published_at)``.  The current
+    pointer carries the real publication time; older manifests only retain the
+    ``created_at`` they were written with.  The chain is bounded by the same
+    retention window the refresh job uses for garbage collection, so a listed
+    snapshot still has its dashboard object.
+    """
+    entries = []
+    seen = set()
+    manifest_object = pointer.get("manifest") if pointer else None
+    current = manifest
+    cutoff = (datetime.now(timezone.utc)
+              - timedelta(hours=SNAPSHOT_RETENTION_HOURS))
+    limit = limit or SNAPSHOT_HISTORY_LIMIT
+    while current and manifest_object and manifest_object not in seen:
+        if len(entries) >= limit:
+            break
+        created_at = current.get("created_at")
+        if entries:                       # the current manifest is always shown
+            try:
+                if created_at and datetime.fromisoformat(
+                        created_at.replace("Z", "+00:00")) < cutoff:
+                    break
+            except (TypeError, ValueError):
+                pass                      # an unparseable time is kept, not lost
+        seen.add(manifest_object)
+        entry_published_at = created_at
+        if not entries and pointer:
+            entry_published_at = pointer.get("published_at") or created_at
+        entries.append((manifest_object, current, entry_published_at))
+        manifest_object = current.get("previous_manifest")
+        current = (store.read_json(manifest_object)
+                   if manifest_object else None)
+    return entries
+
+
+def _snapshot_history_payload(store, target):
+    """Every retained published dashboard for ``target``, newest first."""
+    pointer, manifest = _published_state(store)
+    snapshots = []
+    for manifest_object, snap_manifest, published_at in _snapshot_chain(
+            store, pointer, manifest):
+        entry = (snap_manifest.get("targets") or {}).get(target) or {}
+        dashboard_object = entry.get("dashboard")
+        if not dashboard_object:
+            continue
+        snapshots.append({
+            "manifest": manifest_object,
+            "dashboard": dashboard_object,
+            "recovery": entry.get("recovery"),
+            "published_at": published_at,
+            "created_at": snap_manifest.get("created_at") or published_at,
+            "last_check": entry.get("last_check"),
+            "last_updated_at": entry.get("last_updated_at"),
+            "latest": manifest_object == pointer.get("manifest"),
+        })
+    _note_snapshot(manifest=pointer.get("manifest"))
+    for index, snapshot in enumerate(reversed(snapshots)):
+        snapshot["order"] = index             # 0 = oldest (playback order)
+    return {
+        "schema_version": 1,
+        "target": target,
+        "latest": pointer.get("manifest"),
+        "published_at": pointer.get("published_at"),
+        "retention_hours": SNAPSHOT_RETENTION_HOURS,
+        "snapshots": snapshots,
+    }
 
 
 _SNAPSHOT_GET_PATHS = {
     "/api/targets", "/api/status", "/api/refresh-status", "/api/snapshot-index",
-    "/api/dashboard", "/api/recovery", "/api/mosaic",
+    "/api/snapshot-history", "/api/dashboard", "/api/recovery", "/api/mosaic",
 }
 _FORWARDED_HEADERS = ("X-Snapshot-Object", "X-Snapshot-Manifest", "Retry-After")
 _SNAPSHOT_API_SESSION = requests.Session()
@@ -682,8 +761,8 @@ async def disable_live_response_caching(request: Request, call_next):
         bool(SNAPSHOT_BUCKET)
         and request.url.path in {
             "/api/targets", "/api/status", "/api/refresh-status",
-            "/api/dashboard", "/api/snapshot-index",
-            "/api/recovery", "/api/mosaic"
+            "/api/snapshot-index", "/api/snapshot-history",
+            "/api/dashboard", "/api/recovery", "/api/mosaic"
         }
         and request.query_params.get("source", "").lower() != "live"
     )
@@ -1726,6 +1805,23 @@ def _proxy_refresh_request(endpoint, method, token=None):
     return JSONResponse(status_code=response.status_code, content=payload)
 
 
+@_rate_limited_route("get", "/api/snapshot-history", "60/minute")
+def get_snapshot_history(target: str = Query("WISE_0855"),
+                         request: Request = None):
+    """Retained published snapshots for one field, newest first.
+
+    The dashboards are immutable objects, so the browser can keep a historical
+    frame it has already viewed and replay it without another network read.
+    """
+    if not isinstance(target, str) or not TARGET_NAME.fullmatch(target):
+        raise HTTPException(status_code=400, detail="Invalid target name.")
+    store = _snapshot_store()
+    if store is None:
+        raise HTTPException(status_code=503,
+                            detail="Snapshot history is not available.")
+    return _snapshot_history_payload(store, target)
+
+
 @_rate_limited_route("get", "/api/snapshot-index", "60/minute")
 def get_snapshot_index(request: Request = None):
     """Names of the immutable objects behind every snapshot response.
@@ -1862,15 +1958,49 @@ def trigger_cloud_refresh(request: Request):
 def get_dashboard(request: Request = None,
                   target: str = Query("WISE_0855"),
                   source: str = Query("cache"),
+                  snapshot: str = Query("", max_length=96),
                   live_slots: int = Query(0, ge=0, le=12),
                   live_size: float = Query(0.2, ge=0.05, le=0.5),
                   live_epochs: str = Query("firstlast", pattern="^(firstlast|all)$")):
     """
     Run the full pipeline on the specified target and return everything
     the frontend needs to render the dashboard.
+
+    ``snapshot=<manifest object>`` returns one retained historical version of
+    the published dashboard instead of the current one.  The response carries
+    the same X-Snapshot-Object / X-Snapshot-Manifest labels as every other
+    snapshot read, so the offline copy can verify and reuse it.
     """
     store = _snapshot_store()
     entry = None
+    if not isinstance(snapshot, str):
+        snapshot = ""          # internal callers get the FastAPI Query default
+    if snapshot and str(source).lower() == "live":
+        raise HTTPException(
+            status_code=400,
+            detail="A historical snapshot cannot also be a fresh IRSA request.")
+    if snapshot and store is None:
+        raise HTTPException(
+            status_code=503, detail="Snapshot history is not available.")
+    if snapshot and store is not None:
+        pointer, current_manifest = _published_state(store)
+        for manifest_object, snap_manifest, published_at in _snapshot_chain(
+                store, pointer, current_manifest):
+            if manifest_object != snapshot:
+                continue
+            snap_entry = (snap_manifest.get("targets") or {}).get(target) or {}
+            if not snap_entry.get("dashboard"):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No dashboard for '{target}' in that snapshot.")
+            return _published_object_response(
+                store, snap_entry.get("dashboard"),
+                f"dashboard for {target} from {published_at}",
+                manifest=manifest_object)
+        raise HTTPException(
+            status_code=404,
+            detail="That snapshot is not retained any more; reload the "
+                   "snapshot history list.")
     if store is not None:
         live_request = str(source).lower() == "live"
         manifest = (_optional_published_manifest(store) if live_request

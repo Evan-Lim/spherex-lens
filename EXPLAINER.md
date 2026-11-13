@@ -523,7 +523,30 @@ already exceed that budget. Live rows in the provenance table are labelled
 and local SIA2/cutout caches are bypassed for these requests; IRSA's own update
 cadence and availability remain outside this app's control.
 
-### 5.6 Hover popups, the all-sky view and the charts
+### 5.6 Snapshot history -- compare published versions
+
+The scheduled service publishes a new, immutable snapshot every 12 hours. The
+normal view always shows the newest one. Above the map, the **Snapshot**
+dropdown lists the versions still retained (newest first): pick one to load that
+historical dashboard, or press **Play** to step through them oldest to latest.
+
+Playback is made for watching motion: zoom and pan are kept, the first frame's
+intensity stretch is reused for every later frame, and if you selected a
+catalogue object or detection first, its detection centre is marked in each
+version and joined by a purple trail. A dipole moving across the field, or a
+monopole brightening and fading, therefore appears as a path rather than as a
+series of unrelated pictures. Selecting an object is the important step -- the
+twin lobe positions and the monochrome difference image are what the trail
+tracks.
+
+Historical frames are ordinary snapshot objects: the browser saves a frame it
+has viewed (up to a small quota) exactly like the latest dashboards, so a second
+replay is instant. The control is switched off while **Fresh IRSA** is on,
+offline, or on a static deployment with no snapshot service. How long history
+lasts is a server setting (`SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS`, 48 hours
+by default); the dropdown only shows versions whose dashboards are still there.
+
+### 5.7 Hover popups, the all-sky view and the charts
 
 **Hover popups.** Put the pointer on any marker and a card appears with the
 essentials: for a detection, its verdict (KNOWN/CANDIDATE), significance, RA/Dec,
@@ -556,7 +579,7 @@ finish in 200 ms.
 | **Detections per epoch pair** | Which time baseline found the most change (E1->E3 usually beats E1->E2). |
 | **Injection recovery** | The honesty curve: fraction of fake sources recovered vs brightness and speed. Empty until you press *Recovery Grid*. |
 
-### 5.7 The map, and how to play with it
+### 5.8 The map, and how to play with it
 
 The map is a small interactive canvas, not a static picture.
 

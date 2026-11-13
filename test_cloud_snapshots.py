@@ -261,6 +261,91 @@ def test_snapshot_responses_name_the_object_they_carry(store, monkeypatch):
     assert portal.get_snapshot_index()["manifest"] == manifest_name
 
 
+def test_snapshot_history_lists_retained_versions_and_serves_each(store, monkeypatch):
+    """The newest dashboard stays default; older manifests stay selectable."""
+    from datetime import datetime, timedelta, timezone
+    import app as portal
+
+    old_dashboard = {"target": "Field_A", "version": "old", "detections": []}
+    new_dashboard = {"target": "Field_A", "version": "new", "detections": []}
+    old_object, _ = store.write_json_immutable(
+        "snapshots/dashboards/Field_A", old_dashboard)
+    new_object, _ = store.write_json_immutable(
+        "snapshots/dashboards/Field_A", new_dashboard)
+    now = datetime.now(timezone.utc)
+    old_pointer = store.publish({
+        "schema_version": 1,
+        "created_at": (now - timedelta(hours=20)).isoformat(),
+        "targets": {"Field_A": {"dashboard": old_object}},
+    }, expected_generation=0)
+    new_pointer = store.publish({
+        "schema_version": 1,
+        "created_at": (now - timedelta(hours=8)).isoformat(),
+        "targets": {"Field_A": {"dashboard": new_object}},
+        "previous_manifest": old_pointer["manifest"],
+    }, expected_generation=1)
+
+    monkeypatch.setattr(portal, "SNAPSHOT_BUCKET", "test-bucket")
+    monkeypatch.setattr(portal, "_SNAPSHOT_STORE", store)
+    monkeypatch.setitem(portal._SNAPSHOT_MODE, "value", "bucket")
+    monkeypatch.setenv("SPHEREX_SNAPSHOT_READS", "true")
+    portal._MANIFEST_CACHE.update({"t": 0.0, "pointer": None, "manifest": None})
+
+    history = portal.get_snapshot_history(target="Field_A")
+    assert [item["dashboard"] for item in history["snapshots"]] == [
+        new_object, old_object]
+    assert history["latest"] == new_pointer["manifest"]
+    assert history["snapshots"][0]["latest"] is True
+    assert history["snapshots"][1]["latest"] is False
+    assert history["snapshots"][1]["order"] == 0      # oldest first for playback
+
+    status, headers, body = _asgi_get(portal.app, "/api/snapshot-history",
+                                      "target=Field_A")
+    assert status == 200
+    assert body["snapshots"][0]["manifest"] == new_pointer["manifest"]
+    assert headers["x-snapshot-manifest"] == new_pointer["manifest"]
+    assert headers["cache-control"].startswith("no-store")
+
+    # The default route still returns the newest published dashboard.
+    status, headers, body = _asgi_get(portal.app, "/api/dashboard",
+                                      "target=Field_A")
+    assert status == 200
+    assert body == new_dashboard
+    assert headers["x-snapshot-object"] == new_object
+
+    # A specific retained manifest returns that version, labelled so the
+    # browser can cache it by immutable object name.
+    status, headers, body = _asgi_get(
+        portal.app, "/api/dashboard",
+        f"target=Field_A&snapshot={old_pointer['manifest']}")
+    assert status == 200
+    assert body == old_dashboard
+    assert headers["x-snapshot-object"] == old_object
+    assert headers["x-snapshot-manifest"] == old_pointer["manifest"]
+    assert headers["cache-control"].startswith("no-store")
+
+    # Unknown/expired manifests are rejected rather than reading any object.
+    status, _, body = _asgi_get(
+        portal.app, "/api/dashboard",
+        "target=Field_A&snapshot=manifests/" + "0" * 64 + ".json")
+    assert status == 404
+    assert "not retained" in body["detail"]
+
+
+def test_snapshot_history_rejects_a_live_combination(store, monkeypatch):
+    import app as portal
+
+    monkeypatch.setattr(portal, "SNAPSHOT_BUCKET", "test-bucket")
+    monkeypatch.setattr(portal, "_SNAPSHOT_STORE", store)
+    monkeypatch.setitem(portal._SNAPSHOT_MODE, "value", "bucket")
+    monkeypatch.setenv("SPHEREX_SNAPSHOT_READS", "true")
+
+    with pytest.raises(portal.HTTPException) as error:
+        portal.get_dashboard(target="Field_A", source="live",
+                             snapshot="manifests/" + "a" * 64 + ".json")
+    assert error.value.status_code == 400
+
+
 def test_snapshot_status_distinguishes_check_processing_and_refresh(store, monkeypatch):
     import app as portal
 

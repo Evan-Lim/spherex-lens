@@ -203,6 +203,19 @@ shapes (live FastAPI or pre-rendered static files):
 * **/02 Command Dashboard** -- four metric cards (detections, unaccounted,
   max SNR, baseline days), the interactive map, the detections table and the
   **image sources & provenance** table.
+* **Snapshot history** -- the Sky Viewer toolbar carries a `Snapshot` dropdown
+  and a **Play** button. The newest published Cloud snapshot is always loaded
+  first; the dropdown lists the retained `previous_manifest` versions (newest
+  first) and the button replays them oldest to latest at 2.5 s per frame. Zoom,
+  pan and the selected candidate/known object are carried across frames, the
+  intensity stretch is frozen after the first frame, and a purple trail marks the
+  object's detection centre in each version, so a dipole's motion or a
+  monopole's brightening/fading is directly comparable. Historical dashboards
+  are immutable objects served by `/api/snapshot-history` and
+  `/api/dashboard?snapshot=<manifest>`; viewed frames are kept in the browser
+  Cache API like the latest-snapshot copies, and playback stays under the
+  API's 30 dashboard reads per minute. The control is disabled in Fresh IRSA
+  mode, offline, and on a static deployment with no snapshot backend.
 * **Hover popups** -- hovering any detection or catalogue object opens a card
   with its verdict, SNR, RA/Dec, magnitude and which catalogues know it; hovering
   an all-sky tile shows that field's statistics.
@@ -709,6 +722,8 @@ Two honest caveats, both visible in the figures:
 |---|---|
 | `GET /api/targets` | Targets present in `data_cache/` |
 | `GET /api/dashboard?target=WISE_0855` | Runs stages 2-5 and returns `image`, `zogy_image`, `zogy_snr`, `sigma1`, `sigma2`, triaged `detections`, and `spectrum` (102 wavelengths, flux, classifier indices + label, plus the aperture flux at the target position) |
+| `GET /api/dashboard?target=WISE_0855&snapshot=<manifest>` | The same dashboard payload for one retained historical published snapshot; labelled with `X-Snapshot-Object` / `X-Snapshot-Manifest` |
+| `GET /api/snapshot-history?target=WISE_0855` | Retained published versions for the Snapshot-history dropdown (newest first, with playback order and publication times) |
 | `GET /api/recovery?target=WISE_0855` | Injection-recovery grid (`snr`, `mu`, `recovery`) |
 | `GET /api/field?ra=&dec=&name=` | Register any sky position: streams its cutouts from IRSA, runs the pipeline, adds it to the dropdown/mosaic (RAM only) |
 | `GET /api/mosaic` | One 48x48 significance thumbnail + statistics per cached field, for the all-sky view (cached in RAM for 15 min) |
@@ -968,6 +983,7 @@ snapshot API for registered fields, targets, recovery grids and the mosaic.
 | Interaction | Path taken |
 |---|---|
 | Registered-field dashboard | `/live-api/dashboard?target=...` -- published snapshot |
+| Retained snapshot history | `/live-api/snapshot-history?target=...`, then `/live-api/dashboard?target=...&snapshot=...` -- published versions |
 | Registered-field target list, recovery, mosaic | `/live-api/<route>` -- published snapshot |
 | "Live from IRSA" toggle | direct Cloud Run `/api/dashboard/stream` -- fresh IRSA data |
 | "Open any field" (RA/Dec) | direct Cloud Run `/api/field/stream` -- fresh IRSA data |

@@ -10,13 +10,15 @@
 //    the refresh trigger and status, the snapshot index -- goes to the network
 //    untouched and is never stored.
 
-const SHELL_CACHE = 'spx-shell-v14';
+const SHELL_CACHE = 'spx-shell-v15';
 const DATA_CACHE = 'spx-data-v1';
 const META_URL = '/__spx/meta';
 const SHELL_TIMEOUT_MS = 4000;
 const SHELL_FILES = ['./', 'index.html', 'app.js', 'style.css',
   'assets/icons/logo-spherex-lens.svg'];
 const DATA_PATH = /\/(?:api|live-api)\/(targets|dashboard|status|recovery|mosaic)$/;
+const HISTORY_PREFIX = '/__spx/obj/history-dashboard/';
+const HISTORY_FRAME_LIMIT = 8;   // per device; each frame is a full dashboard
 const FONT_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
 
 self.addEventListener('install', (event) => {
@@ -68,11 +70,21 @@ function withTimeout(promise, ms) {
   });
 }
 
-async function fromSavedCopy(kind, target) {
+async function fromSavedCopy(kind, target, snapshot) {
+  const cache = await caches.open(DATA_CACHE);
+  if (snapshot && kind === 'dashboard') {
+    const savedFrame = await cache.match(
+      `${HISTORY_PREFIX}${encodeURIComponent(snapshot)}`);
+    if (savedFrame) {
+      const headers = new Headers(savedFrame.headers);
+      headers.set('X-SPX-Source', 'offline-copy');
+      return new Response(savedFrame.body, { status: savedFrame.status, headers });
+    }
+    return null;    // never substitute the current dashboard for a history frame
+  }
   const meta = await readMeta();
   const key = dataKey(kind, target, meta);
   if (!key) return null;
-  const cache = await caches.open(DATA_CACHE);
   const saved = await cache.match(key);
   if (!saved) return null;
   const headers = new Headers(saved.headers);
@@ -83,11 +95,14 @@ async function fromSavedCopy(kind, target) {
 
 // A response labelled by the server with its snapshot object can be saved
 // under that name straight away: the name identifies the content exactly.
-async function saveLabelled(kind, target, response) {
+async function saveLabelled(kind, target, response, snapshot) {
   const object = response.headers.get('X-Snapshot-Object');
   const manifest = response.headers.get('X-Snapshot-Manifest');
   let key = null;
-  if (object && kind !== 'status') key = `/__spx/obj/${kind}/${encodeURIComponent(object)}`;
+  if (snapshot && kind === 'dashboard')
+    key = `${HISTORY_PREFIX}${encodeURIComponent(snapshot)}`;
+  else if (object && kind !== 'status')
+    key = `/__spx/obj/${kind}/${encodeURIComponent(object)}`;
   else if (manifest && kind === 'status' && target) {
     key = `/__spx/obj/status/${encodeURIComponent(target)}/${encodeURIComponent(manifest)}`;
   }
@@ -104,14 +119,29 @@ async function saveLabelled(kind, target, response) {
       'X-SPX-Saved-At': new Date().toISOString(),
     },
   }));
+  if (key.startsWith(HISTORY_PREFIX)) await pruneHistoryFrames(cache);
+}
+
+// Historical dashboards are immutable, so a saved frame is always correct.
+// Keep only the most recently saved few to stay well inside browser quota.
+async function pruneHistoryFrames(cache) {
+  const keys = await cache.keys();
+  const history = keys.filter((request) =>
+    new URL(request.url).pathname.startsWith(HISTORY_PREFIX));
+  while (history.length > HISTORY_FRAME_LIMIT) {
+    const oldest = history.shift();
+    await cache.delete(oldest);
+  }
 }
 
 async function handleData(event, kind, target) {
-  const saved = await fromSavedCopy(kind, target);
+  const snapshot = new URL(event.request.url).searchParams.get('snapshot');
+  const saved = await fromSavedCopy(kind, target, snapshot);
   if (saved) return saved;              // instant; app.js re-syncs right after
   try {
     const response = await fetch(event.request);
-    event.waitUntil(saveLabelled(kind, target, response.clone()).catch(() => {}));
+    event.waitUntil(saveLabelled(kind, target, response.clone(), snapshot)
+      .catch(() => {}));
     return response;
   } catch (error) {
     return jsonResponse(503, {

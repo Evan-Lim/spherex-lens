@@ -166,6 +166,19 @@
               <button class="seg" data-layer="zogy_image" type="button" title="ZOGY difference between epochs: what changed." aria-describedby="tip-diff">Diff&nbsp;D</button>
               <button class="seg active" data-layer="zogy_snr" type="button" title="The difference in units of noise (&sigma;). Bright = significant change." aria-describedby="tip-sig">Sig&nbsp;S</button>
             </div>
+            <div class="snapshot-group" id="snapshot-controls" role="group"
+                 aria-label="Published snapshot history">
+              <span class="snapshot-caption">Snapshot</span>
+              <select id="snapshot-select" class="snapshot-select"
+                      aria-label="Published snapshot version" disabled>
+                <option value="">latest</option>
+              </select>
+              <button id="btn-snapshot-play" class="snapshot-play" type="button"
+                      title="Play the retained snapshots from oldest to latest"
+                      aria-label="Play snapshot history" disabled>
+                <span class="snapshot-play-icon" aria-hidden="true">&#9654;</span><span id="snapshot-play-label">Play</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -542,6 +555,7 @@
           <li><b>Select Field:</b> Pick a registered target from the toolbar dropdown or enter custom RA / Dec in degrees and click <i>Load field from IRSA</i>.</li>
           <li><b>Inspect Sky Viewer:</b> Scroll to zoom, drag to pan, click markers to populate the Triage Verdict panel.</li>
           <li><b>Switch Layers:</b> Toggle between Co-add, Difference D, and Significance S, or switch to All-sky view.</li>
+          <li><b>Replay Snapshots:</b> In the Sky Viewer toolbar, choose a previous published version from <i>Snapshot</i>, or press <i>Play</i> to step oldest to latest. Select a candidate or known object first to follow its dipole/monopole with the purple trail.</li>
           <li><b>Utility Windows:</b> Open <i>History</i>, <i>Statistics</i>, or <i>Recovery</i> from the toolbar as draggable floating panels.</li>
         </ol>
       </section>

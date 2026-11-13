@@ -15,16 +15,21 @@ const API_BASE = window.location.origin;
 let LIVE_API = (document.body.dataset.apiBase || '').replace(/\/+$/, '');
 const LIVE_PIPELINE_API = (document.body.dataset.liveApi || '').replace(/\/+$/, '');
 
-function apiUrl(kind, target) {
-  if (STATIC_MODE) {
+function apiUrl(kind, target, extra = {}) {
+  const params = [];
+  if (target) params.push(`target=${encodeURIComponent(target)}`);
+  if (state.live && (kind === 'dashboard' || kind === 'recovery')) params.push('source=live');
+  Object.entries(extra).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') {
+      params.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+    }
+  });
+  const query = params.length ? `?${params.join('&')}` : '';
+  if (STATIC_MODE && !Object.keys(extra).length) {
     const dir = document.body.dataset.apiDir || 'api';
     const suffix = target ? `-${encodeURIComponent(target)}` : '';
     return `${dir}/${kind}${suffix}.json`;
   }
-  const params = [];
-  if (target) params.push(`target=${encodeURIComponent(target)}`);
-  if (state.live && (kind === 'dashboard' || kind === 'recovery')) params.push('source=live');
-  const query = params.length ? `?${params.join('&')}` : '';
   return `${API_BASE}/api/${kind}${query}`;
 }
 
@@ -100,27 +105,33 @@ function syncBackendUi() {
     fieldHint.textContent = '';
     fieldHint.classList.remove('hint-warn');
   }
+  renderSnapshotControls();
 }
 
 // URL of the real pipeline. In a static build this is the proxy prefix.
-function remoteUrl(kind, target) {
+function remoteUrl(kind, target, extra = {}) {
   const base = (state.live && LIVE_PIPELINE_API)
     || LIVE_API
     || `${API_BASE}/api`;
   const params = [];
   if (target) params.push(`target=${encodeURIComponent(target)}`);
   if (state.live && (kind === 'dashboard' || kind === 'recovery')) params.push('source=live');
+  Object.entries(extra).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') {
+      params.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+    }
+  });
   const query = params.length ? `?${params.join('&')}` : '';
   return `${base}/${kind}${query}`;
 }
 
 // When configured, the backend is authoritative for registered-field snapshots.
-async function fetchApi(kind, target) {
+async function fetchApi(kind, target, extra = {}) {
   const options = state.live ? { cache: 'no-store' } : {};
   if (STATIC_MODE && (LIVE_API || (state.live && LIVE_PIPELINE_API))) {
-    return fetch(remoteUrl(kind, target), options);
+    return fetch(remoteUrl(kind, target, extra), options);
   }
-  return fetch(apiUrl(kind, target), options);
+  return fetch(apiUrl(kind, target, extra), options);
 }
 
 function startActionProgress(message) {
@@ -400,7 +411,7 @@ async function updateCloudRefreshStatus() {
       } else {
         await loadMosaic(true);
         draw();
-        if (!state.live) await runPipeline();
+        if (!state.live) await refreshPublishedView();
       }
       scheduleCloudRefreshPoll(CLOUD_REFRESH_IDLE_POLL_MS);
       return;
@@ -507,6 +518,9 @@ async function requestCloudRefresh(event) {
 const OFFLINE_DATA_CACHE = 'spx-data-v1';            // same names as sw.js
 const OFFLINE_META_URL = '/__spx/meta';
 const OFFLINE_LAST_STATUS_URL = '/__spx/last-refresh-status';
+// Historical dashboard frames are verified immutable objects kept by sw.js;
+// a latest-snapshot sync must not evict them.
+const OFFLINE_HISTORY_PREFIX = '/__spx/obj/history-dashboard/';
 const OFFLINE_INDEX_TIMEOUT_MS = 30000;   // long enough for a Cloud Run cold start
 const OFFLINE_SLOW_MS = 4000;             // after this, say "still connecting"
 const OFFLINE_RETRY_MS = 30000;           // reconnect probe while offline
@@ -629,6 +643,7 @@ function setOfflineMode(mode) {
   offline.mode = mode;
   document.body.classList.toggle('is-offline', mode === 'offline');
   if (mode === 'offline') {
+    stopSnapshotPlayback();
     if (state.live) {
       // Fresh IRSA fetches cannot work offline: fall back to the saved copy.
       state.live = false;
@@ -646,6 +661,8 @@ function setOfflineMode(mode) {
   if (was === 'offline' && mode === 'online') {
     // Back online: refresh the panel now instead of at the next idle poll.
     scheduleCloudRefreshPoll(0);
+    if (!state.live) loadSnapshotHistory($('target-select').value,
+      { keepSelection: true });
   }
 }
 
@@ -805,6 +822,7 @@ async function offlineSaveAll(index) {
   const stored = await cache.keys();
   await Promise.all(stored
     .filter((request) => new URL(request.url).pathname.startsWith('/__spx/obj/')
+      && !new URL(request.url).pathname.startsWith(OFFLINE_HISTORY_PREFIX)
       && !keep.has(request.url))
     .map((request) => cache.delete(request)));
   return meta;
@@ -888,6 +906,18 @@ async function waitForPipeline() {
 }
 
 // Show a newly saved snapshot without resetting views that did not change.
+function snapshotViewIsHistorical() {
+  return !!state.snapshotHistory.selected;
+}
+
+async function refreshPublishedView() {
+  const target = $('target-select').value;
+  if (snapshotViewIsHistorical() && !state.live) {
+    return loadSnapshotHistory(target, { keepSelection: true });
+  }
+  return runPipeline();
+}
+
 async function applyOfflineUpdate(result) {
   if (!result || !result.changed || state.live) return;
   const slots = result.changedSlots || new Set();
@@ -899,7 +929,7 @@ async function applyOfflineUpdate(result) {
   }
   if (slots.has(`dashboard:${current}`) || slots.has(`status:${current}`)) {
     await waitForPipeline();
-    await runPipeline();
+    await refreshPublishedView();
   }
 }
 
@@ -1568,6 +1598,15 @@ const state = {
   customFields: {},
   pipelineRunning: false,
   recoveryRunning: false,
+  // Snapshot history: the retained published dashboards for the current field.
+  // `selected` is a manifest object ('' = latest); frames are kept per target
+  // in this session so a replay never downloads the same version twice.
+  snapshotHistory: { target: null, snapshots: [], selected: '', playing: false,
+                     loading: false, error: '', timer: null, runId: 0 },
+  snapshotFrames: new Map(),
+  snapshotScaleLock: null,   // frozen layer scales while a playback runs
+  snapshotTrail: [],         // focus positions across snapshot frames
+  focus: null,               // {ra, dec, label} carried across snapshot frames
 };
 
 // ------------------------------------------------------- layer rasterisation
@@ -1600,7 +1639,7 @@ function stretchNorm(u, mode, symmetric) {
   return Math.asinh(10 * c) / Math.asinh(10);
 }
 
-function buildLayer(name, arr, lutName, symmetric) {
+function buildLayer(name, arr, lutName, symmetric, fixedScale = null) {
   const npix = arr.length;
   const canvas = document.createElement('canvas');
   canvas.width = npix;
@@ -1611,7 +1650,10 @@ function buildLayer(name, arr, lutName, symmetric) {
   const lut = RAMPS[effectiveLut] || RAMPS[lutName];
 
   let lo, hi;
-  if (symmetric) {
+  const fixed = fixedScale && fixedScale[name];
+  if (Array.isArray(fixed) && fixed.length === 2 && fixed[1] > fixed[0]) {
+    [lo, hi] = fixed;                    // playback: keep frames comparable
+  } else if (symmetric) {
     const amp = Math.max(Math.abs(percentile(arr, 0.5)), Math.abs(percentile(arr, 99.5)), 1e-6);
     lo = -amp;
     hi = amp;
@@ -1639,11 +1681,12 @@ function buildLayer(name, arr, lutName, symmetric) {
   state.offscreen[name] = canvas;
 }
 
-function rebuildLayers() {
+function rebuildLayers(useScaleLock = false) {
   if (!state.data) return;
-  buildLayer('image', state.data.image, 'coadd', false);
-  buildLayer('zogy_image', state.data.zogy_image, 'diff', true);
-  buildLayer('zogy_snr', state.data.zogy_snr, 'snr', false);
+  const lock = useScaleLock ? state.snapshotScaleLock : null;
+  buildLayer('image', state.data.image, 'coadd', false, lock);
+  buildLayer('zogy_image', state.data.zogy_image, 'diff', true, lock);
+  buildLayer('zogy_snr', state.data.zogy_snr, 'snr', false, lock);
 }
 
 // ------------------------------------------------------------- canvas maths
@@ -1686,6 +1729,17 @@ function pixelToSky(x, y) {
   const ra = m.ra - ((x - m.npix / 2) * m.pixscale_arcsec) / 3600 / cosd;
   const dec = m.dec + ((y - m.npix / 2) * m.pixscale_arcsec) / 3600;
   return { ra, dec };
+}
+
+// Inverse of pixelToSky for the small linear field approximation used by the
+// map.  Used to carry a selected object across snapshot frames.
+function skyToPixel(ra, dec, map = state.data && state.data.map) {
+  if (!map) return null;
+  const cosd = Math.cos((map.dec * Math.PI) / 180) || 1e-6;
+  const dra = ((ra - map.ra + 540) % 360) - 180;
+  const x = map.npix / 2 + ((dra * 3600 * cosd) / map.pixscale_arcsec);
+  const y = map.npix / 2 + (((dec - map.dec) * 3600) / map.pixscale_arcsec);
+  return { x, y };
 }
 
 function valueAt(x, y) {
@@ -1799,6 +1853,7 @@ function draw() {
   if (state.overlays.catalog) drawCatalogs(ctx);
   if (state.overlays.catalog) drawTargetAndMovers(ctx);
   if (state.overlays.detections) drawDetections(ctx);
+  drawSnapshotTrail(ctx);
   if (state.highlight) {
     const { cx, cy } = toCanvas(state.highlight.x, state.highlight.y);
     ctx.save();
@@ -1892,6 +1947,37 @@ function drawDetections(ctx) {
       ctx.fillText(`${d.snr.toFixed(1)}σ`, cx + r + 4, cy - r + 2);
     }
   });
+  ctx.restore();
+}
+
+function drawSnapshotTrail(ctx) {
+  const trail = state.snapshotTrail || [];
+  if (trail.length < 2) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(163, 113, 247, .9)';   // --purple
+  ctx.lineWidth = 1.4;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  trail.forEach((point, index) => {
+    const { cx, cy } = toCanvas(point.x, point.y);
+    if (index === 0) ctx.moveTo(cx, cy);
+    else ctx.lineTo(cx, cy);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  trail.forEach((point, index) => {
+    const { cx, cy } = toCanvas(point.x, point.y);
+    const last = index === trail.length - 1;
+    ctx.fillStyle = last ? '#a371f7' : 'rgba(163, 113, 247, .55)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, last ? 3.2 : 2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  const last = trail[trail.length - 1];
+  const { cx, cy } = toCanvas(last.x, last.y);
+  ctx.fillStyle = '#c4a7ff';
+  ctx.font = '10px ui-monospace, Menlo, monospace';
+  ctx.fillText(`${trail.length} snapshot positions`, cx + 7, cy + 12);
   ctx.restore();
 }
 
@@ -2066,6 +2152,10 @@ function pickDetection(mx, my) {
 
 function selectDetection(index) {
   state.selected = index;
+  const det = state.data && state.data.detections[index];
+  if (det && Number.isFinite(det.ra) && Number.isFinite(det.dec)) {
+    state.focus = { ra: det.ra, dec: det.dec, label: det.kind || 'detection' };
+  }
   renderVerdict(state.data.detections[index]);
   document.querySelectorAll('#detections-body tr')
     .forEach((tr, i) => tr.classList.toggle('selected', i === index));
@@ -2404,6 +2494,8 @@ function drawObjectTable() {
     tr.addEventListener('click', () => {
       const obj = state.objects[parseInt(tr.dataset.i, 10)];
       state.highlight = (obj && obj.in_field !== false) ? { x: obj.x, y: obj.y } : null;
+      state.focus = (obj && Number.isFinite(obj.ra) && Number.isFinite(obj.dec))
+        ? { ra: obj.ra, dec: obj.dec, label: obj.name || obj.verdict } : null;
       draw();
       if (!obj) return;
       setText('footer-status', obj.in_field === false
@@ -2464,36 +2556,380 @@ function renderProvenance(data) {
   }).join('');
 }
 
+// --------------------------------------------------------- snapshot history
+//
+// Every published 12-hour snapshot is an immutable manifest with its own
+// content-addressed dashboard objects.  The newest is always what the normal
+// pipeline view shows; this control walks the retained previous_manifest chain
+// and can replay those versions oldest -> latest.  It uses the same fetch
+// helpers, rate limits, labels and browser cache as the latest-snapshot view.
+
+const SNAPSHOT_PLAY_MS = 2500;       // keeps playback under 30 reads/minute
+const SNAPSHOT_FRAME_LIMIT = 24;     // in-session frames kept per field
+
+function formatSnapshotTime(value) {
+  if (!value) return 'time unknown';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleString([], {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function snapshotFrameKey(target, manifest) {
+  return `${target}|${manifest}`;
+}
+
+function snapshotHistoryAvailable() {
+  // Historical dashboards come from the snapshot service, not the live
+  // pipeline service: a direct-only static deployment has no history.
+  return !STATIC_MODE || !!LIVE_API;
+}
+
+function renderSnapshotControls() {
+  const group = $('snapshot-controls');
+  const select = $('snapshot-select');
+  const play = $('btn-snapshot-play');
+  if (!group || !select || !play) return;
+  const hist = state.snapshotHistory;
+  const available = snapshotHistoryAvailable() && !state.live
+    && offline.mode !== 'offline';
+  const frames = hist.snapshots || [];
+
+  let html = '<option value="">latest</option>';
+  if (hist.loading && !frames.length) {
+    html = '<option value="">loading history\u2026</option>';
+  } else if (!available) {
+    html = `<option value="">${state.live ? 'snapshot mode only'
+      : (offline.mode === 'offline' ? 'unavailable offline' : 'no snapshot backend')}</option>`;
+  } else if (hist.error && !frames.length) {
+    html = '<option value="">history unavailable</option>';
+  } else if (frames.length) {
+    html = frames.map((snap) => {
+      const label = snap.latest
+        ? `Latest \u00b7 ${formatSnapshotTime(snap.published_at)}`
+        : formatSnapshotTime(snap.published_at);
+      return `<option value="${snap.latest ? '' : fmt.escape(snap.manifest)}"`
+        + ` title="${fmt.escape(snap.published_at || '')}">${fmt.escape(label)}</option>`;
+    }).join('');
+  }
+  select.innerHTML = html;
+  const wanted = frames.some((snap) => (snap.latest ? '' : snap.manifest) === hist.selected)
+    ? hist.selected : '';
+  select.value = wanted;
+  hist.selected = wanted;
+
+  select.disabled = !available || hist.loading || frames.length < 1
+    || (state.pipelineRunning && !hist.playing);
+  play.disabled = !available || hist.loading || frames.length < 2
+    || (state.pipelineRunning && !hist.playing);
+  play.classList.toggle('playing', hist.playing);
+  setText('snapshot-play-label', hist.playing ? 'Stop' : 'Play');
+  const icon = play.querySelector('.snapshot-play-icon');
+  if (icon) icon.innerHTML = hist.playing ? '&#9632;' : '&#9654;';
+
+  const retention = hist.retentionHours ? `, ${hist.retentionHours} h retained` : '';
+  group.title = hist.error
+    ? `Snapshot history: ${hist.error}`
+    : (hist.playing
+      ? 'Replaying retained snapshots oldest to latest; click Stop to keep the current frame'
+      : `Previous published snapshots for this field${retention}; Play steps oldest to latest`);
+}
+
+async function loadSnapshotHistory(target, { keepSelection = false } = {}) {
+  const hist = state.snapshotHistory;
+  if (hist.target !== target) {
+    stopSnapshotPlayback({ resetScale: false });
+    hist.target = target;
+    hist.snapshots = [];
+    hist.selected = '';
+    hist.error = '';
+    state.snapshotFrames.clear();
+  }
+  hist.error = '';
+  if (!snapshotHistoryAvailable()) {
+    hist.loading = false;
+    hist.error = 'this deployment has no snapshot backend';
+    renderSnapshotControls();
+    return;
+  }
+  if (state.live) {
+    hist.loading = false;
+    hist.error = 'turn off Fresh IRSA to view published snapshot history';
+    renderSnapshotControls();
+    return;
+  }
+  if (offline.mode === 'offline') {
+    hist.loading = false;
+    hist.error = 'reconnect to list the published snapshots';
+    renderSnapshotControls();
+    return;
+  }
+  hist.loading = true;
+  renderSnapshotControls();
+  try {
+    const response = await fetchApi('snapshot-history', target);
+    if (!response.ok) {
+      const problem = await response.json().catch(() => ({}));
+      throw new Error([problem.error, problem.detail].filter(Boolean).join(' ')
+        || `HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    if (hist.target !== target) return;
+    hist.snapshots = (data.snapshots || [])
+      .filter((snap) => snap && snap.manifest && snap.dashboard);
+    hist.retentionHours = data.retention_hours;
+    if (!keepSelection
+        || !hist.snapshots.some((snap) => (snap.latest ? '' : snap.manifest) === hist.selected)) {
+      hist.selected = '';
+    }
+  } catch (error) {
+    hist.snapshots = [];
+    hist.selected = '';
+    hist.error = error.message;
+  } finally {
+    if (hist.target === target) {
+      hist.loading = false;
+      renderSnapshotControls();
+    }
+  }
+}
+
+
+// Carry the selected catalogue object or detection from one snapshot to the
+// next, so playback shows that object's motion/dipole/monopole rather than an
+// unrelated marker.  Matches within 10 arcsec and draws the existing ring.
+function focusForSnapshot(data) {
+  const focus = state.focus;
+  if (!focus || !data || !data.map) return;
+  const npix = data.map.npix;
+  const inside = (point) => point && Number.isFinite(point.x)
+    && Number.isFinite(point.y) && point.x >= 0 && point.x <= npix
+    && point.y >= 0 && point.y <= npix;
+  const pos = skyToPixel(focus.ra, focus.dec, data.map);
+  state.highlight = inside(pos) ? { x: pos.x, y: pos.y } : null;
+
+  let best = -1;
+  let bestSep = Infinity;
+  (data.detections || []).forEach((det, index) => {
+    if (!Number.isFinite(det.ra) || !Number.isFinite(det.dec)) return;
+    const sep = historySeparationArcsec(det.ra, det.dec, focus.ra, focus.dec);
+    if (sep < bestSep) { bestSep = sep; best = index; }
+  });
+
+  let point = null;
+  let pointRa = focus.ra;
+  let pointDec = focus.dec;
+  let label = focus.label || '';
+  if (best >= 0 && bestSep <= 10) {
+    const det = data.detections[best];
+    const detPos = skyToPixel(det.ra, det.dec, data.map);
+    if (inside(detPos)) {
+      point = detPos;
+      pointRa = det.ra;
+      pointDec = det.dec;
+      label = `${det.kind || 'detection'} ${Number.isFinite(det.snr)
+        ? det.snr.toFixed(1) : ''}`.trim();
+    }
+    state.selected = best;
+    renderVerdict(det);
+    document.querySelectorAll('#detections-body tr')
+      .forEach((tr, index) => tr.classList.toggle('selected', index === best));
+  } else {
+    state.selected = -1;
+    if (inside(pos)) point = pos;
+  }
+
+  // Keep one point per published version, so replay draws the object's path
+  // across snapshots without duplicating a frame that was rendered twice.
+  if (point) {
+    const stamp = data.snapshot_meta?.manifest
+      || data.snapshot_meta?.published_at
+      || data.generated_at || '';
+    const trail = state.snapshotTrail;
+    const last = trail[trail.length - 1];
+    if (!last || last.stamp !== stamp) {
+      trail.push({
+        x: point.x, y: point.y, ra: pointRa, dec: pointDec, label, stamp,
+        time: data.snapshot_meta?.published_at || data.generated_at || '',
+      });
+      if (trail.length > 24) trail.shift();
+    }
+  }
+}
+
+async function loadSnapshotFrame(snapshot, { preserveView = true, quiet = false } = {}) {
+  const hist = state.snapshotHistory;
+  if (!snapshot || snapshot.latest) {
+    hist.selected = '';
+    renderSnapshotControls();
+    return runPipeline(null, null, null,
+      { preserveView, quiet, suppressHistory: quiet });
+  }
+  hist.selected = snapshot.manifest;
+  renderSnapshotControls();
+  return runPipeline(null, null, null,
+    { snapshotMeta: snapshot, preserveView, quiet });
+}
+
+function stopSnapshotPlayback({ resetScale = true } = {}) {
+  const hist = state.snapshotHistory;
+  if (hist.timer) {
+    window.clearTimeout(hist.timer);
+    hist.timer = null;
+  }
+  const wasPlaying = hist.playing;
+  hist.playing = false;
+  hist.runId += 1;
+  if (resetScale && state.snapshotScaleLock) {
+    state.snapshotScaleLock = null;
+    if (state.data) {
+      rebuildLayers();
+      draw();
+    }
+  }
+  if (wasPlaying) renderSnapshotControls();
+}
+
+async function startSnapshotPlayback() {
+  const hist = state.snapshotHistory;
+  if (hist.playing) {
+    stopSnapshotPlayback();
+    setText('footer-status', 'snapshot replay stopped');
+    return;
+  }
+  const frames = (hist.snapshots || []).slice().reverse();   // oldest -> latest
+  if (frames.length < 2 || !snapshotHistoryAvailable() || state.live
+      || offline.mode === 'offline' || state.pipelineRunning) return;
+  if (state.viewMode === 'sky') switchView('field');
+  stopSnapshotPlayback({ resetScale: false });
+  hist.playing = true;
+  hist.runId += 1;
+  const runId = hist.runId;
+  state.snapshotScaleLock = null;      // captured after the first frame
+  state.snapshotTrail = [];
+  hist.selected = frames[0].latest ? '' : frames[0].manifest;
+  renderSnapshotControls();
+  setText('footer-status',
+    `snapshot replay: ${frames.length} versions, oldest to latest`);
+
+  const finish = (message) => {
+    if (hist.runId !== runId) return;
+    hist.playing = false;
+    hist.timer = null;
+    // Keep the frozen scale so the last frame stays directly comparable;
+    // Stop, Run Pipeline and a field change release it.
+    renderSnapshotControls();
+    setText('footer-status', message);
+  };
+
+  const step = async (index) => {
+    if (!hist.playing || hist.runId !== runId) return;
+    if ($('target-select').value !== hist.target) {
+      finish('snapshot replay stopped: the field changed');
+      return;
+    }
+    const snapshot = frames[index];
+    try {
+      const rendered = await loadSnapshotFrame(snapshot,
+        { preserveView: index > 0, quiet: true });
+      if (rendered === false) {
+        finish('snapshot replay stopped: that frame could not be loaded');
+        return;
+      }
+    } catch (error) {
+      finish(`snapshot replay stopped: ${error.message}`);
+      return;
+    }
+    if (!hist.playing || hist.runId !== runId) return;
+    if (index === 0) {
+      // Freeze the first frame's stretch so later dipoles/monopoles are
+      // compared against the same intensity scale instead of re-normalising.
+      state.snapshotScaleLock = JSON.parse(JSON.stringify(state.scaling));
+    }
+    setText('footer-status',
+      `snapshot replay ${index + 1}/${frames.length} \u00b7 ` +
+      `${formatTimestamp(snapshot.published_at || snapshot.created_at)}`);
+    if (index + 1 >= frames.length) {
+      finish(`snapshot replay complete: ${frames.length} versions, oldest to latest`);
+      return;
+    }
+    hist.timer = window.setTimeout(() => step(index + 1), SNAPSHOT_PLAY_MS);
+  };
+  step(0);
+}
+
 // --------------------------------------------------------------- pipeline IO
 
-async function runPipeline(preloadedData = null, preloadedElapsed = null, savedEntry = null) {
+async function runPipeline(preloadedData = null, preloadedElapsed = null,
+                           savedEntry = null, options = {}) {
   let statusPromise = null;   // fetched alongside the dashboard
   let fromSavedCopy = false;  // served by sw.js from this device's offline copy
-  if (state.pipelineRunning) return;
+  if (state.pipelineRunning) return false;
+  const snapshotMeta = options.snapshotMeta || null;
+  const preserveView = !!options.preserveView;
   state.pipelineRunning = true;
   $('btn-run').disabled = true;
   const target = $('target-select').value;
   const pipelineStarted = performance.now();
-  const progress = startActionProgress(state.live
-    ? 'Starting a fresh IRSA request'
-    : 'Loading the selected field data');
+  const progress = startActionProgress(snapshotMeta
+    ? `Loading snapshot from ${formatSnapshotTime(snapshotMeta.published_at)}`
+    : (state.live
+      ? 'Starting a fresh IRSA request'
+      : 'Loading the selected field data'));
   let streamed = null;
-  if (state.target !== target) state.recovery = null;
+  if (state.target !== target) {
+    state.recovery = null;
+    state.focus = null;          // a different field: drop the old highlight
+    state.snapshotScaleLock = null;
+    state.snapshotTrail = [];
+    state.snapshotHistory.target = target;
+    state.snapshotHistory.snapshots = [];
+    state.snapshotHistory.selected = '';
+    state.snapshotHistory.error = '';
+    state.snapshotFrames.clear();
+  }
   state.target = target;
   show('map-loader');
-  setStatus(`LOADING ${target.replace(/_/g, ' ').toUpperCase()} \u00b7 FIELD DATA`, 'busy');
-  setText('map-hint', state.live
-    ? 'fetching archive cutouts and running the pipeline\u2026'
-    : (STATIC_MODE && LIVE_API
-      ? 'loading the latest published cloud snapshot\u2026'
-      : 'loading field data\u2026'));
+  setStatus(snapshotMeta
+    ? `LOADING SNAPSHOT \u00b7 ${target.replace(/_/g, ' ').toUpperCase()}`
+    : `LOADING ${target.replace(/_/g, ' ').toUpperCase()} \u00b7 FIELD DATA`,
+  'busy');
+  setText('map-hint', snapshotMeta
+    ? `loading the published snapshot from ${formatTimestamp(
+      snapshotMeta.published_at || snapshotMeta.created_at)}\u2026`
+    : (state.live
+      ? 'fetching archive cutouts and running the pipeline\u2026'
+      : (STATIC_MODE && LIVE_API
+        ? 'loading the latest published cloud snapshot\u2026'
+        : 'loading field data\u2026')));
   setText('footer-status', `pipeline: ${target}`);
   setText('card-total', '\u2026');
 
   try {
     let data = preloadedData;
     if (!data) {
-      if (state.live) {
+      if (snapshotMeta) {
+        const key = snapshotFrameKey(target, snapshotMeta.manifest);
+        data = state.snapshotFrames.get(key) || null;
+        if (data) {
+          progress.update('Using this session\u2019s saved copy of that snapshot');
+        } else {
+          const resp = await fetchApi('dashboard', target,
+            { snapshot: snapshotMeta.manifest });
+          if (!resp.ok) {
+            const problem = await resp.json().catch(() => ({}));
+            throw new Error([problem.error, problem.detail]
+              .filter(Boolean).join(' ')
+              || `Request failed: HTTP ${resp.status}`);
+          }
+          data = await resp.json();
+          state.snapshotFrames.set(key, data);
+          while (state.snapshotFrames.size > SNAPSHOT_FRAME_LIMIT) {
+            state.snapshotFrames.delete(state.snapshotFrames.keys().next().value);
+          }
+        }
+      } else if (state.live) {
         streamed = await fetchProgressApi('dashboard', target, (event) => {
           progress.update(event.message || 'Live pipeline is running');
           setText('map-hint', event.message || 'Live pipeline is running');
@@ -2540,9 +2976,14 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
       state.offscreen = {};
       draw();
       hide('map-loader');
-      return;
+      return false;
     }
-    if (data.source === 'scheduled') {
+    if (snapshotMeta) {
+      // A historical dashboard is immutable; today's refresh status does not
+      // describe it, so do not fetch or attach it.
+      data.freshness = { refresh_attempt: { status: 'historical-snapshot' } };
+      data.snapshot_meta = snapshotMeta;
+    } else if (data.source === 'scheduled') {
       try {
         const statusResponse = await (statusPromise || fetchApi('status', target));
         if (statusResponse instanceof Error) throw statusResponse;
@@ -2554,10 +2995,14 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
       }
     }
 
+    const sameField = !!(state.data && data.map && state.data.map
+      && state.data.target === data.target
+      && state.data.map.npix === data.map.npix);
+    if (!snapshotMeta && !preserveView) state.snapshotTrail = [];
     state.data = data;
     state.selected = data.detections.length ? 0 : -1;
-    rebuildLayers();
-    fitView();
+    rebuildLayers(preserveView && !!state.snapshotScaleLock);
+    if (!(preserveView && sameField)) fitView();
     updateZoomLabel();
     draw();
 
@@ -2580,16 +3025,26 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
     safe('provenance', () => renderProvenance(data));
     safe('mosaic', () => updateMosaicTile(data));
     safe('verdict', () => renderVerdict(data.detections[0] || null));
+    safe('focus', () => focusForSnapshot(data));
     if (failures.length) {
       console.error('panels that failed to render:', failures.join(', '));
     }
     if (state.selected >= 0) {
       document.querySelectorAll('#detections-body tr')
-        .forEach((tr, i) => tr.classList.toggle('selected', i === 0));
+        .forEach((tr, i) => tr.classList.toggle('selected', i === state.selected));
     }
+    if (state.focus) draw();
 
     let freshness;
-    if (data.source === 'scheduled') {
+    if (snapshotMeta) {
+      const when = formatTimestamp(
+        snapshotMeta.published_at || snapshotMeta.created_at);
+      freshness = snapshotMeta.latest
+        ? `latest published snapshot \u00b7 ${when}`
+        : `historical snapshot \u00b7 ${when}`;
+      setText('cloud-support-freshness',
+        'Snapshot history compares the retained published versions of this field.');
+    } else if (data.source === 'scheduled') {
       const freshnessParts = ['published Cloud snapshot'];
       const processedAt = data.freshness?.field_last_processed_at
         || data.generated_at;
@@ -2643,24 +3098,28 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
       `${data.map.fov_arcmin}' field \u00b7 ${freshness}`);
     const processedAt = data.freshness?.field_last_processed_at
       || (data.source === 'scheduled' ? data.generated_at : null);
-    progress.update(data.irsa_check?.reused_snapshot
-      ? `IRSA checked in ${(streamed?.elapsedSeconds
-        ?? (performance.now() - pipelineStarted) / 1000).toFixed(1)} s: snapshot up to date`
-      : data.source === 'live'
-      ? `IRSA pipeline complete in ${(streamed?.elapsedSeconds
-        ?? preloadedElapsed
-        ?? (performance.now() - pipelineStarted) / 1000).toFixed(1)} s`
-      : (data.source === 'scheduled'
-        ? (processedAt
-          ? `Snapshot loaded (${formatTimestamp(processedAt)})`
-          : 'Snapshot loaded')
-        : (data.generated_at
-          ? `Loaded from cache (${formatTimestamp(data.generated_at)})`
-          : 'Loaded from local cache')));
+    progress.update(snapshotMeta
+      ? `Snapshot from ${formatTimestamp(
+        snapshotMeta.published_at || snapshotMeta.created_at)} loaded`
+      : data.irsa_check?.reused_snapshot
+        ? `IRSA checked in ${(streamed?.elapsedSeconds
+          ?? (performance.now() - pipelineStarted) / 1000).toFixed(1)} s: snapshot up to date`
+        : data.source === 'live'
+          ? `IRSA pipeline complete in ${(streamed?.elapsedSeconds
+            ?? preloadedElapsed
+            ?? (performance.now() - pipelineStarted) / 1000).toFixed(1)} s`
+          : (data.source === 'scheduled'
+            ? (processedAt
+              ? `Snapshot loaded (${formatTimestamp(processedAt)})`
+              : 'Snapshot loaded')
+            : (data.generated_at
+              ? `Loaded from cache (${formatTimestamp(data.generated_at)})`
+              : 'Loaded from local cache')));
     setStatus(savedEntry ? 'HISTORY \u00b7 SAVED'
-      : offlineView ? 'OFFLINE \u00b7 SNAPSHOT' : data.source === 'scheduled'
-        ? 'SNAPSHOT \u00b7 READY'
-        : 'CACHE \u00b7 READY', offlineView || savedEntry ? 'busy' : undefined);
+      : offlineView ? 'OFFLINE \u00b7 SNAPSHOT'
+        : snapshotMeta ? `SNAPSHOT \u00b7 ${snapshotMeta.latest ? 'READY' : 'HISTORY'}`
+          : data.source === 'scheduled' ? 'SNAPSHOT \u00b7 READY'
+            : 'CACHE \u00b7 READY', offlineView || savedEntry ? 'busy' : undefined);
     if (savedEntry) progress.update(`Opened the saved result from ${formatTimestamp(savedEntry.saved_at)}`);
     // A fresh IRSA run of a registered field is research work: keep it.
     if (!preloadedData && state.live && data.source === 'live') {
@@ -2669,9 +3128,18 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
     }
     setText('footer-status',
       `${target} \u00b7 ${data.detections.length} detections \u00b7 ` +
-      `${data.source === 'scheduled' ? 'published' : 'computed'} ` +
-      `${data.generated_at || 'time unknown'}`);
+      (snapshotMeta
+        ? `snapshot ${formatTimestamp(snapshotMeta.published_at || snapshotMeta.created_at)}`
+        : `${data.source === 'scheduled' ? 'published' : 'computed'} ` +
+          `${data.generated_at || 'time unknown'}`));
     document.title = `${data.common} -- SPHERExLens`;
+    // Refresh the history list after a normal latest-snapshot load.  Historical
+    // frames and saved research results keep the list they already have.
+    if (!snapshotMeta && !savedEntry && !state.live
+        && !state.customFields[target] && !options.suppressHistory) {
+      loadSnapshotHistory(target);
+    }
+    return true;
   } catch (e) {
     setText('map-hint', 'Request failed: ' + e.message);
     progress.update('Request failed: ' + e.message);
@@ -2679,11 +3147,13 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
     state.data = null;
     state.offscreen = {};
     draw();
+    return false;
   } finally {
     progress.stop();
     hide('map-loader');
     state.pipelineRunning = false;
     $('btn-run').disabled = false;
+    renderSnapshotControls();
   }
 }
 
@@ -2795,6 +3265,7 @@ async function openFieldAt(ra, dec, name) {
 }
 
 function refreshSelectedTarget() {
+  stopSnapshotPlayback({ resetScale: false });
   const custom = state.customFields[$('target-select').value];
   if (custom) {
     openFieldAt(custom.ra, custom.dec, custom.name);
@@ -3017,7 +3488,7 @@ function nearestDetection(x, y, maxPx) {
 
 function updateMosaicTile(data) {
   if (!state.mosaic || !state.mosaic.tiles) return;
-  if (data.source === 'live') return;
+  if (data.source === 'live' || data.snapshot_meta) return;
   const tile = state.mosaic.tiles.find((t) => t.target === data.target);
   if (!tile) return;
   tile.n_detections = (data.stats || {}).n_detections;
@@ -3215,6 +3686,7 @@ function switchView(view) {
   document.querySelectorAll('#view-switch .seg').forEach((b) =>
     b.classList.toggle('active', b.dataset.view === view));
   if (view === 'sky') {
+    stopSnapshotPlayback();
     if (!state.mosaic) loadMosaic(false).then(draw);
     else if (state.live) runLiveSky();
     setText('map-hint', allSkyHint());
@@ -3374,6 +3846,12 @@ function toggleDemo() {
 
 function resetAll() {
   if (state.demo) toggleDemo();
+  const wasHistory = !!state.snapshotHistory.selected;
+  stopSnapshotPlayback();
+  state.snapshotHistory.selected = '';
+  state.snapshotScaleLock = null;
+  state.snapshotTrail = [];
+  state.focus = null;
   state.highlight = null;
   state.objectFilter = 'all';
   state.objectQuery = '';
@@ -3405,6 +3883,8 @@ function resetAll() {
   setText('recovery-out', 'injection-recovery not run yet');
   $('recovery-out').style.whiteSpace = 'normal';
   setText('map-hint', 'view reset');
+  renderSnapshotControls();
+  if (wasHistory && !state.live) runPipeline();
 }
 
 async function copyShareLink() {
@@ -3747,6 +4227,34 @@ function attachUiEvents() {
     state.objectQuery = e.target.value;
     drawObjectTable();
   });
+
+  // ------------------------------------------------ snapshot history controls
+  const snapshotSelect = $('snapshot-select');
+  if (snapshotSelect) {
+    snapshotSelect.addEventListener('change', async (event) => {
+      stopSnapshotPlayback();
+      await waitForPipeline();
+      const manifest = event.target.value;
+      if (!manifest) {
+        await runPipeline();
+        return;
+      }
+      const snapshot = state.snapshotHistory.snapshots
+        .find((snap) => snap.manifest === manifest);
+      if (!snapshot) {
+        renderSnapshotControls();
+        return;
+      }
+      try {
+        await loadSnapshotFrame(snapshot, { preserveView: !!state.data });
+      } catch (error) {
+        setText('footer-status', `snapshot unavailable: ${error.message}`);
+        renderSnapshotControls();
+      }
+    });
+  }
+  const snapshotPlay = $('btn-snapshot-play');
+  if (snapshotPlay) snapshotPlay.addEventListener('click', startSnapshotPlayback);
 
   // ------------------------------------------------------------- the guide
   const guide = $('guide');

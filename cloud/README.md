@@ -37,7 +37,13 @@ added to the scheduled snapshot.
   preconditions and a refresh lock prevent partial or concurrent publication.
   A successful publication retains the current and previous 48 hours of
   manifests and referenced objects (long enough for in-flight API requests),
-  then removes older unreferenced objects from this dedicated bucket.
+  then removes older unreferenced objects from this dedicated bucket. The
+  dashboard's **Snapshot history** control walks the same retained
+  `previous_manifest` chain through `/api/snapshot-history`, so it never lists a
+  version whose dashboard was already garbage-collected. Increase
+  `SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS` (for example `336` for a week) to
+  keep a longer playback history; the API and the refresh job must use the same
+  value. `SPHEREX_SNAPSHOT_HISTORY_LIMIT` caps how many manifests are listed.
 
 The first run is a full bootstrap of all fields and can be slow. Later runs
 still check IRSA every 12 hours, but only changed fields incur cutout download
