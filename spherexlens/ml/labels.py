@@ -28,7 +28,6 @@ effect of the same null / injection / answer-key runs.
 """
 import argparse
 import json
-import math
 import os
 import sys
 import time

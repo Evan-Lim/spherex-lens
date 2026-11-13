@@ -72,6 +72,11 @@ def evaluate_field(field, opts, sink=None, sigma=None):
     nm = ctx["noise_maps"]
     valid = harness.valid_mask([nm[ea], nm[eb]], ctx["excluded"],
                                margin=config.EVAL_EDGE_MARGIN_PX)
+    if ctx.get("edge_map") is not None:        # footprint edges (step2 extras)
+        from scipy.ndimage import binary_dilation
+        edge = np.asarray(ctx["edge_map"]) > 0
+        if edge.any():
+            valid &= ~binary_dilation(edge, iterations=max(1, getattr(config, "EDGE_MASK_PX", 4)))
     out["pair"] = [ea, eb]
     out["dt_years"] = round(ctx["dt_years"], 4)
     out["n_exposures_pair"] = {str(k): v for k, v in ctx["n_exposures"].items()}

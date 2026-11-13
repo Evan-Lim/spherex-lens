@@ -16,7 +16,6 @@ PSF: the per-exposure SPHEREx EPSF (oversampled x5 on the 6.2" native grid)
 is resampled onto the 3" analysis grid (see ``read_epsf``).  When a file has
 no EPSF a Gaussian of config.PSF_SIGMA_PX_FALLBACK is used and recorded.
 """
-import inspect
 import json
 import os
 import re
@@ -257,9 +256,47 @@ def field_psf(paths, pixscale_arcsec=None, max_files=8):
 # co-add / subtract / detect
 # ---------------------------------------------------------------------------
 def coadd(field, groups):
-    """groups {key: [exposure, ...]} -> stacks, noise_maps, excluded, n_bands."""
+    """
+    groups {key: [exposure, ...]} -> stacks, noise_maps, excluded, n_bands, extras.
+
+    extras is step2's return_psf dict (psfs, psf_info, exposure_quality,
+    edge_map) when available, else {} (older step2).
+    """
     g = {k: [(x["path"], x["band"]) for x in v] for k, v in groups.items()}
-    return coadd_matched(g, field["wcs"], npix=field["npix"])
+    try:
+        out = coadd_matched(g, field["wcs"], npix=field["npix"], return_psf=True)
+        if len(out) == 5:
+            return out
+        return (*out, {})
+    except TypeError:
+        return (*coadd_matched(g, field["wcs"], npix=field["npix"]), {})
+
+
+def psf_from_extras(extras, keys, paths=None, pixscale=None):
+    """
+    PSF dict for a pair of co-adds: per-epoch stamps from step2 (the merged
+    exposure ePSFs), their mean as "stamp", widths from second moments.
+    Falls back to field_psf(paths) when step2 supplied none.
+    """
+    psfs = (extras or {}).get("psfs") or {}
+    info = (extras or {}).get("psf_info") or {}
+    stamps = [np.asarray(psfs[k], dtype=float) for k in keys if psfs.get(k) is not None]
+    if len(stamps) == len(keys) and stamps:
+        n = max(s.shape[0] for s in stamps)
+        padded = []
+        for st in stamps:
+            p = (n - st.shape[0]) // 2
+            padded.append(np.pad(st, p) / st.sum())
+        mean = np.mean(padded, axis=0)
+        mean /= mean.sum()
+        sig, fwhm = psf_moments(mean)
+        srcs = {(info.get(k) or {}).get("source") for k in keys}
+        model = "epsf" if srcs == {"epsf"} else ("gaussian" if srcs <= {"gaussian_fallback", None}
+                                               else "mixed")
+        return {"stamp": mean, "stamps": {k: pp for k, pp in zip(keys, padded)},
+                "sigma_px": sig, "fwhm_px": fwhm, "model": model,
+                "psf_info": {str(k): info.get(k) for k in keys}}
+    return field_psf(paths or [], pixscale)
 
 
 def scalar_noise(noise_map):
@@ -281,9 +318,6 @@ def valid_mask(noise_maps, excluded=None, margin=0):
         ok[:margin] = ok[-margin:] = False
         ok[:, :margin] = ok[:, -margin:] = False
     return ok
-
-
-_ZOGY_PARAMS = None
 
 
 def robust_renormalise(S):
@@ -309,21 +343,17 @@ def subtract(img1, img2, sigma1, sigma2, psf=None, zogy_fn=None, normalisation=N
 
 
 def _subtract(img1, img2, sigma1, sigma2, psf=None, zogy_fn=None):
-    global _ZOGY_PARAMS
     fn = zogy_fn or zogy
-    sig = (psf or {}).get("sigma_px") or config.PSF_SIGMA_PX_FALLBACK
-    if psf is not None and psf.get("model") == "epsf" and zogy_fn is None:
-        if _ZOGY_PARAMS is None:
-            try:
-                _ZOGY_PARAMS = set(inspect.signature(zogy).parameters)
-            except Exception:
-                _ZOGY_PARAMS = set()
-        if "psf1" in _ZOGY_PARAMS:
-            try:
-                return fn(img1, img2, sigma1, sigma2, psf_sigma1=sig, psf_sigma2=sig,
-                          psf1=psf["stamp"], psf2=psf["stamp"])
-            except Exception:
-                pass
+    psf = psf or {}
+    sig = psf.get("sigma_px") or config.PSF_SIGMA_PX_FALLBACK
+    if zogy_fn is None and psf.get("stamp") is not None:
+        stamps = list((psf.get("stamps") or {}).values())
+        p1, p2 = (stamps[0], stamps[-1]) if len(stamps) >= 2 else (psf["stamp"], psf["stamp"])
+        try:
+            return fn(img1, img2, sigma1, sigma2, psf_sigma1=sig, psf_sigma2=sig,
+                      psf1=p1, psf2=p2)
+        except TypeError:
+            pass                     # older step3 without psf1/psf2
     return fn(img1, img2, sigma1, sigma2, sig, sig)
 
 
@@ -342,7 +372,7 @@ def detection_position(d):
 
 
 def make_ctx(field, stacks, noise_maps, excluded, n_bands, ea, eb, D, S, detections,
-             psf=None, epoch_mjd=None):
+             psf=None, epoch_mjd=None, extras=None):
     """A dict with the keys of app.get_dashboard's enrich_ctx (plus a few)."""
     epoch_mjd = epoch_mjd if epoch_mjd is not None else field.get("epoch_mjd", {})
     noises = {e: scalar_noise(noise_maps[e]) for e in stacks}
@@ -356,6 +386,9 @@ def make_ctx(field, stacks, noise_maps, excluded, n_bands, ea, eb, D, S, detecti
         "raw_catalogs": field.get("catalogs") or {},
         "S": S, "D": D, "raw_detections": detections, "detections": detections,
         "psf": psf, "pair": (ea, eb),
+        "psfs": (extras or {}).get("psfs"), "psf_info": (extras or {}).get("psf_info"),
+        "exposure_quality": (extras or {}).get("exposure_quality"),
+        "edge_map": (extras or {}).get("edge_map"),
     }
 
 
@@ -371,9 +404,10 @@ def run_pair(field, ea, eb, sigma=None, max_per_band=None, rng=None, psf=None):
     groups = pair_exposures(field, ea, eb, max_per_band=max_per_band, rng=rng)
     if not groups[ea] or not groups[eb]:
         return None
+    stacks, noise_maps, excluded, n_bands, extras = coadd(field, groups)
     if psf is None:
-        psf = field_psf([x["path"] for x in groups[ea] + groups[eb]], field["pixscale"])
-    stacks, noise_maps, excluded, n_bands = coadd(field, groups)
+        psf = psf_from_extras(extras, [ea, eb], [x["path"] for x in groups[ea] + groups[eb]],
+                              field["pixscale"])
     s1, s2 = scalar_noise(noise_maps[ea]), scalar_noise(noise_maps[eb])
     if not (np.isfinite(s1) and np.isfinite(s2)):
         return None
@@ -383,7 +417,8 @@ def run_pair(field, ea, eb, sigma=None, max_per_band=None, rng=None, psf=None):
     for d in dets:
         d["epochs"] = (ea, eb)
         d["pair"] = f"E{ea}→E{eb}"
-    ctx = make_ctx(field, stacks, noise_maps, excluded, n_bands, ea, eb, D, S, dets, psf)
+    ctx = make_ctx(field, stacks, noise_maps, excluded, n_bands, ea, eb, D, S, dets, psf,
+                   extras=extras)
     ctx["dt_years"] = dt
     ctx["n_exposures"] = {ea: len(groups[ea]), eb: len(groups[eb])}
     return ctx

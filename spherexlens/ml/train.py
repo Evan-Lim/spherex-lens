@@ -320,8 +320,15 @@ def train(X, y, fields, sources=None, seed=None, heldout_frac=None, model_dir=No
     train_f, hold_f = split_fields(fields, heldout_frac, seed)
     tr = np.isin(fields, train_f)
     te = np.isin(fields, hold_f)
-    if len(set(y[tr])) < 2:
-        raise ValueError("training fields hold only one class")
+    n_min = int(min((y[tr] == 1).sum(), (y[tr] == 0).sum()))
+    if n_min < config.ML_MIN_PER_CLASS:
+        raise ValueError(f"training fields hold only {n_min} examples of the rarer class "
+                         f"(need >= {config.ML_MIN_PER_CLASS})")
+    # features the pipeline never supplied (all NaN) trip sklearn's binning;
+    # a constant column is never split on, so the model simply ignores them
+    unused = ~np.isfinite(X[tr]).any(axis=0)
+    X = X.copy()
+    X[:, unused] = 0.0
     oof, folds = oof_scores(X[tr], y[tr], fields[tr], seed)
     ok = np.isfinite(oof)
     from sklearn.isotonic import IsotonicRegression
@@ -333,7 +340,8 @@ def train(X, y, fields, sources=None, seed=None, heldout_frac=None, model_dir=No
     med = np.nanmedian(np.where(np.isfinite(X[tr]), X[tr], np.nan), axis=0)
     medians = {n: (None if not np.isfinite(v) else float(v)) for n, v in zip(FEATURE_NAMES, med)}
     bundle = {"model": clf, "isotonic": iso, "features": list(FEATURE_NAMES),
-              "medians": medians}
+              "medians": medians,
+              "unused_features": [n for n, u in zip(FEATURE_NAMES, unused) if u]}
     metrics = {}
     if ok.sum() and len(set(y[tr][ok])) == 2:
         p_oof = iso.predict(oof[ok]) if iso is not None else oof[ok]
@@ -368,6 +376,7 @@ def train(X, y, fields, sources=None, seed=None, heldout_frac=None, model_dir=No
         "split": split, "seed": seed, "metrics": metrics,
         "permutation_importance": importance,
         "data": label_summary(rows),
+        "unused_features": bundle["unused_features"],
         "calibration": "isotonic on GroupKFold out-of-fold scores" if iso is not None else "none",
         "uncertain_band": [config.ML_UNCERTAIN_LOW, config.ML_UNCERTAIN_HIGH],
     }

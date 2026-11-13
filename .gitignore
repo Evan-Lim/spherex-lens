@@ -42,3 +42,4 @@ paper/*.fdb_latexmk
 paper/*.synctex.gz
 logs/
 /deep/
+ml/data/

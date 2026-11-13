@@ -48,12 +48,13 @@ def eligible_groups(field, min_exposures=2):
 
 def null_realisation(field, half_a, half_b, sigma=None, psf=None, keep_ctx=False):
     """Co-add two halves of one epoch/band, subtract, detect.  Returns a dict."""
-    stacks, noise_maps, excluded, n_bands = harness.coadd(field, {0: half_a, 1: half_b})
+    stacks, noise_maps, excluded, n_bands, extras = harness.coadd(field, {0: half_a, 1: half_b})
     s1, s2 = harness.scalar_noise(noise_maps[0]), harness.scalar_noise(noise_maps[1])
     if not (np.isfinite(s1) and np.isfinite(s2)):
         return None
-    if psf is None:
-        psf = harness.field_psf([x["path"] for x in half_a + half_b], field["pixscale"])
+    if psf is None or (extras or {}).get("psfs"):
+        psf = harness.psf_from_extras(extras, [0, 1], [x["path"] for x in half_a + half_b],
+                                      field["pixscale"])
     D, S = harness.subtract(stacks[0], stacks[1], s1, s2, psf)
     valid = harness.valid_mask([noise_maps[0], noise_maps[1]], excluded,
                                margin=config.EVAL_EDGE_MARGIN_PX // 2)
@@ -71,7 +72,7 @@ def null_realisation(field, half_a, half_b, sigma=None, psf=None, keep_ctx=False
            "n_a": len(half_a), "n_b": len(half_b), "detections": dets}
     if keep_ctx:
         ctx = harness.make_ctx(field, stacks, noise_maps, excluded, n_bands, 0, 1, D, S,
-                               dets, psf, epoch_mjd={0: None, 1: None})
+                               dets, psf, epoch_mjd={0: None, 1: None}, extras=extras)
         out["ctx"] = ctx
     return out
 
@@ -101,7 +102,7 @@ def run_null_test(field, n_splits=None, sigma=None, seed=None, max_groups=None,
     reals = []
     for key in keys:
         exps = groups[key]
-        psf = harness.field_psf([x["path"] for x in exps], field["pixscale"])
+        psf = None                  # each realisation uses step2's merged ePSFs
         for k in range(n_splits):
             perm = rng.permutation(len(exps))
             h = len(exps) // 2

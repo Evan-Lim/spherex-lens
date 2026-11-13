@@ -136,8 +136,9 @@ def make_sources(category, snr, mu, positions, rng, dt_years, pixscale):
     return out
 
 
-def inject_pair(img1, img2, sources, stamp, sigma1, sigma2, mode="psf"):
-    """Copies of img1/img2 with the sources added."""
+def inject_pair(img1, img2, sources, stamp, sigma1, sigma2, mode="psf", stamp2=None):
+    """Copies of img1/img2 with the sources added (stamp2: epoch-2 PSF, default stamp)."""
+    stamp2 = stamp if stamp2 is None else stamp2
     a, b = img1.copy(), img2.copy()
     for s in sources:
         s1 = sigma1[int(round(s["y"])), int(round(s["x"]))] if np.ndim(sigma1) else sigma1
@@ -145,13 +146,13 @@ def inject_pair(img1, img2, sources, stamp, sigma1, sigma2, mode="psf"):
         f = flux_for_snr(s["snr"], s1, stamp, mode)
         if s["category"] == "mover":
             add_stamp(a, stamp, s["x"], s["y"], f)
-            add_stamp(b, stamp, s["x2"], s["y2"], f)
+            add_stamp(b, stamp2, s["x2"], s["y2"], f)
         elif s["category"] == "brightening":
             add_stamp(a, stamp, s["x"], s["y"], s["base"] * f)
-            add_stamp(b, stamp, s["x"], s["y"], (s["base"] + 1.0) * f)
+            add_stamp(b, stamp2, s["x"], s["y"], (s["base"] + 1.0) * f)
         else:
             add_stamp(a, stamp, s["x"], s["y"], (s["base"] + 1.0) * f)
-            add_stamp(b, stamp, s["x"], s["y"], s["base"] * f)
+            add_stamp(b, stamp2, s["x"], s["y"], s["base"] * f)
     return a, b
 
 
@@ -185,6 +186,8 @@ def run_strict_injection(img1, img2, noise1, noise2, psf=None, snr_grid=None,
         psf = {"stamp": harness.gaussian_stamp(config.PSF_SIGMA_PX_FALLBACK),
                "sigma_px": config.PSF_SIGMA_PX_FALLBACK, "model": "gaussian"}
     stamp = psf["stamp"]
+    per_epoch = list((psf.get("stamps") or {}).values())
+    stamp1, stamp2 = (per_epoch[0], per_epoch[-1]) if len(per_epoch) >= 2 else (stamp, stamp)
     ny, nx = img1.shape
     if margin is None:
         margin = max(config.EVAL_EDGE_MARGIN_PX, stamp.shape[0])
@@ -214,7 +217,7 @@ def run_strict_injection(img1, img2, noise1, noise2, psf=None, snr_grid=None,
             if not pos:
                 break
             srcs = make_sources(cat, snr, mu, pos, rng, dt_years, pixscale)
-            a, b = inject_pair(img1, img2, srcs, stamp, n1, n2, snr_mode)
+            a, b = inject_pair(img1, img2, srcs, stamp1, n1, n2, snr_mode, stamp2)
             try:
                 D, S = harness.subtract(a, b, s1, s2, psf, zogy_fn=zogy_fn,
                                         normalisation=normalisation)

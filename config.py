@@ -127,6 +127,7 @@ ML_N_REASONS = 3
 ML_FEATURE_RADIUS_PX = 3            # masked fraction / chi2 window
 ML_BRIGHT_STAR_GMAG = 16.0          # "nearest bright Gaia star" cut
 ML_FEATURE_CACHE = os.environ.get("SPHEREX_ML_FEATURE_CACHE", "1") not in ("0", "false", "")
+ML_MIN_PER_CLASS = 10               # real/bogus training refuses below this per class
 ML_SPECTRAL_MIN_PER_CLASS = 20      # spectral classifier refuses to train below this
 
 

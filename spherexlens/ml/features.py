@@ -24,7 +24,7 @@ FEATURE_NAMES -- the order is part of the model contract; append only.
   bright_star_dist_arcsec distance to the nearest Gaia star with G <= 16
   bright_star_gmag       G of that star
   masked_frac            fraction of pixels within 3 px masked / dropped by the
-                         matched-mask co-add / without data
+                         matched-mask co-add / on a footprint edge / without data
   noise_ratio            local (r = 5 px) noise / field median noise
   exposure_quality       mean score of kept exposures (ctx["exposure_quality"])
   n_pairs_seen           epoch pairs the detection was found in
@@ -252,6 +252,9 @@ def masked_fraction(ctx, y, x, ep=None, r=None):
     yc, xc = np.clip(yy, 0, ny - 1), np.clip(xx, 0, nx - 1)
     if exc is not None:
         bad |= np.asarray(exc)[yc, xc] > 0
+    edge = ctx.get("edge_map")
+    if edge is not None and np.shape(edge) == (ny, nx):
+        bad |= np.asarray(edge)[yc, xc] > 0
     for k in keys:
         nm = np.asarray(nmaps[k])[yc, xc]
         bad |= ~np.isfinite(nm) | (nm >= 1e3)
