@@ -33,6 +33,8 @@ resource "google_project_service" "required" {
     "cloudbuild.googleapis.com",
     "cloudscheduler.googleapis.com",
     "iam.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
     "storage.googleapis.com",
@@ -179,6 +181,10 @@ resource "google_cloud_run_v2_service" "api" {
         value = trim(var.netlify_origin, "/")
       }
       env {
+        name  = "SPHEREX_VOTES_BUCKET"
+        value = google_storage_bucket.votes.name
+      }
+      env {
         name  = "SPHEREX_FIELD_REQUEST_CONCURRENCY"
         value = "1"
       }
@@ -213,6 +219,7 @@ resource "google_cloud_run_v2_service" "api" {
   depends_on = [
     google_project_service.required,
     google_storage_bucket_iam_member.api_read,
+    google_storage_bucket_iam_member.api_votes,
     google_secret_manager_secret_iam_member.api_token_access,
     google_cloud_run_v2_job_iam_member.api_invoke,
   ]
@@ -269,6 +276,10 @@ resource "google_cloud_run_v2_service" "live_api" {
         value = trim(var.netlify_origin, "/")
       }
       env {
+        name  = "SPHEREX_VOTES_BUCKET"
+        value = google_storage_bucket.votes.name
+      }
+      env {
         name  = "SPHEREX_FIELD_REQUEST_CONCURRENCY"
         value = "1"
       }
@@ -303,6 +314,7 @@ resource "google_cloud_run_v2_service" "live_api" {
   depends_on = [
     google_project_service.required,
     google_storage_bucket_iam_member.api_read,
+    google_storage_bucket_iam_member.api_votes,
     google_secret_manager_secret_iam_member.api_token_access,
     google_cloud_run_v2_job_iam_member.api_invoke,
   ]

@@ -727,6 +727,13 @@ Two honest caveats, both visible in the figures:
 | `GET /api/recovery?target=WISE_0855` | Injection-recovery grid (`snr`, `mu`, `recovery`) |
 | `GET /api/field?ra=&dec=&name=` | Register any sky position: streams its cutouts from IRSA, runs the pipeline, adds it to the dropdown/mosaic (RAM only) |
 | `GET /api/mosaic` | One 48x48 significance thumbnail + statistics per cached field, for the all-sky view (cached in RAM for 15 min) |
+| `POST /api/votes` | Public real/bogus/unsure vote on one detection (`{"target","detection_id","vote"}`) |
+| `GET /api/votes/queue?n=10` | Detections to vote on, most uncertain first |
+| `GET /api/candidates.csv`, `GET /api/candidates.votable` | Every triaged detection as a flat table, with provenance |
+| `GET /api/cone?RA=&DEC=&SR=` | IVOA Simple Cone Search 1.03 over the candidates (SR ≤ 1°) |
+| `GET /api/health`, `GET /api/health/live` | Snapshot age + archive probes; liveness (no network) |
+| `GET /api/credits` | Data sources, acknowledgements and licences |
+| `POST /api/jobs/field`, `GET /api/jobs/{id}` | Queued "Open any field" run and its status |
 | `GET /` | Static dashboard (`static/index.html`) |
 
 The `/api/dashboard` response carries 180 x 180 nested arrays for `image`,

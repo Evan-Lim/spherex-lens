@@ -104,3 +104,26 @@ EDGE_MASK_PX = int(_env("EDGE_MASK_PX", 4, int))
 # axes), SPIKE_LENGTH_FACTOR x the bright-star mask radius long.
 SPIKE_LENGTH_FACTOR = 2.5
 SPIKE_HALF_WIDTH_ARCSEC = 6.2       # one native pixel
+# ---- production (Phase 9) --------------------------------------------------
+# Serving limits for the public API.  They never change a science result, so
+# they live in a class: version.config_hash() hashes only UPPER-CASE module
+# names, and a dashboard's config_hash must not differ between a laptop and
+# Cloud Run.  Read them as config.Production.MAX_CONCURRENT_JOBS etc.
+class Production:
+    ENABLED = (os.environ.get("SPHEREX_ENV", "").lower() == "production"
+               or bool(os.environ.get("K_SERVICE")))       # set by Cloud Run
+    MAX_LIVE_SLOTS = int(_env("MAX_LIVE_SLOTS", 12, int))     # per live request
+    MAX_FIELD_SIZE_DEG = _env("MAX_FIELD_SIZE_DEG", 0.5)      # "Open any field"
+    FIELD_NAME_MAX_LEN = int(_env("FIELD_NAME_MAX_LEN", 80, int))
+    MAX_CONCURRENT_JOBS = int(_env("MAX_CONCURRENT_JOBS", 1, int))
+    MAX_QUEUED_JOBS = int(_env("MAX_QUEUED_JOBS", 8, int))
+    MAX_JOBS_PER_CLIENT = int(_env("MAX_JOBS_PER_CLIENT", 2, int))
+    JOB_RESULT_TTL_S = _env("JOB_RESULT_TTL_S", 1800.0)
+    JOB_TIMEOUT_S = _env("JOB_TIMEOUT_S", 900.0)              # running job budget
+    REQUEST_TIMEOUT_S = _env("REQUEST_TIMEOUT_S", 30.0)       # snapshot-API reads
+    HEALTH_PROBE_TIMEOUT_S = _env("HEALTH_PROBE_TIMEOUT_S", 4.0)
+    HEALTH_PROBE_TTL_S = _env("HEALTH_PROBE_TTL_S", 300.0)
+    SNAPSHOT_MAX_AGE_H = _env("SNAPSHOT_MAX_AGE_H", 36.0)     # health: stale after
+    VOTE_RATE_PER_MIN = int(_env("VOTE_RATE_PER_MIN", 30, int))
+    VOTES_QUEUE_CACHE_S = _env("VOTES_QUEUE_CACHE_S", 180.0)
+    CONE_MAX_SR_DEG = 1.0                                     # IVOA SCS cap

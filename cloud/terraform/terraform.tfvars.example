@@ -1,3 +1,9 @@
 project_id     = "your-new-google-cloud-project-id"
 region         = "us-central1"
 netlify_origin = "https://your-site.netlify.app"
+
+# v2 (Phase 9) -- all optional
+alert_email          = ""   # e.g. "you@example.com"; empty = no notifications
+billing_account      = ""   # e.g. "012345-6789AB-CDEF01"; needed for the budget
+budget_amount        = 0    # monthly amount in the account currency; 0 = no budget
+votes_retention_days = 0    # 0 = keep raw votes forever
