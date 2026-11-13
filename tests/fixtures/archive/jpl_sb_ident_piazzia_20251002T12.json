@@ -1,0 +1,93 @@
+{
+ "signature": {
+  "source": "NASA/JPL Small-Body Identification API",
+  "version": "1.1"
+ },
+ "summary": {
+  "fov-ra-hwidth": "0.1",
+  "fov-dec-hwidth": "0.1",
+  "mpc-code": "500",
+  "two-pass": "true",
+  "fov-dec-center": "M30-04-48.0",
+  "suppress-first-pass": "false",
+  "fov-ra-center": "19-06-38.40",
+  "obs-time": "2460951.0",
+  "mag-required": "false"
+ },
+ "observer": {
+  "fov_center": "19:06:38.40, -30 04'48.00\" (J2000)",
+  "location": "Geocentric",
+  "obs_date": "2025-Oct-02 12:00:00 (2460951.000000 UT)",
+  "fov_offset": "00:00:24.00, +00 06'00.00\""
+ },
+ "n_second_pass": 5,
+ "fields_second": [
+  "Object name",
+  "Astrometric RA (hh:mm:ss)",
+  "Astrometric Dec (dd mm'ss\")",
+  "Dist. from center RA (\")",
+  "Dist. from center Dec (\")",
+  "Dist. from center Norm (\")",
+  "Visual magnitude (V)",
+  "RA rate (\"/h)",
+  "Dec rate (\"/h)"
+ ],
+ "data_second_pass": [
+  [
+   "(2018 CC36)",
+   "19:06:55.67",
+   "-30 07'53.7\"",
+   "224.",
+   "-186.",
+   "291.0",
+   "23.3",
+   "2.358E+01",
+   "1.172E+01"
+  ],
+  [
+   "(2019 RQ46)",
+   "19:06:31.77",
+   "-30 06'04.8\"",
+   "-86.1",
+   "-76.8",
+   "115.4",
+   "23.5",
+   "3.061E+01",
+   "1.129E+01"
+  ],
+  [
+   "(2025 MU373)",
+   "19:06:15.57",
+   "-29 59'30.0\"",
+   "-296.",
+   "318.",
+   "434.8",
+   "23.7",
+   "3.424E+01",
+   "-1.755E+00"
+  ],
+  [
+   "(2025 NN339)",
+   "19:06:44.12",
+   "-30 07'53.5\"",
+   "74.2",
+   "-186.",
+   "199.8",
+   "24.2",
+   "3.386E+01",
+   "4.301E+00"
+  ],
+  [
+   "(2025 NW425)",
+   "19:06:36.44",
+   "-30 07'48.8\"",
+   "-25.4",
+   "-181.",
+   "182.6",
+   "23.2",
+   "3.298E+01",
+   "6.938E+00"
+  ]
+ ],
+ "_fixture_note": "Real response recorded 2026-11-13 from https://ssd-api.jpl.nasa.gov/sb_ident.api (mpc-code=500, obs-time=2460951.0, fov centre 19-06-38.40 M30-04-48.0, hwidth 0.1 deg, two-pass=true, suppress-first-pass=false); trimmed: first-pass table (7177 rows) removed."
+}

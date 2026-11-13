@@ -53,3 +53,15 @@ GAIA_RUWE_MAX = 1.4
 ML_MODEL_DIR = os.environ.get("SPHEREX_ML_MODEL_DIR", "ml/models")
 ML_RANDOM_SEED = 20261113
 SPHEREX_COLLECTION = os.environ.get("SPHEREX_COLLECTION", "spherex_dr1")   # IRSA retired QR2
+
+# ---- asteroids (Phase 1.1: spherexlens.triage.asteroids) --------------------
+# ASTEROID_MATCH_FLOOR_ARCSEC, ASTEROID_MATCH_MAX_ARCSEC,
+# ECLIPTIC_LATITUDE_WARN_DEG and SSOIS_AGREEMENT_ARCSEC are defined above.
+ASTEROID_MAX_QUERIES_PER_FIELD = int(_env("ASTEROID_MAX_QUERIES_PER_FIELD", 4, int))
+ASTEROID_TIME_DEDUPE_DAYS = 0.01    # exposures closer than this share one query
+ASTEROID_MATCH_UNC_K = 3.0          # match radius = k * position uncertainty
+ASTEROID_KNOWN_PRIORITY = 3         # same tier as KNOWN_MOVER / KNOWN_VARIABLE
+ASTEROID_POSSIBLE_PRIORITY = 2      # below CANDIDATE (1): likely an asteroid
+ASTEROID_ONE_EPOCH_SIGMA = 3.0      # PSF-weighted excess that counts as "seen"
+JPL_SB_IDENT_TIMEOUT_S = _env("JPL_SB_IDENT_TIMEOUT_S", 400.0)  # it is slow
+SSOIS_MAX_BRACKET_DAYS = 2.0        # SSOIS images used for interpolation
