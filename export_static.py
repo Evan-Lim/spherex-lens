@@ -52,6 +52,91 @@ except ModuleNotFoundError as exc:      # e.g. running with the wrong Python
     )
 
 
+# Shown by the Credits dialog when no /api/credits is available.  Keep in step
+# with CREDITS_FALLBACK in static/app.js.
+CREDITS_FALLBACK = {"sources": [
+    {"name": "NASA/IPAC Infrared Science Archive (IRSA)",
+     "provides": "SPHEREx Level-2 images; WISE, AllWISE and NEOWISE photometry",
+     "licence": "NASA data, no usage restrictions; acknowledgement requested",
+     "url": "https://irsa.ipac.caltech.edu/",
+     "text": "This research has made use of the NASA/IPAC Infrared Science Archive, which is "
+             "funded by the National Aeronautics and Space Administration and operated by the "
+             "California Institute of Technology."},
+    {"name": "ESA Gaia (DPAC)", "provides": "Gaia DR3 positions, proper motions and variability flags",
+     "licence": "CC BY-SA 3.0 IGO", "url": "https://www.cosmos.esa.int/gaia",
+     "text": "This work has made use of data from the European Space Agency (ESA) mission Gaia, "
+             "processed by the Gaia Data Processing and Analysis Consortium (DPAC)."},
+    {"name": "STScI MAST", "provides": "Gaia catalogue links (MAST Portal)",
+     "licence": "public archive; acknowledgement requested", "url": "https://archive.stsci.edu/"},
+    {"name": "JPL Solar System Dynamics",
+     "provides": "Small-Body Database (SBDB) and SB Identification asteroid check",
+     "licence": "NASA data, no usage restrictions", "url": "https://ssd.jpl.nasa.gov/"},
+    {"name": "Canadian Astronomy Data Centre (CADC)", "provides": "SSOIS asteroid check; NEOSSat archive",
+     "licence": "see CADC terms of use", "url": "https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/",
+     "text": "This research used the facilities of the Canadian Astronomy Data Centre operated by "
+             "the National Research Council of Canada with the support of the Canadian Space Agency."},
+    {"name": "Canadian Space Agency - NEOSSat", "provides": "NEOSSat images",
+     "licence": "Open Government Licence - Canada",
+     "url": "https://open.canada.ca/en/open-government-licence-canada"},
+    {"name": "AAVSO VSX via CDS VizieR", "provides": "variable-star catalogue",
+     "licence": "see AAVSO and CDS terms", "url": "https://www.aavso.org/vsx/",
+     "text": "This research has made use of the VizieR catalogue access tool, CDS, Strasbourg, "
+             "France (DOI: 10.26093/cds/vizier)."},
+    {"name": "WiseView (byw.tools / Backyard Worlds)", "provides": "the 'Open in WiseView' image blinker",
+     "licence": "external tool, linked only", "url": "http://byw.tools/wiseview"},
+]}
+
+
+def export_v2_endpoints(api_dir):
+    """Write api/metrics.json, model.json, credits.json and the deep-field
+    results when the backend serves them; credits falls back to a static list.
+    Voting, the vote queue, cone search and the candidate tables need the live
+    backend and are not exported (the page labels them so)."""
+    written = []
+    try:
+        from fastapi.testclient import TestClient
+        client = TestClient(portal.app)
+    except Exception as e:                      # httpx missing, app import quirk...
+        print(f"   v2 endpoints skipped: {type(e).__name__}: {e}")
+        client = None
+
+    def get(path):
+        if client is None:
+            return None
+        try:
+            r = client.get(path)
+        except Exception as e:
+            print(f"   {path}: {type(e).__name__}: {e}")
+            return None
+        return r.json() if r.status_code == 200 else None
+
+    def dump(name, body):
+        path = os.path.join(api_dir, f"{name}.json")
+        with open(path, "w") as f:
+            json.dump(body, f)
+        written.append(path)
+
+    for name in ("metrics", "model"):
+        body = get(f"/api/{name}")
+        if body is None and name == "metrics" and os.path.exists(os.path.join("eval", "metrics.json")):
+            with open(os.path.join("eval", "metrics.json")) as f:
+                body = json.load(f)
+        if body is not None:
+            dump(name, body)
+        else:
+            print(f"   /api/{name} not available: the page shows its empty state")
+    dump("credits", get("/api/credits") or CREDITS_FALLBACK)
+    deep = get("/api/deep")
+    if deep and deep.get("fields"):
+        dump("deep", deep)
+        for field in deep["fields"]:
+            name = field.get("name")
+            body = get(f"/api/deep/{name}") if name else None
+            if body is not None:
+                dump(f"deep-{name}", body)
+    return written
+
+
 def build(outdir="site", targets=None, with_recovery=True, with_figures=True,
           api_base="", pipeline_api_base=""):
     """Render the API responses for every cached target into outdir/."""
@@ -68,9 +153,14 @@ def build(outdir="site", targets=None, with_recovery=True, with_figures=True,
     api_dir = os.path.join(outdir, "api")
     os.makedirs(api_dir, exist_ok=True)
 
-    # Copy the frontend and flip it into static mode.
-    for fname in ("index.html", "style.css", "app.js"):
+    # Copy the frontend and flip it into static mode.  sw.js and assets/ go
+    # too, so a bumped service-worker cache version reaches the deployed site.
+    # static/dev/ (the ?mock=v2 files) is development-only and stays out.
+    for fname in ("index.html", "style.css", "app.js", "sw.js"):
         shutil.copy(os.path.join("static", fname), os.path.join(outdir, fname))
+    if os.path.isdir(os.path.join("static", "assets")):
+        shutil.copytree(os.path.join("static", "assets"), os.path.join(outdir, "assets"),
+                        dirs_exist_ok=True)
     index_path = os.path.join(outdir, "index.html")
     with open(index_path) as f:
         page = f.read()
@@ -156,6 +246,8 @@ def build(outdir="site", targets=None, with_recovery=True, with_figures=True,
     with open(os.path.join(api_dir, "targets.json"), "w") as f:
         json.dump({"targets": available}, f, indent=2)
     written.append(os.path.join(api_dir, "targets.json"))
+
+    written.extend(export_v2_endpoints(api_dir))
 
     if with_figures:
         src = "figures_real"

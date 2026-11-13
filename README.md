@@ -183,6 +183,20 @@ shapes (live FastAPI or pre-rendered static files):
   use it* (a click-by-click walkthrough of the page) and *The words* (a ten-term
   glossary). It is plain HTML inside `index.html`, so it works with no backend and
   ships in the static build; `Esc`, the backdrop or *Got it* closes it.
+* **v2 views** (all optional fields from `spherexlens/CONTRACT.md`; hidden or
+  labelled when a snapshot lacks them):
+  **vetting card** (the *Vet* button on a detection row, *Open vetting card*, or a
+  second click on a map marker) with sky / difference / significance cutouts,
+  Gaia motion arrow, asteroid check, NEOSSat, ML and evidence scores, archive
+  links (WiseView, IRSA Finder, SIMBAD, Gaia at MAST) and an *Is this real?*
+  vote; **coverage chips** under the metric cards; **Accuracy** page
+  (`/api/metrics`, `/api/model`); **Deep fields** light curves (`/api/deep`);
+  **Help classify** (`/api/votes/queue`); **Credits & licences** in the footer;
+  a **Public / Expert** switch (expert adds ML / evidence columns, provenance and
+  CSV / VOTable / cone-search access). Voting, the queue, cone search and the
+  candidate tables need the live backend and say so on the static build.
+  `?mock=v2` loads `static/dev/mock_*.json` to preview every v2 field.
+  Accessibility notes: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md).
 * **/01 Target Control** -- target dropdown, RA/Dec, Run Pipeline, Recovery Grid,
   Copy Share Link, the triage verdict and eleven live statistics (exposures,
   epochs, baseline, noise, 5-sigma depth, field/pixel, catalogue counts,

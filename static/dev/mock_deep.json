@@ -1,0 +1,19 @@
+{
+ "_mock": "dev mock for /api/deep",
+ "fields": [
+  {
+   "name": "SPHEREx_SEP_mock",
+   "ra": 53.15,
+   "dec": -27.75,
+   "n_exposures_used": 60,
+   "n_analysed": 40,
+   "n_variable": 4,
+   "n_periodic": 2,
+   "n_moving": 1,
+   "generated_utc": "2026-11-13T06:00:00Z",
+   "pipeline": {
+    "pipeline_version": "2.0.0-dev"
+   }
+  }
+ ]
+}
