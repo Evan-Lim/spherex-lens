@@ -1651,7 +1651,7 @@ def list_targets(request: Request = None):
 
 
 @app.get("/api/status")
-def get_status(target: str = Query("WISE_0855")):
+def get_status(target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$")):
     store = _snapshot_store()
     if store is None:
         return {
@@ -1816,7 +1816,7 @@ def _proxy_refresh_request(endpoint, method, token=None):
 
 
 @_rate_limited_route("get", "/api/snapshot-history", "60/minute")
-def get_snapshot_history(target: str = Query("WISE_0855"),
+def get_snapshot_history(target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$"),
                          request: Request = None):
     """Retained published snapshots for one field, newest first.
 
@@ -1966,7 +1966,7 @@ def trigger_cloud_refresh(request: Request):
 
 @_rate_limited_route("get", "/api/dashboard", "30/minute")
 def get_dashboard(request: Request = None,
-                  target: str = Query("WISE_0855"),
+                  target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$"),
                   source: str = Query("cache"),
                   snapshot: str = Query("", max_length=96),
                   live_slots: int = Query(0, ge=0, le=12),
@@ -2596,7 +2596,7 @@ def _meta_from_targets_registry(target):
 
 @_rate_limited_route("get", "/api/recovery", "30/minute")
 def get_recovery(request: Request = None,
-                 target: str = Query("WISE_0855"), source: str = Query("cache")):
+                 target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$"), source: str = Query("cache")):
     """
     Run injection-recovery on the specified target and return the grid.
 
