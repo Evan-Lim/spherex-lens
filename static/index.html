@@ -7,19 +7,17 @@
   <link rel="icon" href="assets/icons/logo-spherex-lens.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- ===================== brand / status bar ===================== -->
+  <!-- ===================== top mission header ===================== -->
   <header class="chrome">
     <div class="chrome-left">
-      <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="" width="44" height="44">
-      <span class="brand-text">
-        <span class="brand-name">SPHERExLens</span>
-        <span class="brand-tag">Discovery triage</span>
-      </span>
+      <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="" width="22" height="22">
+      <span class="brand-name">SPHERExLens</span>
+      <span class="brand-sub">NASA/IPAC IRSA &middot; SPHEREx QR2</span>
     </div>
     <div class="chrome-right">
       <button id="btn-cloud-status" class="status-pill" type="button"
@@ -28,197 +26,175 @@
         <span class="dot" id="status-dot"></span>
         <span id="status-text">STANDBY &middot; NO FIELD LOADED</span>
       </button>
-      <button id="btn-guide" class="btn btn-ghost">Guide</button>
-      <button id="btn-demo" class="btn btn-ghost">Auto Demo</button>
-      <button id="btn-reset" class="btn btn-ghost">Reset</button>
+      <button id="btn-guide" class="btn btn-ghost" type="button">Guide</button>
+      <button id="btn-demo" class="btn btn-ghost" type="button">Auto Demo</button>
+      <button id="btn-reset" class="btn btn-ghost" type="button">Reset</button>
     </div>
   </header>
 
+  <!-- ===================== compact horizontal control toolbar ===================== -->
+  <nav class="control-bar" aria-label="Target and pipeline controls">
+    <div class="tb-group">
+      <label class="tb-label" for="target-select">Target</label>
+      <select id="target-select" class="control-select">
+        <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
+        <option value="Barnards_Star">Barnard's Star (M4V)</option>
+        <option value="Epsilon_Indi_B">Epsilon Indi B (T-dwarf)</option>
+        <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
+        <option value="R_Draconis">R Draconis (Mira)</option>
+      </select>
+      <button id="btn-run" class="btn btn-primary" type="button">
+        <span class="btn-icon" aria-hidden="true">&#9654;</span> Run Pipeline
+      </button>
+    </div>
+
+    <span class="tb-sep" aria-hidden="true"></span>
+
+    <div class="tb-group tb-coords">
+      <span class="tb-label">Coords</span>
+      <input id="field-ra" class="control-input tb-coord" type="number" step="0.001"
+             placeholder="RA&deg;" aria-label="Right ascension in degrees">
+      <input id="field-dec" class="control-input tb-coord" type="number" step="0.001"
+             placeholder="Dec&deg;" aria-label="Declination in degrees">
+      <input id="field-name" class="control-input tb-name" type="text"
+             placeholder="Label" aria-label="Field name (optional)">
+      <button id="btn-field" class="btn btn-secondary" type="button">Load field from IRSA</button>
+    </div>
+
+    <span class="tb-sep" aria-hidden="true"></span>
+
+    <div class="tb-group">
+      <label class="toggle toggle-live" id="toggle-live-wrap">
+        <input type="checkbox" id="tog-live">
+        <span id="tog-live-label">Fresh IRSA</span>
+      </label>
+      <span class="tip-wrap">
+        <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                aria-label="About fresh IRSA data">?</button>
+        <span class="tip-popover" id="live-hint" role="tooltip"></span>
+      </span>
+    </div>
+
+    <div class="tb-tools">
+      <button type="button" id="btn-win-history" class="btn btn-tool"
+              data-win="win-history" aria-expanded="false" aria-controls="win-history">
+        History <span id="history-badge" class="tool-badge"></span>
+      </button>
+      <button type="button" id="btn-win-stats" class="btn btn-tool"
+              data-win="win-stats" aria-expanded="false" aria-controls="win-stats">
+        Statistics <span id="tc-stats-sum" class="tool-badge"></span>
+      </button>
+      <button type="button" id="btn-win-recovery" class="btn btn-tool"
+              data-win="win-recovery" aria-expanded="false" aria-controls="win-recovery">
+        Recovery <span id="tc-recovery-sum" class="tool-badge"></span>
+      </button>
+      <button id="btn-export" class="btn btn-tool" type="button"
+              title="Copy share link to clipboard">Share</button>
+    </div>
+  </nav>
+
+  <!-- ===================== inline coordinate & action telemetry strip ===================== -->
+  <div class="telemetry-strip">
+    <div class="telemetry-coords">
+      <span class="tk">RA</span><span id="kv-ra" class="tv mono">--</span>
+      <span class="tsep">&middot;</span>
+      <span class="tk">DEC</span><span id="kv-dec" class="tv mono">--</span>
+      <span class="tsep">&middot;</span>
+      <span class="tk">EXP</span><span id="kv-type" class="tv mono">--</span>
+    </div>
+    <div class="telemetry-status">
+      <span id="field-hint" class="hint-inline"></span>
+      <span id="action-message" class="action-msg" role="status" aria-live="polite" aria-atomic="true"></span>
+      <span id="action-time" class="mono" aria-hidden="true"></span>
+    </div>
+  </div>
+
+  <!-- ===================== main scientific workspace ===================== -->
   <main class="workspace">
 
-    <!-- ===================== /01 target control ===================== -->
-    <section class="panel panel-left">
-      <div class="panel-head">
-        <div>
-          <p class="kicker" aria-hidden="true">Target control <b>01</b></p>
-          <h1>Target Control</h1>
+    <!-- compact 4-cell field metrics strip -->
+    <section class="cards" aria-label="Field metrics">
+      <div class="card card-blue">
+        <div class="card-meta">
+          <span class="card-label">Detections</span>
+          <span class="card-hint">&gt;5<span class="keep-case">&sigma;</span></span>
         </div>
+        <div class="card-value" id="card-total">0</div>
       </div>
-
-      <div class="tc-row tc-primary">
-      <div class="section section-field tc-card">
-        <div class="section-label">Open any field</div>
-        <div class="field-add-row">
-          <input id="field-ra" class="control-input" type="number" step="0.001"
-                 placeholder="RA&deg;" aria-label="Right ascension in degrees">
-          <input id="field-dec" class="control-input" type="number" step="0.001"
-                 placeholder="Dec&deg;" aria-label="Declination in degrees">
-          <input id="field-name" class="control-input" type="text"
-                 placeholder="Name" aria-label="Field name (optional)">
+      <div class="card card-red">
+        <div class="card-meta">
+          <span class="card-label">Unaccounted</span>
+          <span class="card-hint">no catalog match</span>
         </div>
-        <button id="btn-field" class="btn btn-secondary btn-block">Load field from IRSA</button>
-        <div class="hint-inline" id="field-hint">fetches from IRSA, runs the pipeline; results are kept in History</div>
+        <div class="card-value" id="card-unknown">0</div>
       </div>
-
-      <div class="section tc-card">
-        <div class="section-label">Target</div>
-        <p class="module-desc">Pick one of the 18 registered fields.</p>
-        <select id="target-select" class="control-select">
-          <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
-          <option value="Barnards_Star">Barnard's Star (M4V)</option>
-          <option value="Epsilon_Indi_B">Epsilon Indi B (T-dwarf)</option>
-          <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
-          <option value="R_Draconis">R Draconis (Mira)</option>
-        </select>
-        <table class="kv-table target-table" id="target-meta">
-          <tbody>
-            <tr><th>RA</th><td id="kv-ra">--</td></tr>
-            <tr><th>Dec</th><td id="kv-dec">--</td></tr>
-            <tr><th>Class</th><td id="kv-type">--</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="section tc-card tc-actions">
-        <div class="section-label">Actions</div>
-        <p class="module-desc">Run the change-detection pipeline on the selected field, or share a link to this view.</p>
-        <button id="btn-run" class="btn btn-primary">
-          <span class="btn-icon">&#9635;</span> Run Pipeline
-        </button>
-        <button id="btn-export" class="btn btn-secondary">Copy Share Link</button>
-        <label class="toggle toggle-live" id="toggle-live-wrap">
-          <input type="checkbox" id="tog-live">
-          <span id="tog-live-label">Fetch all 18 from IRSA</span>
-        </label>
-        <details class="source-help">
-          <summary>About fresh IRSA data</summary>
-          <p class="hint-inline" id="live-hint"></p>
-        </details>
-        <div class="action-feedback">
-          <span id="action-message" role="status" aria-live="polite" aria-atomic="true"></span>
-          <span id="action-time" aria-hidden="true"></span>
+      <div class="card card-green">
+        <div class="card-meta">
+          <span class="card-label">Max SNR</span>
+          <span class="card-hint">significance</span>
         </div>
+        <div class="card-value" id="card-snr">--</div>
       </div>
-
-      </div>
-
-      <div class="tc-row tc-secondary">
-        <details class="tc-more history-section" id="tc-history">
-          <summary class="tc-sum"><span class="tc-sum-title">History</span><span id="history-usage" class="history-usage tc-sum-meta"></span></summary>
-          <div class="tc-more-body">
-        <input id="history-search" class="control-input" type="search"
-               placeholder="Search name, or RA, Dec" aria-label="Search saved results">
-        <p id="history-empty" class="hint-inline history-empty"></p>
-        <ul id="history-list" class="history-list" aria-label="Saved results"></ul>
-        <div class="history-tools">
-          <button id="history-export" class="btn btn-secondary" type="button">Export</button>
-          <label class="btn btn-secondary history-import">Import
-            <input id="history-import" type="file" accept="application/json,.json">
-          </label>
+      <div class="card card-amber">
+        <div class="card-meta">
+          <span class="card-label">Baseline</span>
+          <span class="card-hint">days</span>
         </div>
-        <p id="history-note" class="hint-inline" role="status" aria-live="polite"></p>
-          </div>
-        </details>
-        <details class="tc-more tc-stats-card" id="tc-stats">
-          <summary class="tc-sum"><span class="tc-sum-title">Pipeline statistics</span><span class="tc-sum-meta" id="tc-stats-sum"></span></summary>
-          <div class="tc-more-body">
-        <p class="module-desc">Numbers from the last pipeline run on this field.</p>
-        <table class="kv-table stats-table">
-          <tbody>
-            <tr><th>Exposures</th><td id="stat-exp">--</td></tr>
-            <tr><th>Epochs</th><td id="stat-epochs">--</td></tr>
-            <tr><th>Baseline</th><td id="stat-baseline">--</td></tr>
-            <tr><th>Noise &sigma;<sub>1</sub></th><td id="stat-sigma">--</td></tr>
-            <tr><th>5&sigma; depth</th><td id="stat-depth">--</td></tr>
-            <tr><th>Field / pixel</th><td id="stat-fov">--</td></tr>
-            <tr><th>Gaia &middot; WISE &middot; VSX</th><td id="stat-cats">--</td></tr>
-            <tr title="Gaia stars centroided in the co-add, at the SPHEREx epoch"><th>Astrometry vs Gaia</th><td id="stat-astrometry">--</td></tr>
-            <tr title="catalogued stars that should have moved at least one map pixel"><th>Expected movers</th><td id="stat-movers">--</td></tr>
-            <tr title="CANDIDATE, STATIC CHANGED, or a known source behaving unexpectedly"><th>Worth a look &#9733;</th><td id="stat-priority">--</td></tr>
-            <tr><th>Dipoles &middot; mono</th><td id="stat-kinds">--</td></tr>
-            <tr><th>Detections</th><td id="stat-detect">0</td></tr>
-            <tr><th>Unknown</th><td id="stat-unknown">0</td></tr>
-            <tr><th>SNR (max)</th><td id="stat-snr">--</td></tr>
-          </tbody>
-        </table>
-          </div>
-        </details>
-        <details class="tc-more tc-recovery-card" id="tc-recovery">
-          <summary class="tc-sum"><span class="tc-sum-title">Recovery summary</span><span class="tc-sum-meta" id="tc-recovery-sum"></span></summary>
-          <div class="tc-more-body">
-        <p class="module-desc">Injection-recovery test: plants fake sources to measure what the pipeline can find.</p>
-        <button id="btn-recovery" class="btn btn-secondary btn-block">Recovery Grid</button>
-        <div id="recovery-out" class="mono-box" role="status"
-             aria-live="polite" aria-atomic="true">injection-recovery not run yet</div>
-          </div>
-        </details>
+        <div class="card-value" id="card-baseline">--</div>
       </div>
     </section>
 
-    <!-- ===================== /02 command dashboard ===================== -->
-    <section class="panel panel-main">
-      <div class="panel-head">
-        <div>
-          <p class="kicker" aria-hidden="true">Science &amp; triage <b>02</b></p>
-          <h1>Command Dashboard</h1>
-          <p class="panel-sub">ZOGY proper subtraction &middot; epoch pairs &middot; field 9&prime;</p>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Field metrics</div>
-        <p class="module-desc">Summary of what changed in this field between epochs.</p>
-        <div class="cards">
-          <div class="card card-blue">
-            <div class="card-label">Detections</div>
-            <div class="card-value" id="card-total">0</div>
-            <div class="card-hint">above 5<span class="keep-case">&sigma;</span> &middot; this field</div>
+    <!-- primary split: sky viewer + triage verdict -->
+    <section class="map-layout">
+      <div class="panel map-col">
+        <div class="panel-bar">
+          <div class="panel-title-wrap">
+            <h2 class="section-label">Sky Viewer</h2>
+            <span class="tip-wrap">
+              <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                      aria-label="Sky viewer layer info">?</button>
+              <span class="tip-popover" role="tooltip">Co-add: stacked exposures. Difference D: ZOGY proper subtraction. Significance S: difference normalised by noise (&sigma;).</span>
+            </span>
           </div>
-          <div class="card card-red">
-            <div class="card-label">Unaccounted</div>
-            <div class="card-value" id="card-unknown">0</div>
-            <div class="card-hint">no catalog match</div>
-          </div>
-          <div class="card card-green">
-            <div class="card-label">Max SNR</div>
-            <div class="card-value" id="card-snr">--</div>
-            <div class="card-hint">significance map</div>
-          </div>
-          <div class="card card-amber">
-            <div class="card-label">Baseline</div>
-            <div class="card-value" id="card-baseline">--</div>
-            <div class="card-hint">days between epochs</div>
+          <div class="map-toolbar">
+            <div class="segmented" id="view-switch">
+              <button class="seg active" data-view="field" type="button">Field</button>
+              <button class="seg" data-view="sky" type="button">All&#8209;sky</button>
+            </div>
+            <div class="segmented" id="layer-switch">
+              <button class="seg" data-layer="image" type="button" title="All exposures stacked into one image." aria-describedby="tip-coadd">Co-add</button>
+              <button class="seg" data-layer="zogy_image" type="button" title="ZOGY difference between epochs: what changed." aria-describedby="tip-diff">Diff&nbsp;D</button>
+              <button class="seg active" data-layer="zogy_snr" type="button" title="The difference in units of noise (&sigma;). Bright = significant change." aria-describedby="tip-sig">Sig&nbsp;S</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="section">
-        <div class="section-label">Live map</div>
-        <p class="module-desc">The field as SPHEREx saw it. Switch layers to compare the stacked image, the difference and its significance.</p>
-
-        <div class="map-layout">
-        <div class="map-col">
-        <div class="map-toolbar">
-          <div class="segmented" id="view-switch">
-            <button class="seg active" data-view="field">Field</button>
-            <button class="seg" data-view="sky">All&#8209;sky</button>
-          </div>
-          <div class="segmented" id="layer-switch">
-            <button class="seg" data-layer="image" title="All exposures stacked into one image." aria-describedby="tip-coadd">Co-add</button>
-            <button class="seg" data-layer="zogy_image" title="ZOGY difference between epochs: what changed." aria-describedby="tip-diff">Difference&nbsp;D</button>
-            <button class="seg active" data-layer="zogy_snr" title="The difference in units of noise (&sigma;). Bright = significant change." aria-describedby="tip-sig">Significance&nbsp;S</button>
-          </div>
+        <div class="map-subbar">
           <div class="toggles">
             <label class="toggle"><input type="checkbox" id="tog-grid" checked><span>Grid</span></label>
             <label class="toggle"><input type="checkbox" id="tog-cat" checked><span>Catalogs</span></label>
             <label class="toggle"><input type="checkbox" id="tog-det" checked><span>Detections</span></label>
           </div>
+          <div class="map-dsp" id="map-dsp">
+            <select id="stretch-select" class="dsp-select" title="Intensity stretch" aria-label="Image intensity stretch">
+              <option value="linear">Linear</option>
+              <option value="asinh">Asinh</option>
+              <option value="log">Log</option>
+            </select>
+            <select id="lut-select" class="dsp-select" title="Colour lookup table" aria-label="Colour lookup table">
+              <option value="auto">LUT Auto</option>
+              <option value="snr">Inferno</option>
+              <option value="viridis">Viridis</option>
+              <option value="gray">Grayscale</option>
+              <option value="invgray">Inverted</option>
+            </select>
+          </div>
           <div class="zoom-group">
-            <button id="btn-mosaic" title="Rebuild the all-sky tiles" aria-label="Rebuild the all-sky tiles">&#8635;</button>
-            <button id="zoom-out" title="Zoom out">&minus;</button>
+            <button id="btn-mosaic" type="button" title="Rebuild the all-sky tiles" aria-label="Rebuild the all-sky tiles">&#8635;</button>
+            <button id="zoom-out" type="button" title="Zoom out">&minus;</button>
             <span id="zoom-label">1.0&times;</span>
-            <button id="zoom-in" title="Zoom in">+</button>
-            <button id="zoom-fit" title="Fit to field">Fit</button>
+            <button id="zoom-in" type="button" title="Zoom in">+</button>
+            <button id="zoom-fit" type="button" title="Fit to field">Fit</button>
           </div>
         </div>
 
@@ -236,84 +212,35 @@
           <span class="legend-item"><i class="sw sw-gaia"></i> Gaia DR3</span>
           <span class="legend-item"><i class="sw sw-vsx"></i> VSX</span>
           <span class="legend-item"><i class="sw sw-wise"></i> AllWISE</span>
-          <span class="legend-item"><i class="sw sw-target"></i> target / expected mover</span>
-          <span class="legend-item"><i class="sw sw-dipole"></i> dipole (mover)</span>
-          <span class="legend-item"><i class="sw sw-monopole"></i> monopole (variable)</span>
+          <span class="legend-item"><i class="sw sw-target"></i> Target / mover</span>
+          <span class="legend-item"><i class="sw sw-dipole"></i> Dipole</span>
+          <span class="legend-item"><i class="sw sw-monopole"></i> Monopole</span>
         </div>
+      </div>
+
+      <aside class="panel verdict-col" aria-label="Triage verdict">
+        <div class="panel-bar">
+          <div class="panel-title-wrap">
+            <h2 class="section-label">Triage Verdict</h2>
+            <span class="tip-wrap">
+              <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                      aria-label="About triage verdict">?</button>
+              <span class="tip-popover" role="tooltip">Cross-match, proper-motion kinematics, and NEOWISE history for the selected ZOGY detection.</span>
+            </span>
+          </div>
         </div>
-      <aside class="verdict-col" aria-label="Triage verdict">
-        <div class="section-label verdict-title">Triage verdict</div>
-        <p class="module-desc">The selected detection: what it most likely is, and the evidence.</p>
         <div id="verdict-box" class="verdict-box">
-          <div class="verdict-label">No detection yet</div>
+          <div class="verdict-label">No detection selected</div>
         </div>
       </aside>
+    </section>
+
+    <!-- detections + epoch pairs -->
+    <section class="split-row">
+      <div class="panel">
+        <div class="panel-bar">
+          <h2 class="section-label">Detections</h2>
         </div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Diagnostics</div>
-        <p class="module-desc">signal, noise and completeness</p>
-        <div class="chart-grid">
-          <figure class="chart">
-            <figcaption>Significance histogram &middot; noise peak vs real sources</figcaption>
-            <canvas id="chart-hist" width="380" height="150"></canvas>
-          </figure>
-          <figure class="chart">
-            <figcaption>Noise per epoch (&sigma;, MJy/sr)</figcaption>
-            <canvas id="chart-noise" width="380" height="150"></canvas>
-          </figure>
-          <figure class="chart">
-            <figcaption>Detections per epoch pair</figcaption>
-            <canvas id="chart-pairs" width="380" height="150"></canvas>
-          </figure>
-          <figure class="chart">
-            <figcaption>Injection recovery (run Recovery Grid)</figcaption>
-            <canvas id="chart-recovery" width="380" height="150"></canvas>
-          </figure>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Target history</div>
-        <p class="module-desc">Gaia + AllWISE + SPHEREx SED &middot; NEOWISE 2010&ndash;2024</p>
-        <div class="chart-grid">
-          <figure class="chart">
-            <figcaption>Spectral energy distribution of the target</figcaption>
-            <canvas id="chart-sed" width="380" height="150"></canvas>
-          </figure>
-          <figure class="chart">
-            <figcaption>Infrared light curve (AllWISE + NEOWISE visits)</figcaption>
-            <canvas id="chart-neowise" width="380" height="150"></canvas>
-          </figure>
-        </div>
-        <div id="history-out" class="mono-box history-notes">run the pipeline to load</div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Expected movers</div>
-        <p class="module-desc">catalogued motion &ge; 1 map pixel between first and last epoch</p>
-        <div class="table-wrap">
-          <table class="movers-table">
-            <thead>
-              <tr><th>Object</th><th class="th-unit">&mu; (&Prime;/yr)</th><th>Shift (&Prime;)</th><th>Mag</th><th>SPHEREx saw it</th><th>RA, Dec (now)</th></tr>
-            </thead>
-            <tbody id="movers-body">
-              <tr><td colspan="6" class="empty">Run the pipeline to list expected movers</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Epoch pairs</div>
-        <p class="module-desc">every epoch vs every next epoch</p>
-        <div id="pairs-out" class="mono-box">run the pipeline to compare epochs</div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Detections</div>
-        <p class="module-desc">click a row to inspect</p>
         <div class="table-wrap">
           <table class="detections-table">
             <thead>
@@ -328,64 +255,238 @@
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-label">Field catalogue</div>
-        <p class="module-desc" id="objects-hint">every catalogue entry in the field</p>
-
-        <div class="object-toolbar">
-          <div class="segmented" id="object-filter">
-            <button class="seg active" data-filter="all">All</button>
-            <button class="seg" data-filter="known">Known</button>
-            <button class="seg" data-filter="candidate">Candidate</button>
-            <button class="seg" data-filter="detected">Detected</button>
-          </div>
-          <input id="object-search" class="control-input" type="search"
-                 placeholder="filter by name, RA or catalogue &hellip;">
-          <span class="hint-inline" id="objects-count">--</span>
+      <div class="panel">
+        <div class="panel-bar">
+          <h2 class="section-label">Epoch Pairs</h2>
         </div>
-
-        <div class="table-wrap">
-          <table class="objects-table">
-            <thead>
-              <tr>
-                <th>Verdict</th><th>RA</th><th>Dec</th><th>Mag</th>
-                <th>Catalogues</th><th>Detected</th><th title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th>Pair</th>
-              </tr>
-            </thead>
-            <tbody id="objects-body">
-              <tr><td colspan="8" class="empty">Run the pipeline to load the catalogue</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="section section-last">
-        <div class="section-label">Image sources &amp; provenance</div>
-        <p class="module-desc">Every SPHEREx image used, with a link to its IRSA archive record.</p>
-        <div class="archive-line" id="archive-line">
-          every pixel on this page comes from a named NASA archive record
-        </div>
-        <div class="table-wrap">
-          <table class="sources-table">
-            <thead>
-              <tr>
-                <th>Epoch</th><th>Det</th><th class="th-unit">&lambda; (&micro;m)</th><th>Observation</th>
-                <th>UTC date</th><th>Pixels</th><th>Size</th><th>Archive record</th>
-              </tr>
-            </thead>
-            <tbody id="sources-body">
-              <tr><td colspan="8" class="empty">Run the pipeline to list sources</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <div id="pairs-out" class="mono-box">run pipeline to compare epochs</div>
       </div>
     </section>
+
+    <!-- diagnostics -->
+    <section class="panel">
+      <div class="panel-bar">
+        <div class="panel-title-wrap">
+          <h2 class="section-label">Diagnostics</h2>
+          <span class="tip-wrap">
+            <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                    aria-label="About diagnostics">?</button>
+            <span class="tip-popover" role="tooltip">Significance pixel distribution, per-epoch background noise (&sigma;<sub>1</sub>), detections per pair, and synthetic injection-recovery completeness.</span>
+          </span>
+        </div>
+      </div>
+      <div class="chart-grid chart-grid-4 has-3" id="diag-charts">
+        <figure class="chart">
+          <figcaption>Significance histogram</figcaption>
+          <canvas id="chart-hist" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart">
+          <figcaption>Noise per epoch (&sigma;, MJy/sr)</figcaption>
+          <canvas id="chart-noise" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart">
+          <figcaption>Detections per epoch pair</figcaption>
+          <canvas id="chart-pairs" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart hidden" id="chart-recovery-wrap">
+          <figcaption>Injection recovery</figcaption>
+          <canvas id="chart-recovery" width="380" height="150"></canvas>
+        </figure>
+      </div>
+    </section>
+
+    <!-- target history: SED + NEOWISE + expected movers -->
+    <section class="panel hidden" id="sec-history">
+      <div class="panel-bar">
+        <h2 class="section-label">Target History &amp; SED</h2>
+      </div>
+      <div class="chart-grid" id="history-charts">
+        <figure class="chart" id="chart-sed-wrap">
+          <figcaption>Spectral energy distribution</figcaption>
+          <canvas id="chart-sed" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart" id="chart-neowise-wrap">
+          <figcaption>IR light curve (AllWISE + NEOWISE)</figcaption>
+          <canvas id="chart-neowise" width="380" height="150"></canvas>
+        </figure>
+      </div>
+      <div id="history-out" class="mono-box history-notes">run pipeline to load</div>
+    </section>
+
+    <!-- expected movers -->
+    <section class="panel">
+      <div class="panel-bar">
+        <div class="panel-title-wrap">
+          <h2 class="section-label">Expected Movers</h2>
+          <span class="tip-wrap">
+            <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                    aria-label="About expected movers">?</button>
+            <span class="tip-popover" role="tooltip">Catalogued stars with proper motion predicting &ge; 1 map pixel (3&Prime;) displacement across the baseline.</span>
+          </span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="movers-table">
+          <thead>
+            <tr><th>Object</th><th class="th-unit">&mu; (&Prime;/yr)</th><th>Shift (&Prime;)</th><th>Mag</th><th>SPHEREx</th><th>RA, Dec (now)</th></tr>
+          </thead>
+          <tbody id="movers-body">
+            <tr><td colspan="6" class="empty">Run pipeline to list expected movers</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- field catalogue -->
+    <section class="panel">
+      <div class="panel-bar">
+        <h2 class="section-label">Field Catalogue</h2>
+        <span class="hint-inline" id="objects-hint"></span>
+      </div>
+
+      <div class="object-toolbar">
+        <div class="segmented" id="object-filter">
+          <button class="seg active" data-filter="all" type="button">All</button>
+          <button class="seg" data-filter="known" type="button">Known</button>
+          <button class="seg" data-filter="candidate" type="button">Candidate</button>
+          <button class="seg" data-filter="detected" type="button">Detected</button>
+        </div>
+        <input id="object-search" class="control-input" type="search"
+               placeholder="Filter name, RA or catalogue&hellip;" aria-label="Filter catalogue">
+        <span class="hint-inline mono" id="objects-count">--</span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="objects-table">
+          <thead>
+            <tr>
+              <th>Verdict</th><th>RA</th><th>Dec</th><th>Mag</th>
+              <th>Catalogues</th><th>Detected</th><th title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th>Pair</th>
+            </tr>
+          </thead>
+          <tbody id="objects-body">
+            <tr><td colspan="8" class="empty">Run pipeline to load catalogue</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- image sources & provenance -->
+    <section class="panel">
+      <div class="panel-bar">
+        <h2 class="section-label">Image Sources &amp; Provenance</h2>
+      </div>
+      <div class="archive-line" id="archive-line">
+        NASA/IPAC IRSA SPHEREx Level-2
+      </div>
+      <div class="table-wrap">
+        <table class="sources-table">
+          <thead>
+            <tr>
+              <th>Epoch</th><th>Det</th><th class="th-unit">&lambda; (&micro;m)</th><th>Observation</th>
+              <th>UTC date</th><th>Pixels</th><th>Size</th><th>Archive record</th>
+            </tr>
+          </thead>
+          <tbody id="sources-body">
+            <tr><td colspan="8" class="empty">Run pipeline to list sources</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 
   <footer class="footer">
-    <span>SPHEREx Level-2 quick release &middot; IRSA/IPAC (Caltech) &middot; Gaia DR3, AllWISE &amp; NEOWISE via IRSA TAP &middot; AAVSO VSX via VizieR</span>
+    <span>SPHEREx Level-2 QR2 &middot; NASA/IPAC IRSA (Caltech) &middot; Gaia DR3, AllWISE &amp; NEOWISE &middot; AAVSO VSX (VizieR)</span>
     <span class="mono" id="footer-status">idle</span>
   </footer>
+
+  <!-- ===================== Windows-style floating tool windows ===================== -->
+
+  <!-- History window -->
+  <section id="win-history" class="win-dialog hidden" role="dialog"
+           aria-labelledby="win-history-title" aria-modal="false">
+    <header class="win-titlebar" data-drag-handle>
+      <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9776;</span>
+        <span id="win-history-title" class="win-title">Research History</span>
+        <span id="history-usage" class="win-title-meta"></span>
+      </span>
+      <button type="button" class="win-close" data-win-close="win-history"
+              aria-label="Close Research History">&times;</button>
+    </header>
+    <div class="win-body">
+      <div class="win-toolbar">
+        <input id="history-search" class="control-input" type="search"
+               placeholder="Search name, or RA, Dec" aria-label="Search saved results">
+        <button id="history-export" class="btn btn-secondary" type="button">Export</button>
+        <label class="btn btn-secondary history-import">Import
+          <input id="history-import" type="file" accept="application/json,.json">
+        </label>
+      </div>
+      <p id="history-empty" class="hint-inline history-empty"></p>
+      <ul id="history-list" class="history-list" aria-label="Saved results"></ul>
+      <p id="history-note" class="hint-inline" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- Pipeline statistics window -->
+  <section id="win-stats" class="win-dialog hidden" role="dialog"
+           aria-labelledby="win-stats-title" aria-modal="false">
+    <header class="win-titlebar" data-drag-handle>
+      <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9638;</span>
+        <span id="win-stats-title" class="win-title">Pipeline Statistics</span>
+      </span>
+      <button type="button" class="win-close" data-win-close="win-stats"
+              aria-label="Close Pipeline Statistics">&times;</button>
+    </header>
+    <div class="win-body">
+      <table class="kv-table stats-table">
+        <tbody>
+          <tr><th>Exposures</th><td id="stat-exp">--</td></tr>
+          <tr><th>Epochs</th><td id="stat-epochs">--</td></tr>
+          <tr><th>Baseline</th><td id="stat-baseline">--</td></tr>
+          <tr><th>Noise &sigma;<sub>1</sub></th><td id="stat-sigma">--</td></tr>
+          <tr><th>5&sigma; depth</th><td id="stat-depth">--</td></tr>
+          <tr><th>Field / pixel</th><td id="stat-fov">--</td></tr>
+          <tr><th>Gaia &middot; WISE &middot; VSX</th><td id="stat-cats">--</td></tr>
+          <tr title="Gaia stars centroided in the co-add, at the SPHEREx epoch"><th>Astrometry vs Gaia</th><td id="stat-astrometry">--</td></tr>
+          <tr title="Catalogued stars that should have moved at least one map pixel"><th>Expected movers</th><td id="stat-movers">--</td></tr>
+          <tr title="CANDIDATE, STATIC CHANGED, or a known source behaving unexpectedly"><th>Priority &#9733;</th><td id="stat-priority">--</td></tr>
+          <tr><th>Dipoles &middot; mono</th><td id="stat-kinds">--</td></tr>
+          <tr><th>Detections</th><td id="stat-detect">0</td></tr>
+          <tr><th>Unknown</th><td id="stat-unknown">0</td></tr>
+          <tr><th>SNR (max)</th><td id="stat-snr">--</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Injection-Recovery window -->
+  <section id="win-recovery" class="win-dialog hidden" role="dialog"
+           aria-labelledby="win-recovery-title" aria-modal="false">
+    <header class="win-titlebar" data-drag-handle>
+      <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9678;</span>
+        <span id="win-recovery-title" class="win-title">Injection-Recovery</span>
+        <span class="tip-wrap">
+          <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                  aria-label="About injection-recovery">?</button>
+          <span class="tip-popover" role="tooltip">Plants synthetic sources at varied SNR and proper motion into real exposures to quantify completeness.</span>
+        </span>
+      </span>
+      <button type="button" class="win-close" data-win-close="win-recovery"
+              aria-label="Close Injection-Recovery">&times;</button>
+    </header>
+    <div class="win-body">
+      <div class="win-toolbar">
+        <button id="btn-recovery" class="btn btn-secondary" type="button">Recovery Grid</button>
+      </div>
+      <div id="recovery-out" class="mono-box" role="status"
+           aria-live="polite" aria-atomic="true">injection-recovery not run yet</div>
+    </div>
+  </section>
 
   <!-- ============================ guide overlay ============================ -->
   <div id="guide" class="guide hidden" role="dialog" aria-modal="true"
@@ -393,185 +494,99 @@
     <div class="guide-sheet">
       <div class="guide-head">
         <div>
-          <div class="guide-kicker">SPHERExLens &middot; explainer</div>
-          <h2 id="guide-title">What is this page, and how do I use it?</h2>
+          <div class="guide-kicker">SPHERExLens &middot; Documentation</div>
+          <h2 id="guide-title">Pipeline Overview &amp; Reference</h2>
         </div>
-        <button id="guide-close" class="btn btn-ghost guide-close"
+        <button id="guide-close" class="win-close guide-close" type="button"
                 aria-label="Close the guide">&times;</button>
       </div>
 
       <div class="guide-tabs" id="guide-tabs">
-        <button class="guide-tab active" data-tab="how">1 &middot; How it works</button>
-        <button class="guide-tab" data-tab="use">2 &middot; How to use it</button>
-        <button class="guide-tab" data-tab="words">3 &middot; The words</button>
+        <button class="guide-tab active" data-tab="how" type="button">1 &middot; How it works</button>
+        <button class="guide-tab" data-tab="use" type="button">2 &middot; Controls</button>
+        <button class="guide-tab" data-tab="words" type="button">3 &middot; Glossary</button>
       </div>
 
-      <!-- ---------------------------------------------------- how it works -->
       <section class="guide-body active" data-panel="how">
         <p class="guide-lead">
-          This page looks for <b>things in space that change</b>. Not things that
-          are pretty -- things that <i>move</i> or <i>flicker</i> between two
-          photographs of the same patch of sky.
+          Detects moving and variable infrared sources across multi-epoch SPHEREx cutouts via ZOGY optimal image subtraction.
         </p>
 
-        <h3>The camera</h3>
+        <h3>Instrument</h3>
         <p>
-          NASA's SPHEREx telescope photographs the <b>entire sky</b>, then does it
-          again a few months later, in 102 different shades of infrared. Infrared
-          is light our eyes cannot see, but warm and dusty objects glow in it -- so
-          it is very good at finding cold stars and newborn stars hidden behind dust.
+          NASA's SPHEREx mission surveys the sky repeatedly across 102 spectral channels (0.75&ndash;5.0 &micro;m).
         </p>
 
-        <h3>The idea: subtraction</h3>
-        <p>
-          Take picture&nbsp;A, take picture&nbsp;B of the same spot, and subtract one
-          from the other. Everything that did not change cancels out and leaves
-          grey. Everything that did change is left standing. This is the oldest
-          trick in astronomy -- find the thing that blinked.
-        </p>
-
-        <h3>The five steps this page runs</h3>
+        <h3>Pipeline Steps</h3>
         <ol class="guide-steps">
-          <li><b>Fetch.</b> Download the telescope images for one patch of sky.</li>
-          <li><b>Average.</b> Stack the clean ones together to beat down the noise
-            (several noisy pictures make one crisp one).</li>
-          <li><b>Subtract.</b> Compare two visits statistically. A real change stands
-            out; random noise averages away.</li>
-          <li><b>Check the catalogues.</b> Ask: is this spot already a known star,
-            known variable, known asteroid? If yes it is <b>KNOWN</b>. If nothing
-            known is there, it is a <b>CANDIDATE</b> -- worth a human look, not yet
-            a discovery.</li>
-          <li><b>Test yourself.</b> Plant fake stars of known brightness into the real
-            image and see whether the pipeline finds them. That tells you how faint
-            a change this page could actually detect.</li>
+          <li><b>Ingest:</b> Query IRSA SIA2 for SPHEREx Level-2 cutouts and cross-match catalogs (Gaia DR3, AllWISE, VSX).</li>
+          <li><b>Co-add:</b> Apply bitmask flags and stack exposures per epoch onto a common tangent-plane grid.</li>
+          <li><b>Subtract:</b> Run ZOGY optimal subtraction between epoch pairs to produce difference (D) and significance (S) images.</li>
+          <li><b>Triage:</b> Cross-match detections &gt;5&sigma;, verify proper-motion kinematics and NEOWISE history, and assign a verdict category.</li>
+          <li><b>Validate:</b> Run synthetic source injection-recovery across SNR and proper motion (&mu;) bins.</li>
         </ol>
 
-        <div class="guide-note">
-          <b>Why the honesty matters.</b> A bright spot in a difference image is not
-          a discovery. It becomes one only after you have checked the catalogues and
-          shown that your detector would have noticed a real object if one were
-          there. That is exactly what the <span class="mono">KNOWN</span> /
-          <span class="mono">CANDIDATE</span> tags and the recovery grid are for.
-        </div>
-
-        <h3>What the colours on the map mean</h3>
+        <h3>Map Legend</h3>
         <ul class="map-legend">
           <li><span class="swatch-dot green"></span> <b class="lg-known">KNOWN</b>
-            <span class="lg-desc">the catalogues already have something at that position.</span></li>
+            <span class="lg-desc">Matched to a catalogued star, variable, or mover.</span></li>
           <li><span class="swatch-dot amber"></span> <b class="lg-candidate">CANDIDATE</b>
-            <span class="lg-desc">nothing known there; this is the interesting case.</span></li>
+            <span class="lg-desc">No catalog match within radius.</span></li>
           <li><span class="swatch-dot red"></span> <b class="lg-target">TARGET</b>
-            <span class="lg-desc">the target you selected.</span></li>
+            <span class="lg-desc">Primary field target position.</span></li>
         </ul>
       </section>
 
-      <!-- ----------------------------------------------------- how to use it -->
       <section class="guide-body" data-panel="use">
-        <p class="guide-lead">
-          Nothing here can break. There is no login, no order of operations to get
-          wrong, and every panel updates itself.
-        </p>
-
         <ol class="guide-steps guide-steps-tall">
-          <li>
-            <b>Pick a place in the sky.</b> Use the dropdown at the top of the left
-            column. Barnard's Star is a good one to start with -- it moves faster than
-            any other star in the sky, so the change is real and easy to see.
-          </li>
-          <li>
-            <b>Look at the picture.</b> The left panel shows that patch of sky. Grey
-            is normal sky; a glowing dot is a change between two visits. Use the
-            mouse wheel to zoom, drag to pan, and hover any coloured dot to see what
-            it is.
-          </li>
-          <li>
-            <b>Click a dot.</b> The right-hand panel explains it: how sure we are, how
-            far it moved, and whether something was already known there.
-          </li>
-          <li>
-            <b>Read the table.</b> Every object in the field is listed with a
-            <b>KNOWN</b> or <b>CANDIDATE</b> tag. Type in the search box to find one,
-            or use the filter buttons to see only the unknowns.
-          </li>
-          <li>
-            <b>Switch the view.</b> <span class="mono">SNR / EPOCH-1 / EPOCH-2 /
-            DIFFERENCE</span> shows the raw sky, each visit, and the subtraction
-            itself. The <b>all-sky</b> button puts every field on one map.
-          </li>
-          <li>
-            <b>Press <i>Recovery Grid</i>.</b> How faint a change could this page have
-            found? It plants fake signals and reports which ones it recovered -- the
-            honest measure of the instrument.
-          </li>
-          <li>
-            <b>Turn on <i>Auto Demo</i>.</b> It walks through the fields by itself,
-            which is the fastest way to see what the page does.
-          </li>
+          <li><b>Select Field:</b> Pick a registered target from the toolbar dropdown or enter custom RA / Dec in degrees and click <i>Load field from IRSA</i>.</li>
+          <li><b>Inspect Sky Viewer:</b> Scroll to zoom, drag to pan, click markers to populate the Triage Verdict panel.</li>
+          <li><b>Switch Layers:</b> Toggle between Co-add, Difference D, and Significance S, or switch to All-sky view.</li>
+          <li><b>Utility Windows:</b> Open <i>History</i>, <i>Statistics</i>, or <i>Recovery</i> from the toolbar as draggable floating panels.</li>
         </ol>
-
-        <h3>Things worth knowing</h3>
-        <ul class="guide-list">
-          <li><b>Live from IRSA</b> and <b>Open any field</b> need a small Python
-            server. This deployment is a static copy of the page, so those two are
-            switched off here -- the labels say so. Everything else runs entirely in
-            your browser from pre-computed files.</li>
-          <li>The fields come in two groups: the five <b>brief targets</b> (single
-            nearby objects -- the ones with the real science), and a set of
-            <b>famous objects</b> -- galaxies, nebulae, a quasar -- included to show
-            that the same steps work on anything.</li>
-          <li>Each field is one small patch of sky: about 9 arcminutes across, roughly
-            a third of the width of the full Moon.</li>
-          <li>Nothing you click is sent anywhere. There is no tracking and no account.</li>
-        </ul>
       </section>
 
-      <!-- -------------------------------------------------------- the words -->
       <section class="guide-body" data-panel="words">
         <dl class="guide-gloss">
-          <div><dt>Field</dt><dd>One patch of sky, about 9 arcminutes across.</dd></div>
-          <div><dt>Epoch</dt><dd>One visit by the telescope. Two epochs = two visits to
-            compare.</dd></div>
-          <div><dt>Exposure</dt><dd>A single photograph. Several are stacked to make
-            one clean image.</dd></div>
-          <div><dt>Band</dt><dd>One colour of infrared light. SPHEREx has 102; this page
-            uses a handful.</dd></div>
-          <div><dt>&sigma; (sigma)</dt><dd>How sure we are. 5&sigma; means "noise would
-            do this about once in 3.5 million tries".</dd></div>
-          <div><dt>KNOWN</dt><dd>The catalogues already list something at that spot.</dd></div>
-          <div><dt>CANDIDATE</dt><dd>Nothing known there. Worth a look -- not yet a
-            discovery.</dd></div>
-          <div><dt>Completeness</dt><dd>What fraction of planted fake objects the
-            pipeline found. Higher is better.</dd></div>
-          <div><dt>Recovery grid</dt><dd>The test that measures completeness across
-            brightness and motion.</dd></div>
-          <div><dt>RA / Dec</dt><dd>The sky's version of longitude and latitude, in
-            degrees.</dd></div>
+          <div><dt>Field</dt><dd>9&prime;&times;9&prime; cutout region (3&Prime;/px).</dd></div>
+          <div><dt>Epoch</dt><dd>Grouped SPHEREx visits at a distinct observation date.</dd></div>
+          <div><dt>&sigma; (sigma)</dt><dd>Significance in background noise units (&sigma;<sub>1</sub>).</dd></div>
+          <div><dt>KNOWN</dt><dd>Detection matched to Gaia DR3, AllWISE, or VSX.</dd></div>
+          <div><dt>CANDIDATE</dt><dd>Unmatched detection &gt;5&sigma;.</dd></div>
+          <div><dt>Recovery grid</dt><dd>Synthetic injection completeness across SNR and &mu;.</dd></div>
+          <div><dt>RA / Dec</dt><dd>ICRS right ascension and declination in decimal degrees.</dd></div>
         </dl>
       </section>
 
       <div class="guide-foot">
-        <span class="mono">data: NASA/IPAC IRSA &middot; SPHEREx Level-2 &middot; Gaia DR3 &middot; VSX</span>
-        <button id="guide-close-2" class="btn btn-primary">Got it</button>
+        <span class="mono">NASA/IPAC IRSA &middot; SPHEREx Level-2 &middot; Gaia DR3 &middot; VSX</span>
+        <button id="guide-close-2" class="btn btn-secondary" type="button">Close</button>
       </div>
     </div>
   </div>
 
   <!-- ====================== cloud snapshot dialog ====================== -->
   <dialog id="cloud-dialog" class="modal" aria-label="Cloud snapshot">
-    <button id="cloud-dialog-close" class="btn btn-ghost modal-close" type="button"
-            aria-label="Close the cloud snapshot dialog">&times;</button>
+    <div class="win-titlebar modal-titlebar">
+      <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9729;</span>
+        <span class="win-title">Cloud Snapshot Status</span>
+      </span>
+      <button id="cloud-dialog-close" class="win-close modal-close" type="button"
+              aria-label="Close the cloud snapshot dialog">&times;</button>
+    </div>
     <section class="cloud-refresh-panel" aria-label="Cloud snapshot refresh" hidden>
       <div class="cloud-refresh-summary">
         <h2>Cloud snapshot
           <span id="cloud-freshness" class="freshness-badge" data-state="unknown">checking</span>
         </h2>
-        <p id="cloud-snapshot-time">Checking the published snapshot…</p>
+        <p id="cloud-snapshot-time">Checking the published snapshot&hellip;</p>
         <p id="cloud-next-refresh" class="cloud-refresh-policy"></p>
         <p id="offline-copy-status" class="offline-copy-status" role="status"
            aria-live="polite" hidden></p>
         <details class="cloud-refresh-details">
-          <summary>Refresh scope and supporting data</summary>
-          <p>Fetching fresh IRSA checks all 18 registered fields. Changed fields are reprocessed, then the new Cloud snapshot is published. Catalogs follow a 7-day cadence; NEOWISE/AllWISE history updates when detections change or history is missing.</p>
+          <summary>Refresh cadence</summary>
+          <p>Automatic IRSA check runs every 12 h across all 18 registered fields. Catalogs follow a 7-day cadence.</p>
           <p id="cloud-support-freshness"></p>
         </details>
       </div>
@@ -587,7 +602,7 @@
       </form>
       <p id="cloud-refresh-status" class="cloud-refresh-status"
          role="status" aria-live="polite" aria-atomic="true">
-        Checking refresh status…
+        Checking refresh status&hellip;
       </p>
       <div id="cloud-refresh-progress" class="refresh-progress" hidden
            role="progressbar" aria-label="Fields checked in this refresh"

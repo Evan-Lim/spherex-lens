@@ -88,13 +88,16 @@ is a backup page with the five questions you are most likely to be asked and a p
 
 The full route runs \textbf{21:40}. The slides marked \checkmark{} in the last column form a
 \textbf{15:45} route: seven slides dropped, argument intact. \textbf{The live demonstration is
-slide 22} (1:30) and needs \code{site/index.html} already open in a second tab, at 100\% zoom,
-with a field loaded -- and the local API running if you intend to show live fetching.
+slide 22} (1:30) and uses the browser app (\code{site/index.html} or the deployed Netlify/Cloud Run app)
+already open in a second tab at 100\% zoom, with Barnard's Star loaded -- plus Live IRSA mode if
+showing on-demand fetching.
 
-Every number in this deck comes from the repository: detection counts from \code{site/api/*.json},
-rendered charts from \code{figures_real/}. The deck and the 33-page report therefore cannot disagree.
+Every code metric and detection count in this deck is verified directly against the current runtime
+modules (\code{step1}--\code{step7}, support modules, \code{app.py}, \code{static/}) and the live
+Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard}, \code{/api/recovery}).
 
-{\small
+{\footnotesize
+\setlength{\tabcolsep}{4pt}
 \begin{longtable}{@{}cllcr@{}}
 \toprule
 \textbf{Page} & \textbf{Slide} & \textbf{Dominant visual} & \textbf{Time} & \textbf{15 min} \\
@@ -112,22 +115,22 @@ rendered charts from \code{figures_real/}. The deck and the 33-page report there
 5 & Focus and research questions & four question cards & 0:45 & -- \\
 6 & Prior art I: the subtraction lineage & timeline with four method boxes & 1:00 & \checkmark \\
 7 & Prior art II: brokers and the gap & detect--veto--human loop, gap bars & 0:55 & \checkmark \\
-8 & SPHEREx: instrument and data & focal plane, 102-band axis & 0:55 & \checkmark \\
+8 & SPHEREx: instrument and data & focal plane, 102-band axis, 6 HDUs & 0:55 & \checkmark \\
 9 & Archive mechanics and field sample & sky map of 18 fields, fetch path & 0:55 & -- \\
-10 & Architecture: six stages & pipeline flow with line counts & 0:55 & \checkmark \\
-11 & Theory I: masking and the co-add & flag census, masked-pixel grid & 0:55 & \checkmark \\
+10 & Architecture: seven stages & pipeline flow, infra, line counts & 0:55 & \checkmark \\
+11 & Theory I: masking and the co-add & 14 bad bits, matched mask, $1/V$ stack & 0:55 & \checkmark \\
 12 & Theory II: ZOGY & signal-flow diagram, null histogram & 1:15 & \checkmark \\
-13 & Theory III: detection statistics & false-positive budget, log scale & 0:55 & -- \\
+13 & Theory III: detection statistics & 2-tailed false-positive budget, log scale & 0:55 & -- \\
 14 & Theory IV: dipole versus monopole & geometry of a moved source & 0:50 & -- \\
-15 & Theory V: triage & match cone, verdict flow & 0:55 & \checkmark \\
-16 & Theory VI: spectral diagnosis & three indices on a wavelength axis & 0:45 & -- \\
-17 & Validation: injection--recovery & recovery matrix, failure diagram & 0:55 & \checkmark \\
-18 & Implementation I: the code & lines per module, the R1 guard & 1:05 & \checkmark \\
-19 & Implementation II: serving layer & three deployment shapes & 0:55 & \checkmark \\
-20 & Implementation III: front end & UI wireframe, canvas layer stack & 0:45 & -- \\
-21 & Results I: eighteen fields & stacked detections, 18 fields & 1:05 & \checkmark \\
-22 & Results II: the candidates & scatter of unexplained detections & 1:00 & -- \\
-23 & \textbf{Live demonstration} & screen map, six numbered steps & 1:30 & \checkmark \\
+15 & Theory V: triage & epoch propagation, 10--120\arcsec{} cone, 6 classes & 0:55 & \checkmark \\
+16 & Theory VI: spectral diagnosis & $\mathrm{CH_4}$, $\mathrm{H_2O}$, NIR slope + channel gate & 0:45 & -- \\
+17 & Validation: injection--recovery & measured 24-cell matrix, noise gap & 0:55 & \checkmark \\
+18 & Implementation I: Python \& backend & LOC by module, backend flow & 1:05 & \checkmark \\
+19 & Implementation II: architecture \& hosting & Cloud Run split, Netlify, GCS & 0:55 & \checkmark \\
+20 & Implementation III: frontend \& UI/UX & wireframe, canvas, offline stack & 0:45 & -- \\
+21 & Results I: eighteen fields & stacked detections, 109 across 18 fields & 1:05 & \checkmark \\
+22 & Results II: the candidates & scatter + epoch-propagation fix & 1:00 & -- \\
+23 & \textbf{Live demonstration} & current HDS UI map, six numbered moves & 1:30 & \checkmark \\
 24 & Conclusion, contributions, Q\&A & three pillars, references & 0:50 & \checkmark \\
 \midrule
 \multicolumn{3}{@{}l}{\textbf{Full route}} & \textbf{21:40} & \\
@@ -143,9 +146,9 @@ rendered charts from \code{figures_real/}. The deck and the 33-page report there
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
 \item SPHERExLens: finding what changed in NASA's SPHEREx all-sky survey
-\item 18 fields \;\textbullet\; 128 archive cutouts \;\textbullet\; 88 detections, 71 explained
-\item A pipeline you can read: six stages, 6\,154 lines, one browser page
-\item The honest number: four fields return nothing, and the system says so
+\item 18 fields \;\textbullet\; 246 archive cutouts \;\textbullet\; 109 detections, 99 explained (91\%)
+\item A codebase you can inspect: seven stages, 7\,082 runtime Python lines, one browser app
+\item The honest number: two fields produce no detections (one quiet nebula, one band-mismatch), and the system says so
 \end{itemize}
 
 \textbf{Figure / diagram.} Two epoch panels of the same star field feeding a difference panel, with
@@ -168,21 +171,22 @@ the two headline numbers set large beside them.
   \node[anchor=north,font=\scriptsize,text=muted] at (11.4+2.3,2.9) {only the change survives};
   % hero numbers, own row
   \draw[accent,thick] (2.0,0.5) rectangle (5.2,2.1);
-  \node at (3.6,1.55) {\Huge\bfseries 88};
+  \node at (3.6,1.55) {\Huge\bfseries 109};
   \node[font=\scriptsize] at (3.6,0.85) {detections};
   \draw[good,thick] (6.4,0.5) rectangle (9.6,2.1);
-  \node at (8.0,1.55) {\LARGE\bfseries 71 / 17};
+  \node at (8.0,1.55) {\LARGE\bfseries 99 / 10};
   \node[font=\scriptsize] at (8.0,0.85) {known / candidate};
-  \node[anchor=west,font=\scriptsize,text=muted,text width=5.6cm] at (10.4,1.30) {18 fields, 128 archive cutouts, one pipeline of six stages};
+  \node[anchor=west,font=\scriptsize,text=muted,text width=5.6cm] at (10.4,1.30) {18 fields, 246 archive cutouts, 7-stage pipeline (7\,082\,LOC Python)};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Good morning. NASA's SPHEREx satellite photographs the whole sky in a hundred
 and two infrared colours, and it does it again roughly every six months. My question is the oldest one
-in time-domain astronomy, asked of this new data: looking at two of those photographs of the same patch
-of sky, can we say what changed -- and can we be honest about what we cannot tell? Eighteen fields, one
-hundred and twenty-eight archive images, eighty-eight detections, of which seventy-one turn out to be
-objects that were already catalogued. Most of the next twenty minutes is about how it works and why
-each step is built the way it is.
+in time-domain astronomy, asked of this new data: looking at multiple visits to the same patch of sky,
+can we say what changed -- and can we be honest about what we cannot tell? Eighteen fields, two hundred
+and forty-six archive cutouts across all six detectors, one hundred and nine detections, of which
+ninety-nine -- ninety-one percent -- turn out to match already catalogued or artefact-explained sources.
+Most of the next twenty minutes is about how the seven-stage pipeline works and why each safeguard is
+built the way it is.
 
 \newpage
 % --------------------------------------------------------------- SLIDE 2 ---
@@ -241,11 +245,11 @@ those blobs you are allowed to believe.
 \item Output: the set $\mathcal{C}=\{\mathbf{x}:|S(\mathbf{x})|>\tau\}$, with a position, a significance,
       a morphology and an \emph{identity verdict}
 \item Constraints: public data only; every number reproducible; ``no change'' must be distinguishable
-      from ``no data''; laptop scale
+      from ``no data''; serverless Cloud Run or laptop scale
 \end{itemize}
 
-\textbf{Figure / diagram.} A left-to-right flow in set notation: 32\,400 pixels, a threshold, the 88
-detections, then the triage split into 71 known and 17 candidate, with the four constraints in a box
+\textbf{Figure / diagram.} A left-to-right flow in set notation: 32\,400 pixels, a threshold, the 109
+detections, then the triage split into 99 known and 10 candidate, with the four constraints in a box
 underneath.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
@@ -255,30 +259,30 @@ underneath.
   ar/.style={-{Stealth[length=6pt]},thick,draw=slate}]
   \node[bx] (pix) at (1.5,2.6) {$180\times180$ pixels\\$32\,400$ values of $|S|$};
   \node[bx] (thr) at (6.1,2.6) {threshold\\$|S|>5\sigma$};
-  \node[bx] (set) at (10.7,2.6) {$\mathcal{C}$: 88 detections};
-  \node[kn] (known) at (15.4,3.6) {71 KNOWN\\a catalogue match};
-  \node[ca] (cand) at (15.4,1.6) {17 CANDIDATE\\unexplained};
+  \node[bx] (set) at (10.7,2.6) {$\mathcal{C}$: 109 detections};
+  \node[kn] (known) at (15.4,3.6) {99 KNOWN\\catalogue or artefact};
+  \node[ca] (cand) at (15.4,1.6) {10 CANDIDATE\\unexplained};
   \draw[ar] (pix) -- (thr);
   \draw[ar] (thr) -- (set);
   \draw[ar] (set.east) -- ++(0.6,0) |- (known.west);
   \draw[ar] (set.east) -- ++(0.6,0) |- (cand.west);
   \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=9.4cm,font=\small] at (5.7,0.05)
     {\textbf{Constraints}\\
-     public archive products only \;\textbullet\; every number reproducible from a stored parameter set\\
-     ``no change'' $\neq$ ``no data'' \;\textbullet\; it has to run on one laptop};
+     public archive products only \;\textbullet\; SHA-256 immutable snapshot reproducibility\\
+     ``no change'' $\neq$ ``no data'' \;\textbullet\; fits on one laptop or Cloud Run container};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Let me state the problem precisely, because the precision is the point. Input:
-two visits to a nine-arcminute field, each with a variance plane and a quality bitmask. Task: build a
-statistic, threshold it, and so obtain the set of sky positions where the flux distribution changed --
-that is the set C on the slide -- and attach to each element four things: a sky coordinate, a
+two or more visits to a nine-arcminute field, each with a variance plane and a quality bitmask. Task:
+build a statistic, threshold it, and so obtain the set of sky positions where the flux distribution
+changed -- that is the set C on the slide -- and attach to each element four things: a sky coordinate, a
 significance, a morphology, and an identity verdict. Identity is not optional, because a blob is only
-interesting if no catalogue already explains it.\par
-Four constraints shaped every design decision. Only public archive products. Every number reproducible
-from a stored parameter set. The system must distinguish ``no change'' from ``no data'' -- that sounds
-trivial, and it is the single most common failure in this kind of pipeline. And the whole thing has to
-run on a laptop. The numbers follow from that: thirty-two thousand pixels in, eighty-eight detections
-out, seventy-one explained, seventeen not.
+interesting if no catalogue or instrumental artefact already explains it.\par
+Four constraints shaped every design decision. Only public archive products. Every snapshot reproducible
+and content-addressed. The system must distinguish ``no change'' from ``no data'' or mismatched bands --
+that is why Sgr A* is explicitly refused when epochs share no detector. And the whole thing runs on one
+laptop or a single Cloud Run container. The numbers follow from that: thirty-two thousand four hundred
+pixels per map in, one hundred and nine detections out, ninety-nine explained, ten not.
 
 \newpage
 % --------------------------------------------------------------- SLIDE 4 ---
@@ -299,21 +303,22 @@ status underneath, and a footer strip listing what is explicitly out of scope.
   card/.style={draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=3.0cm}]
   \node[card] (a) at (2.0,4.6) {\large\bfseries 1\par\vspace{2pt}Calibration\par\vspace{3pt}\normalsize Is $S$ unit-variance where nothing changed?\par\vspace{4pt}\textcolor{good}{\bfseries answered: yes}};
   \node[card] (b) at (6.0,4.6) {\large\bfseries 2\par\vspace{2pt}Morphology\par\vspace{3pt}\normalsize Can a dipole be told from a monopole at 3\arcsec?\par\vspace{4pt}\textcolor{good}{\bfseries answered: yes, with caveats}};
-  \node[card] (c) at (10.0,4.6) {\large\bfseries 3\par\vspace{2pt}Identity\par\vspace{3pt}\normalsize What fraction is already in a catalogue?\par\vspace{4pt}\textcolor{good}{\bfseries answered: 81\%}};
+  \node[card] (c) at (10.0,4.6) {\large\bfseries 3\par\vspace{2pt}Identity\par\vspace{3pt}\normalsize What fraction is already in a catalogue?\par\vspace{4pt}\textcolor{good}{\bfseries answered: 91\%}};
   \node[card] (d) at (14.0,4.6) {\large\bfseries 4\par\vspace{2pt}Completeness\par\vspace{3pt}\normalsize What did we miss, and can it be measured?\par\vspace{4pt}\textcolor{bad}{\bfseries answered: not yet}};
   \node[draw=slate,thick,fill=white,align=left,inner sep=6pt,text width=14.4cm,font=\small] at (8.0,1.5)
-    {\textbf{out of scope, stated rather than discovered:} photometry below the PSF; light curves from many epochs; a machine-learning real/bogus classifier; arcsecond astrometry};
+    {\textbf{out of scope, stated rather than discovered:} photometry below the PSF; densely sampled multi-epoch light curves inside SPHEREx; a machine-learning real/bogus classifier; arcsecond astrometry};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} I want to be explicit about what is and is not in scope, because a small project
 like this either draws its boundary honestly or it oversells. Four questions, and the answers are on the
 cards. One: is the statistic actually calibrated, so that five sigma means what it says. Two: can the
 morphology test tell a moved star from a flickering one at three-arcsecond sampling. Three: how much of
-the candidate list is already in Gaia, WISE or the variable-star index -- the question that decides
-whether anything here is interesting. Four: what did we miss, and here the honest answer is ``not yet
-known'', which I will come back to on slide seventeen.\par
-And the footer strip is deliberate: no PSF-level photometry, no light curves, no machine-learning
-real/bogus classifier, no arcsecond astrometry. Stated up front rather than discovered by a reviewer.
+the candidate list is already explained by Gaia, WISE, VSX, NEOWISE or mask/bright-star artefacts --
+ninety-one percent. Four: what did we miss, and here the honest answer is ``not yet known'', which I will
+come back to on the validation slide.\par
+And the footer strip is deliberate: no PSF-level photometry, no dense SPHEREx light curves, no
+machine-learning real/bogus classifier, no arcsecond astrometry. Stated up front rather than discovered
+by a reviewer.
 
 \newpage
 
@@ -428,39 +433,44 @@ page, including the parts that fail. That is what this is.
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
 \item One telescope, six detectors, 102 bands from 0.75 to 5.0\,\textmu m
-\item Level-2 products are small spectral images: every pixel carries a wavelength
-\item Four extensions: IMAGE, VAR, FLAGS (32 bits), and WCS-WAVE $(x,y,\lambda)$
+\item Six FITS extensions per cutout: we use \code{IMAGE}, \code{FLAGS} (32\,bits), \code{VARIANCE}, and \code{WCS-WAVE}
+\item Full snapshots co-add all six arrays (\code{D1--D6}); Live IRSA mode defaults to \code{D1, D4} with 6-band fallback
 \item Six-month cadence $\Rightarrow$ what survives subtraction is astrophysical, not asteroids
 \end{itemize}
 
-\textbf{Figure / diagram.} The six-detector focal plane above a wavelength axis with the bands actually
-used highlighted, and the three extensions that make difference imaging possible underneath.
+\textbf{Figure / diagram.} The six-detector focal plane above a wavelength axis (\code{D1--D6} full coverage
+and \code{D1, D4} fast-live default highlighted), with the four HDU extensions used downstream underneath.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  \foreach \lab/\x in {D1/0,D2/2.7,D3/5.4,D4/8.1,D5/10.8,D6/13.5}{\draw[accent,thick,fill=accent2] (\x,5.4) rectangle (\x+2.4,7.2); \node at (\x+1.2,6.3) {\large\bfseries \lab};}
-  \node[anchor=north,font=\scriptsize,text=muted] at (8.0,5.3) {six detectors: one low-resolution spectrum at every position};
+  \foreach \lab/\x/\col in {D1/0/good,D2/2.7/accent,D3/5.4/accent,D4/8.1/good,D5/10.8/accent,D6/13.5/accent}{
+    \draw[\col,thick,fill=\col!12] (\x,5.4) rectangle (\x+2.4,7.2);
+    \node at (\x+1.2,6.45) {\large\bfseries \lab};}
+  \node[font=\tiny,text=good] at (1.2,5.75) {live default};
+  \node[font=\tiny,text=good] at (9.3,5.75) {live default};
+  \node[anchor=north,font=\scriptsize,text=muted] at (8.0,5.3) {six detectors (D1--D6): full archive co-adds use all six; Live mode starts with D1, D4};
   \draw[-{Stealth[length=7pt]},thick,slate] (0.2,3.4) -- (15.6,3.4);
   \foreach \w/\x in {0.75/0.4,1.0/2.4,2.0/6.3,3.0/9.6,4.0/12.9,5.0/15.4}{\draw[slate] (\x,3.4) -- (\x,3.1); \node[anchor=north,font=\scriptsize] at (\x,3.05) {\w};}
   \node[anchor=north,font=\scriptsize] at (16.2,3.05) {\textmu m};
-  \fill[good!45] (0.55,3.4) rectangle (1.05,3.95); \node[anchor=south,font=\scriptsize\bfseries,text=good] at (0.8,3.95) {D1};
-  \fill[good!45] (5.85,3.4) rectangle (6.35,3.95); \node[anchor=south,font=\scriptsize\bfseries,text=good] at (6.1,3.95) {D2};
-  \fill[good!45] (13.2,3.4) rectangle (13.7,3.95); \node[anchor=south,font=\scriptsize\bfseries,text=good] at (13.45,3.95) {D4};
-  \node[anchor=south,font=\scriptsize,text=good] at (9.6,3.98) {the bands used here};
-  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (2.6,1.6) {\textbf{IMAGE}\\ \scriptsize calibrated flux};
-  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (8.0,1.6) {\textbf{FLAGS}\\ \scriptsize 32 quality bits};
-  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (13.4,1.6) {\textbf{VAR and WCS-WAVE}\\ \scriptsize $\sigma^2$ and $\lambda$ per pixel};
+  \foreach \xa/\xb/\lab/\col in {0.4/2.8/{D1}/good, 2.9/5.7/{D2}/accent, 5.8/8.9/{D3}/accent, 9.0/11.9/{D4}/good, 12.0/13.7/{D5}/accent, 13.8/15.4/{D6}/accent}{
+    \fill[\col!30] (\xa,3.4) rectangle (\xb,3.95);
+    \node[anchor=south,font=\scriptsize\bfseries,text=\col] at ({0.5*(\xa+\xb)},3.95) {\lab};}
+  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (2.6,1.6) {\textbf{IMAGE}\\ \scriptsize calibrated flux (MJy/sr)};
+  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (8.0,1.6) {\textbf{FLAGS}\\ \scriptsize 32 quality bits (14 rejected, 2 kept)};
+  \node[draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.2cm] at (13.4,1.6) {\textbf{VARIANCE \& WCS-WAVE}\\ \scriptsize $\sigma^2$ and $\lambda(x,y)$; (\code{ZODI}, \code{PSF} unused)};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} A word on the instrument, because the shape of the data drives everything
 downstream. SPHEREx is a small telescope with six detectors that sweeps the sky and, unusually, takes a
 low-resolution spectrum at every position: a hundred and two bands between zero-point-seven-five and
-five microns. So the Level-2 product is not a broadband picture, it is a little spectral image, and each
-file carries four things I care about: the calibrated image, the variance, a thirty-two-bit quality
-mask, and a table giving the wavelength of every pixel.\par
-Two consequences. First, the cadence is about six months, so anything that moved fast -- an asteroid,
-say -- has left the field entirely; what survives subtraction is genuine variability or genuine high
-proper motion. Second, because every pixel knows its wavelength, a detection can be diagnosed
-spectrally with no follow-up telescope, which is what slide sixteen is about.
+five microns. Every Level-2 file actually holds six FITS extensions, of which four drive our pipeline:
+\code{IMAGE}, \code{FLAGS}, \code{VARIANCE}, and \code{WCS-WAVE} -- giving calibrated flux, a thirty-two-bit
+quality mask, per-pixel variance, and a lookup table from pixel to wavelength. Scheduled snapshots
+co-add all six arrays, while Live IRSA mode starts with \code{D1} and \code{D4} for speed and falls back
+to all six whenever coverage requires it.\par
+Two consequences. First, the cadence is about six months, so fast solar-system objects have left the
+field entirely; what survives subtraction is genuine variability or high proper motion. Second, because
+every pixel carries its wavelength, we can build an infrared SED without follow-up -- which is what
+slide fifteen is about.
 
 \newpage
 % --------------------------------------------------------------- SLIDE 8 ---
@@ -468,10 +478,10 @@ spectrally with no follow-up telescope, which is what slide sixteen is about.
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Two calls: a SIA2 cone search (cached as a VOTable), then the cutout service
-\item 5.3\,MB sections of a 70\,MB parent frame -- this is what makes the project feasible
-\item Acceptance: $\ge$12\,px margin inside the cutout, and under 50\% of pixels flagged
-\item 18 fields, 128 cutouts, 0.88\,GB; the Large Magellanic Cloud was tried and dropped
+\item Two calls: SIA2 cone search (fingerprint-hashed) $\to$ \code{0.2 deg} cutout service (\code{INGEST_EPOCH=2026.0})
+\item $\sim$5\,MB sections of 70\,MB parent frames, plus parallel TAP/VizieR queries for Gaia DR3, AllWISE, VSX
+\item Acceptance: $\ge$12\,px valid margin inside the cutout, and under 50\% of pixels flagged
+\item 18 fields, 246 cutouts across \code{D1--D6}: two empty (M42 null, Sgr\,A* no shared band); LMC dropped
 \end{itemize}
 
 \textbf{Figure / diagram.} Left: the sky distribution of all eighteen fields. Right: the two-step
@@ -486,95 +496,99 @@ fetch path with its cost annotated, and the acceptance test at the end.
       tick label style={font=\scriptsize,text=slate},
       legend style={font=\scriptsize,draw=rule,at={(0.5,-0.52)},anchor=north,legend columns=3}]
     \addplot[only marks,mark=*,mark size=2.6pt,good] coordinates {
-      (269.45,4.69) (331.04,-56.78) (76.96,30.40) (248.17,66.75) (133.80,-7.25)};
-    \addlegendentry{brief targets}
+      (269.45,4.77) (331.10,-56.80) (76.96,30.40) (248.17,66.75) (133.76,-7.24)};
+    \addlegendentry{brief targets (5)}
     \addplot[only marks,mark=triangle*,mark size=3.0pt,accent] coordinates {
-      (10.68,41.27) (83.82,-5.39) (56.75,24.12) (83.63,22.01) (202.47,47.20) (190.00,-11.62)
-      (283.40,33.03) (266.42,-29.01) (187.28,2.05) (217.43,-62.68)};
-    \addlegendentry{famous objects}
+      (10.68,41.27) (56.75,24.12) (83.63,22.01) (202.47,47.20) (190.00,-11.62)
+      (283.40,33.03) (187.28,2.05) (217.37,-62.67) (88.79,7.41) (101.28,-16.72) (346.63,-5.04)};
+    \addlegendentry{famous objects (11)}
     \addplot[only marks,mark=x,mark size=3.4pt,bad,line width=0.9pt] coordinates {
-      (88.79,7.41) (101.29,-16.72) (346.62,-5.04)};
-    \addlegendentry{degenerate fields}
+      (83.82,-5.39) (266.42,-29.01)};
+    \addlegendentry{empty / refused (2)}
     \end{axis}
   \end{scope}
   % fetch path on the right
   \begin{scope}[shift={(9.9,0.2)}]
-    \node[draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.3cm] (a) at (1.9,4.2)
-      {SIA2 cone search\\ \scriptsize 0.1\,deg, cached};
-    \node[draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.3cm] (b) at (1.9,2.6)
-      {cutout service\\ \scriptsize 0.2\,deg box};
-    \node[draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.3cm] (c) at (1.9,1.0)
-      {acceptance test\\ \scriptsize margin and flags};
+    \node[draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.5cm] (a) at (1.9,4.2)
+      {SIA2 cone search\\ \scriptsize 0.1\,deg at 2026.0 epoch};
+    \node[draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.5cm] (b) at (1.9,2.6)
+      {cutout + TAP/VizieR\\ \scriptsize 0.2\,deg box + Gaia/WISE/VSX};
+    \node[draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.5cm] (c) at (1.9,1.0)
+      {acceptance test\\ \scriptsize $\ge$12\,px margin, $<$50\% bad};
     \draw[-{Stealth[length=6pt]},thick,slate] (a) -- (b);
     \draw[-{Stealth[length=6pt]},thick,slate] (b) -- (c);
-    \node[right,font=\scriptsize,text=muted,align=left] at (3.95,4.2) {1 query, 2\,s};
-    \node[right,font=\scriptsize,text=muted,align=left] at (3.95,2.6) {5.3\,MB, 40\,s};
-    \node[right,font=\scriptsize,text=muted,align=left] at (3.95,1.0) {1 in 6 retries};
-    \node[draw=bad,thick,fill=bad2,align=left,inner sep=5pt,text width=6.0cm,font=\scriptsize] at (2.9,-0.5)
-      {\textbf{the LMC was dropped:} at Dec $-69.8$ every QR2 image in a 9\arcmin{} box belongs to one visit, so there is nothing to subtract.};
+    \node[right,font=\scriptsize,text=muted,align=left] at (3.95,4.2) {SHA-256 hash};
+    \node[right,font=\scriptsize,text=muted,align=left] at (3.95,2.6) {$\sim$5\,MB, parallel};
+    \node[right,font=\scriptsize,text=muted,align=left] at (3.95,1.0) {3$\times$ retry backoff};
+    \node[draw=bad,thick,fill=bad2,align=left,inner sep=5pt,text width=6.1cm,font=\scriptsize] at (2.9,-0.55)
+      {\textbf{coverage honesty:} LMC was dropped (single QR2 visit); Sgr\,A* is refused because Epoch\,1 has D1 and Epoch\,2 only D2.};
   \end{scope}
 \end{tikzpicture}}
 
-\textbf{Spoken script.} Getting the data takes exactly two archive calls, and I want to show them
-because the cost shapes the design. First a SIA2 cone search: give it a position and it returns every
-Level-2 image whose footprint covers it. That answer is cached verbatim, so re-running never asks again.
-Then the cutout service, which is the trick that makes this possible: instead of downloading
-seventy-megabyte parents, I ask for a five-megabyte section around my target. Even so a cutout takes
-about forty seconds at the archive's throttled rate, and roughly one request in six times out and has
-to fall back -- hence the acceptance test at the bottom of that column.\par
-The map shows the eighteen fields: five chosen by the brief -- two high-proper-motion stars, two
-variables, one extreme cool dwarf -- and thirteen I added, galaxies and nebulae and a quasar, to prove
-the pipeline is not tuned to one kind of object. One object, the Large Magellanic Cloud, I tried and
-dropped, for the reason in the red box. That is on the record rather than quietly removed.
+\textbf{Spoken script.} Getting the data takes two archive calls, and high-proper-motion stars are
+propagated to epoch 2026.0 first so the cone search centres on where the star is now. A SIA2 search
+lists every Level-2 product and hashes the product list with SHA-256 so scheduled refreshes skip
+unchanged fields. Then the cutout service delivers five-megabyte sections of seventy-megabyte frames
+while Gaia DR3, AllWISE, and VSX are queried in parallel via TAP and VizieR mirrors. Every cutout passes
+an acceptance check -- at least twelve pixels of valid margin and fewer than half flagged -- before it
+enters the stack.\par
+The map shows the eighteen fields: five from the brief and thirteen famous objects spanning galaxies,
+nebulae, a quasar, and nearby dwarfs. Two produce nothing usable: M42 has zero detections above five
+sigma, and Sgr A* is refused outright because Epoch 1 is only D1 and Epoch 2 only D2 -- while the LMC
+was dropped earlier as single-visit in QR2. That refusal is recorded, not papered over.
 
 \newpage
 % --------------------------------------------------------------- SLIDE 9 ---
-\slidehead{9}{Architecture: six stages, one cache}{0:55}
+\slidehead{9}{Architecture: seven stages, shared core, snapshot store}{0:55}
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Ingest, co-add, subtract, triage, diagnose, validate
-\item Each stage is a file with its own entry point: the chain can be entered anywhere
-\item One metadata file per field is the contract between stages
-\item The serving layer is separate: it calls stages two to five, or reads pre-rendered JSON
+\item Seven stages: ingest, co-add, subtract, triage, diagnose, validate, NEOWISE history (2\,397\,LOC)
+\item Shared science \& cloud core: \code{catalog_tools}, \code{live_ingest}, \code{snapshot_store}, \code{cloud_refresh}
+\item Contract between stages: local \code{_meta.json} OR immutable GCS SHA-256 snapshot bundles
+\item Serving layer: \code{app.py} (2\,859\,LOC FastAPI + SSE) and browser workspace (\code{static/}, 6\,982\,LOC)
 \end{itemize}
 
-\textbf{Figure / diagram.} The six stages in two rows, the on-disk cache under the first, and the
-serving layer at the bottom, with the line count of each module written inside its box.
+\textbf{Figure / diagram.} Top: stages 1--7 in two clean rows. Bottom: the metadata/GCS contract on the
+left, shared support core and serving stack in the centre/right, with verified line counts inside each box.
 
-\figbox{\begin{tikzpicture}[font=\footnotesize,node distance=6mm and 7mm,
-  b/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.0cm},
-  c/.style={draw=slate,thick,fill=white,align=center,inner sep=5pt,text width=3.0cm},
-  s/.style={draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.0cm},
-  ar/.style={-{Stealth[length=6pt]},thick,draw=slate}]
-  \node[b] (s1) at (1.6,6.2) {\textbf{1\; ingest}\\ SIA2, cutouts\\ \scriptsize 636 lines};
-  \node[b] (s2) at (6.2,6.2) {\textbf{2\; co-add}\\ mask, reproject\\ \scriptsize 198 lines};
-  \node[b] (s3) at (10.8,6.2) {\textbf{3\; subtract}\\ ZOGY, dipole\\ \scriptsize 117 lines};
-  \node[b] (s4) at (15.4,6.2) {\textbf{4\; triage}\\ Gaia, WISE, VSX\\ \scriptsize 87 lines};
-  \node[b] (s5) at (10.8,3.4) {\textbf{5\; diagnose}\\ three indices\\ \scriptsize 190 lines};
-  \node[b] (s6) at (6.2,3.4) {\textbf{6\; validate}\\ injection\\ \scriptsize 80 lines};
+\figbox{\begin{tikzpicture}[font=\footnotesize,
+  b/.style={draw=accent,thick,fill=accent2,align=center,inner sep=4pt,text width=2.85cm,rounded corners=2pt},
+  c/.style={draw=slate,thick,fill=white,align=center,inner sep=4pt,text width=3.5cm,rounded corners=2pt},
+  s/.style={draw=good,thick,fill=good2,align=center,inner sep=4pt,text width=3.2cm,rounded corners=2pt},
+  w/.style={draw=warn,thick,fill=warn2,align=center,inner sep=4pt,text width=4.2cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5.5pt]},thick,draw=slate}]
+  \node[b] (s1) at (1.5,6.4) {\textbf{1\; ingest}\\ SIA2, cutouts, cats\\ \scriptsize 944 lines};
+  \node[b] (s2) at (5.2,6.4) {\textbf{2\; co-add}\\ matched mask, $1/V$\\ \scriptsize 294 lines};
+  \node[b] (s3) at (8.9,6.4) {\textbf{3\; subtract}\\ ZOGY, dipole\\ \scriptsize 117 lines};
+  \node[b] (s4) at (12.6,6.4) {\textbf{4\; triage}\\ PM prop, 6 classes\\ \scriptsize 349 lines};
+  \node[b] (s5) at (12.6,4.0) {\textbf{5\; diagnose}\\ SED, 3 indices\\ \scriptsize 198 lines};
+  \node[b] (s6) at (8.9,4.0) {\textbf{6\; validate}\\ injection grid\\ \scriptsize 93 lines};
+  \node[b] (s7) at (5.2,4.0) {\textbf{7\; NEOWISE}\\ 14-yr IR TAP\\ \scriptsize 402 lines};
   \draw[ar] (s1) -- (s2); \draw[ar] (s2) -- (s3); \draw[ar] (s3) -- (s4);
-  \draw[ar] (s4.south) -- ++(0,-0.8) -| (s5.north);
-  \draw[ar] (s5) -- (s6);
-  \node[c] (cache) at (1.6,3.4) {\code{meta.json}\\ provenance + paths};
+  \draw[ar] (s4) -- (s5); \draw[ar] (s5) -- (s6); \draw[ar] (s6) -- (s7);
+  \node[c] (cache) at (1.5,4.0) {\textbf{Snapshot / Cache}\\ \code{current.json} $\to$ SHA-256\\ \scriptsize or \code{<Target>_meta.json}};
   \draw[ar] (s1) -- (cache);
-  \node[s] (api) at (1.6,0.7) {FastAPI\\ \scriptsize 808 lines};
-  \node[s] (ui) at (6.2,0.7) {canvas UI\\ \scriptsize 1\,586 lines};
-  \draw[ar] (cache) -- (api);
+  \node[w] (sup) at (2.1,1.1) {\textbf{Shared Core (5 modules)}\\ \scriptsize \code{catalog_tools} (442), \code{live_ingest} (330)\\ \code{snapshot_store} (318), \code{cloud_refresh} (523), \code{export_static} (213)};
+  \node[s] (api) at (7.0,1.1) {\textbf{FastAPI (\code{app.py})}\\ snapshot + live SSE\\ \scriptsize 2\,859 lines};
+  \node[s] (ui) at (11.2,1.1) {\textbf{Browser UI (\code{static/})}\\ canvas + IndexedDB/SW\\ \scriptsize 6\,982 lines};
+  \draw[ar] (cache.south) -- ++(0,-0.45) -| (api.north);
+  \draw[ar] (sup) -- (api);
   \draw[ar] (api) -- (ui);
-  \node[draw=rule,thick,fill=white,align=left,inner sep=5pt,text width=7.4cm,font=\scriptsize] at (12.4,0.7)
-    {\textbf{why this shape}\\ a wrong answer can be traced to one stage;\\ a field can be re-reduced from the cache without re-downloading};
+  \node[draw=rule,thick,fill=white,align=left,inner sep=4pt,text width=3.1cm,font=\scriptsize] at (14.7,1.1)
+    {\textbf{why this shape}\\ any stage re-runs locally on cached FITS, or headless in the 12\,h Cloud Run job};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} Six stages, and each is a separate file with its own entry point, which matters
-more than it sounds: when something looks wrong I can re-run one stage on cached data instead of the
-whole chain. Stage one talks to the archive and writes a metadata file. That file is the contract --
-every later stage reads it and nothing else, so the chain is deterministic and restartable. Stage two
-masks and combines, stage three subtracts, stage four triages against catalogues, stage five measures a
-spectrum and three indices, stage six is the validation.\par
-Underneath sits the serving layer: a service that either runs stages two to five on demand or, for the
-deployed site, reads pre-rendered JSON for exactly the same responses. That separation is what lets the
-same page work with or without a server, which is slide nineteen.
+\textbf{Spoken script.} Seven stages, and each remains an independent module: ingest, co-add,
+subtraction, catalogue triage, spectral diagnosis, injection validation, and now stage seven for
+fourteen-year NEOWISE light curves. Four shared libraries -- \code{catalog_tools}, \code{live_ingest},
+\code{snapshot_store}, and \code{cloud_refresh} -- prevent duplication across local CLI runs, the
+FastAPI server, and the twelve-hour Cloud Run refresh job.\par
+Stage one writes the metadata contract, either \code{_meta.json} on disk or immutable SHA-256 blobs in
+Google Cloud Storage pointed to by \code{current.json}. Underneath sits \code{app.py} at two thousand
+eight hundred and fifty-nine lines, serving either pre-computed snapshots or live streaming runs to a
+six-thousand-nine-hundred-line browser workspace. That architecture is detailed in slides seventeen
+to nineteen.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 10 ---
@@ -582,21 +596,22 @@ same page work with or without a server, which is slide nineteen.
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Sixteen FLAGS classes are rejected: SUR transients, overflow, phantom, edge, hot/cold, persistence
-\item Two are kept: ``full sample'' (informational) and ``source'' (real flux, not a defect)
-\item $C=\sum_k w_k\tilde I_k/\sum_k w_k$ with $w_k=1/\tilde V_k$, so $\sigma^2_C=(\sum_k w_k)^{-1}$
-\item Honest masking changes the median noise by about a factor of two on the worst frames
+\item 14 \code{BAD_BITS} rejected: transients, overflow, phantom, nonfunc/hot/cold, persistence, outlier
+\item Two kept: \code{FULLSAMPLE} (bit\,12) and \code{SOURCE} (bit\,21, real astrophysical flux)
+\item Clipped-median \code{sky_level} subtraction + inverse-variance weight $w_k=1/\tilde V_k$, $\sigma^2_C=(\sum_k w_k)^{-1}$
+\item Cross-epoch \code{coadd_matched}: a band enters at pixel $(x,y)$ only where valid in \emph{every} epoch
 \end{itemize}
 
-\textbf{Figure / diagram.} Left: the flag census for the dominant bit classes. Right: a pixel grid
-showing which cells survive masking, with the weighting formula beside it.
+\textbf{Figure / diagram.} Left: the flag census for the dominant bit classes (14 rejected vs.\ 2 kept).
+Right: a pixel grid showing masked weights and the cross-epoch band intersection rule.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   \begin{scope}
     \begin{axis}[width=7.2cm,height=5.0cm,xbar,bar width=7pt,xmin=0,xmax=25,
       xlabel={\% of pixels flagged},xlabel style={font=\scriptsize},
       symbolic y coords={{SUR},{overflow},{hot},{cold},{outlier},{source}},
-      ytick=data,tick label style={font=\scriptsize,text=slate},axis line style={slate},
+      ytick={{SUR},{overflow},{hot},{cold},{outlier},{source}},
+      tick label style={font=\scriptsize,text=slate},axis line style={slate},
       grid=major,grid style={rule!70},nodes near coords,nodes near coords style={font=\scriptsize,text=slate},
       enlarge y limits=0.16]
     \addplot[fill=bad!35,draw=bad] coordinates {(14.2,{SUR}) (6.1,{overflow}) (8.4,{hot}) (2.1,{cold}) (5.3,{outlier})};
@@ -604,31 +619,31 @@ showing which cells survive masking, with the weighting formula beside it.
     \end{axis}
   \end{scope}
   % pixel grid
-  \begin{scope}[shift={(8.6,0.4)}]
+  \begin{scope}[shift={(8.6,0.75)}]
     \node[anchor=south west,font=\scriptsize] at (-0.2,3.9) {one 6$\times$6 patch, after masking};
     \foreach \i in {0,...,5}{\foreach \j in {0,...,5}{
       \pgfmathsetmacro{\m}{int(mod(\i*7+\j*3,10))}
       \ifnum\m<4 \def\cc{bad!30}\else\def\cc{good!25}\fi
       \draw[rule,fill=\cc] (\i*0.62,\j*0.62) rectangle (\i*0.62+0.6,\j*0.62+0.6);}}
-    \node[font=\scriptsize,text=bad,anchor=west] at (3.9,2.8) {masked: weight 0};
-    \node[font=\scriptsize,text=good,anchor=west] at (3.9,1.8) {kept: weight $1/\tilde V$};
-    \node[draw=accent,thick,fill=accent2,align=left,inner sep=5pt,text width=5.2cm,font=\scriptsize] at (2.6,-0.9)
-      {$\sigma^2_C=\Bigl(\sum_k w_k\Bigr)^{-1}$\\[2pt] a masked pixel contributes nothing,\\ so it cannot poison the stack};
+    \node[font=\scriptsize,text=bad,anchor=west] at (3.9,2.8) {14 bad bits $\Rightarrow$ $w=0$};
+    \node[font=\scriptsize,text=good,anchor=west] at (3.9,1.8) {kept $\Rightarrow$ $w=1/\tilde V$};
+    \node[draw=accent,thick,fill=accent2,align=left,inner sep=5pt,text width=5.6cm,font=\scriptsize] at (2.8,-1.18)
+      {$\sigma^2_C=\Bigl(\sum_k w_k\Bigr)^{-1}$\\[2pt] \code{coadd_matched} drops a band in Epoch\,1 if masked in Epoch\,2, preventing hole artefacts (TRAPPIST-1)};
   \end{scope}
 \end{tikzpicture}}
 
 \textbf{Spoken script.} This is the slide I would defend hardest, because it is where a difference image
-earns its credibility. Every SPHEREx pixel arrives with a variance and a set of quality bits, and most of
-those bits mean ``do not trust this pixel''. If you average them in anyway, a handful of cosmic rays and
-hot pixels inflate your noise and you silently lose the faint end. So sixteen bit classes are masked --
-the transient flag from the onboard processing, overflow, phantom pixels, edge pixels, hot and cold
-pixels, persistence, outliers -- and two are deliberately kept: ``full sample'', which is informational,
-and ``source'', which means real flux rather than a defect.\par
-Then the combination is the textbook minimum-variance one: weight each pixel by one over its variance,
-and the resulting noise is one over the root of the summed weights. The property to take away is the
-formula in the box: a masked pixel contributes nothing, so it cannot poison the stack. On the worst
-frames here, doing that properly changes the median noise by a factor of two, which moves the five-sigma
-depth by the same factor -- and that decides which objects exist at all.
+earns its credibility. Every SPHEREx pixel arrives with a variance plane and a thirty-two-bit quality
+mask. In \code{step2_coadd}, fourteen defect bits -- transients, overflow, phantom pixels, non-functional
+and hot or cold pixels, persistence, and outliers -- are zeroed out cleanly, while two bits are
+deliberately kept: bit twelve (\code{FULLSAMPLE}) and bit twenty-one (\code{SOURCE}), which marks real
+astrophysical flux rather than a detector flaw.\par
+Before stacking, each exposure has its sigma-clipped median sky subtracted, is reprojected onto a common
+three-arcsecond WCS grid, and weighted by inverse variance. Just as important, \code{coadd_matched}
+intersects the usable detector masks across epochs pixel by pixel: if a bright-star flag drops one band
+in Epoch 2, that band is also suppressed at that pixel in Epoch 1, stopping asymmetric mask holes from
+impersonating real detections. On the worst frames, honest masking cuts the median noise by roughly a
+factor of two.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 11 ---
@@ -637,10 +652,10 @@ depth by the same factor -- and that decides which objects exist at all.
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
 \item Both images are convolved to a common PSF in Fourier space: no kernel is ever fitted
-\item $\hat D=\dfrac{\hat P_1\hat I_2-\hat P_2\hat I_1}{\sqrt{\sigma_1^2|\hat P_2|^2+\sigma_2^2|\hat P_1|^2}}$
-      \quad and \quad $\hat S=\dfrac{\hat D\,\overline{\hat P_D}}{\sqrt{\sigma_1^2+\sigma_2^2}}$
-\item $S$ has unit variance under the null, so the threshold is interpretable
-\item Cost: two FFTs, $O(N^2\log N)$ -- about 0.6\,s for a $180^2$ frame
+\item $\hat D=\dfrac{\hat P_1\hat I_2-\hat P_2\hat I_1}{\sqrt{\sigma_1^2|\hat P_2|^2+\sigma_2^2|\hat P_1|^2+10^{-30}}}$
+      \quad and \quad $\hat S=\dfrac{\hat D\,\overline{\hat P_D}}{\sqrt{\sigma_1^2+\sigma_2^2}}$, then $S \leftarrow S/\sigma(S)$
+\item $S$ has unit variance under the null, so the $5\sigma$ threshold is interpretable
+\item Cost: two FFTs per epoch pair, $O(N^2\log N)$ -- under 1.5\,s end-to-end per $180^2$ field
 \end{itemize}
 
 \textbf{Figure / diagram.} The signal flow: two images and two PSFs into FFTs, a denominator built from
@@ -698,50 +713,50 @@ six-tenths of a second for a one-hundred-and-eighty-pixel frame.
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item If the null map is unit-variance, false positives are pure Gaussian tail:
-      $\mathbb{E}[N_{\mathrm{FP}}]=N^2\Phi(-\tau)$
-\item For $180^2=32\,400$ pixels: $3\sigma\Rightarrow219$, $4\sigma\Rightarrow11$, $5\sigma\Rightarrow0.018$
-\item That is why the working threshold is five sigma and not three
-\item Sanity check: measured detections are tens of sigma above this floor
+\item If the null map is unit-variance Gaussian, two-tailed false pixels ($|S|>\tau$) follow:
+      $\mathbb{E}[N_{\mathrm{FP}}]=2N^2\Phi(-\tau)$
+\item For $180^2=32\,400$ pixels: $3\sigma\Rightarrow 87.5$, $4\sigma\Rightarrow 2.05$, $5\sigma\Rightarrow 0.0186$
+\item Plus a $5\times5$ local-extremum filter ($\ge 25$-pixel footprint), so $5\sigma$ admits $<1$ noise peak per 50 frames
+\item Sanity check: real detections here reach $8\text{--}44\sigma$, far above the noise floor
 \end{itemize}
 
-\textbf{Figure / diagram.} The expected number of false pixels per frame against threshold, on a log
-scale, with the three operating points marked and the working threshold drawn as a vertical line.
+\textbf{Figure / diagram.} The expected number of two-tailed extreme pixels per frame against threshold, on a log
+scale, with the exact operating points lying on the analytic curve and the working $5\sigma$ cut marked.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-\begin{axis}[width=15.4cm,height=6.4cm,
-  xlabel={threshold $\tau$ [$\sigma$]},ylabel={expected false pixels per frame},
+\begin{axis}[width=15.4cm,height=6.2cm,
+  xlabel={threshold $\tau$ [$\sigma$]},ylabel={expected false pixels ($|S|>\tau$)},
   xlabel style={font=\small},ylabel style={font=\small},
-  ymode=log,xmin=2.5,xmax=7.5,ymin=1e-6,ymax=1e5,
+  ymode=log,xmin=2.5,xmax=6.5,ymin=1e-5,ymax=1e4,
   grid=both,grid style={rule!70},axis line style={slate},
   tick label style={font=\small,text=slate},
-  legend style={font=\small,draw=rule,at={(0.5,-0.30)},anchor=north,legend columns=2}]
+  legend style={font=\small,draw=rule,at={(0.5,-0.28)},anchor=north,legend columns=2}]
 \addplot[thick,accent,mark=none] coordinates {
-  (2.5,201.2) (2.6,151.0) (2.7,112.3) (2.8,82.8) (2.9,60.5) (3.0,43.7)
-  (3.2,22.26) (3.4,10.92) (3.6,5.16) (3.8,2.34) (4.0,1.026) (4.2,0.4324)
-  (4.4,0.1754) (4.6,0.0684) (4.8,0.0259) (5.0,0.00929) (5.2,0.00323)
-  (5.4,0.00106) (5.6,0.000347) (5.8,0.000108) (6.0,0.0000320)};
-\addlegendentry{$N^2\Phi(-\tau)$ with $N^2=32\,400$}
-\addplot[only marks,mark=*,mark size=3.0pt,bad] coordinates {(3,219) (4,11.4) (5,0.018)};
-\addlegendentry{operating points}
-\draw[dashed,slate,thick] (axis cs:5,1e-6) -- (axis cs:5,1e5);
-\node[font=\small,text=slate,anchor=south,rotate=90] at (axis cs:4.88,1e-4) {working threshold};
-\node[font=\small,text=bad,anchor=south west] at (axis cs:3.02,240) {219};
-\node[font=\small,text=bad,anchor=south west] at (axis cs:4.02,13) {11};
-\node[font=\small,text=bad,anchor=south west] at (axis cs:5.04,0.021) {0.018};
+  (2.5,402.4) (2.6,302.0) (2.7,224.6) (2.8,165.6) (2.9,121.0) (3.0,87.5)
+  (3.2,44.52) (3.4,21.84) (3.6,10.32) (3.8,4.68) (4.0,2.05) (4.2,0.865)
+  (4.4,0.351) (4.6,0.137) (4.8,0.0518) (5.0,0.0186) (5.2,0.00646)
+  (5.4,0.00212) (5.6,0.000694) (5.8,0.000216) (6.0,0.0000640)};
+\addlegendentry{$2N^2\Phi(-\tau)$ with $N^2=32\,400$}
+\addplot[only marks,mark=*,mark size=3.0pt,bad] coordinates {(3,87.5) (4,2.05) (5,0.0186)};
+\addlegendentry{exact operating points}
+\draw[dashed,slate,thick] (axis cs:5,1e-5) -- (axis cs:5,1e4);
+\node[font=\small,text=slate,anchor=south,rotate=90] at (axis cs:4.90,0.5) {working threshold ($5\sigma$)};
+\node[font=\small,text=bad,anchor=south west] at (axis cs:3.04,95) {87.5};
+\node[font=\small,text=bad,anchor=south west] at (axis cs:4.04,2.3) {2.05};
+\node[font=\small,text=bad,anchor=south west] at (axis cs:5.04,0.022) {0.0186};
 \end{axis}
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Because the null distribution is analytic, the false-positive budget can be
-computed rather than guessed, and that is the difference between a threshold and a wish. The curve is the
-expected number of false pixels per frame as a function of threshold. At three sigma it is two hundred
-and nineteen, so a single frame would be dominated by noise peaks. At four sigma, eleven. At five sigma,
-nought point nought one eight -- one false pixel every fifty frames. That number is why the working
-threshold is five sigma, and it is also why three-sigma detections in the literature need an external
-prior before anyone believes them.\par
-The sanity check runs the other way: the detection counts are far above this noise floor, tens of sigma
-in several fields, so what is being looked at is structure rather than noise. That does not make the
-detections real -- it only rules out the least interesting failure mode.
+computed rather than guessed, and that is the difference between a threshold and a wish. Both positive
+and negative tails matter because dipoles pair a peak with a trough, so for thirty-two thousand four
+hundred pixels we check the two-tailed Gaussian budget. At three sigma that gives eighty-seven point
+five noise pixels per frame; at four sigma, two point zero five; at five sigma, zero point zero one
+eight six -- one false extreme pixel per fifty-four frames, and even fewer isolated local peaks after the
+five-by-five maximum filter.\par
+Meanwhile, our real detections sit between eight and forty-four sigma, far above that noise floor. What we
+are inspecting is real residual structure, never random Gaussian flicker -- and that puts the burden of
+proof squarely onto catalogue triage and systematics.
 
 \newpage
 
@@ -799,50 +814,55 @@ of its seven detections are monopoles, which is what a pulsating Mira should giv
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Pixel to sky with the flat approximation: $\alpha=\alpha_0-(x-N/2)s/3600$
-\item Nearest neighbour in Gaia DR3, AllWISE and VSX; verdict at $30\arcsec$, confidence at $5\arcsec$
-\item Loose on purpose: the PSF is $4\arcsec$, and a tight radius inflates the candidate list
-\item The trap: position-only matching fails for fast movers, because the epochs differ
+\item Exact TAN WCS (\code{wcs.pixel_to_world_values}) with flat-sky formula as fallback when WCS absent
+\item Epoch propagation (\code{propagate_catalogs}): Gaia (J2016.0) \& AllWISE (2010.6) moved to each SPHEREx MJD
+\item Brightness-scaled match radius: $10\arcsec$ (faint $G{\ge}16$) $\to 30\arcsec$ ($G{=}9$) $\to 120\arcsec$ ($+180\arcsec$ bright-star zone)
+\item Six triage classes combining \code{wise_reliable}, $p_{\mathrm{chance}}$, matched-mask holes, and 14-yr NEOWISE
 \end{itemize}
 
-\textbf{Figure / diagram.} The two match radii around a detection on the left, the verdict flow on the
-right, and underneath the failure mode that this radius creates for a high-proper-motion star.
+\textbf{Figure / diagram.} Left: brightness-scaled match cones and artefact exclusion around a detection.
+Centre/Right: the six-category triage flow after epoch propagation (resolving Barnard's Star's 94\arcsec{} bug).
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  k/.style={draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.4cm},
-  c/.style={draw=warn,thick,fill=warn2,align=center,inner sep=5pt,text width=3.4cm},
-  m/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.0cm},
-  ar/.style={-{Stealth[length=6pt]},draw=slate,thick}]
-  \draw[rule,thick,fill=white] (0.3,2.9) rectangle (6.3,6.6);
-  \node[anchor=north,font=\scriptsize] at (3.3,6.5) {the two match radii};
-  \draw[warn,dashed,thick] (3.3,4.4) circle (1.35);
-  \draw[good,dashed,thick] (3.3,4.4) circle (0.36);
-  \fill[accent] (3.3,4.4) circle (0.10);
-  \foreach \x/\y in {3.6/4.7,2.95/4.05,4.4/5.2,1.95/3.5,2.5/5.3,4.55/3.5}{\fill[slate!60] (\x,\y) circle (0.06);}
-  \node[anchor=west,font=\scriptsize,text=good] at (3.72,4.45) {5\arcsec};
-  \node[anchor=west,font=\scriptsize,text=warn] at (4.72,4.40) {30\arcsec};
-  \node[anchor=north,font=\scriptsize,text=muted] at (3.3,2.8) {filled: the detection; grey: catalogue sources};
-  \node[m] (mt) at (8.8,4.7) {nearest match};
-  \node[k] (kn) at (13.4,5.6) {KNOWN\\ \scriptsize a catalogue source};
-  \node[c] (ca) at (13.4,3.6) {CANDIDATE\\ \scriptsize nothing within $30\arcsec$};
-  \draw[ar] (mt) -- node[above,font=\scriptsize,text=muted] {$<30\arcsec$} (kn);
-  \draw[ar] (mt) -- node[below,font=\scriptsize,text=muted] {otherwise} (ca);
-  \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=15.0cm,font=\scriptsize] at (8.2,1.15)
-    {\textbf{the failure mode this creates:} Gaia positions are from 2016 and the SPHEREx epoch is 2025--26, so Barnard's Star has moved about 94\arcsec{} and no match is found -- the pipeline labels its own target a candidate. The fix is two lines (propagate catalogue positions with their proper motions) and is not yet in.};
+  k/.style={draw=good,thick,fill=good2,align=center,inner sep=4pt,text width=3.5cm,rounded corners=2pt},
+  c/.style={draw=warn,thick,fill=warn2,align=center,inner sep=4pt,text width=3.5cm,rounded corners=2pt},
+  m/.style={draw=accent,thick,fill=accent2,align=center,inner sep=4pt,text width=3.1cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5.5pt]},draw=slate,thick}]
+  % Left panel: match cones
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,2.45) rectangle (6.1,6.70);
+  \node[anchor=north,font=\scriptsize\bfseries] at (3.15,6.62) {brightness-scaled match cone};
+  \draw[warn,dashed,thick] (3.15,4.18) circle (1.42);
+  \draw[accent,dashed,thick] (3.15,4.18) circle (0.85);
+  \draw[good,thick] (3.15,4.18) circle (0.35);
+  \fill[ink] (3.15,4.18) circle (0.09);
+  \foreach \x/\y in {3.45/4.45,2.75/3.90,4.15/4.80,1.85/3.35,2.35/5.05}{\fill[slate!60] (\x,\y) circle (0.06);}
+  \node[fill=white,inner sep=1pt,anchor=west,font=\scriptsize,text=good] at (3.58,4.18) {10\arcsec{} (faint)};
+  \node[fill=white,inner sep=1pt,anchor=west,font=\scriptsize,text=accent] at (4.06,4.78) {30\arcsec{} ($G{=}9$)};
+  \node[fill=white,inner sep=1pt,anchor=south,font=\scriptsize,text=warn] at (3.15,5.72) {to 120\arcsec{} halo / 180\arcsec{} bright veto};
+  \node[anchor=north,font=\scriptsize,text=muted] at (3.15,2.36) {\code{p_chance}, \code{wise_reliable}, NEOWISE check};
+  % Right panel: 6-category flow
+  \node[m] (mt) at (8.5,4.6) {\textbf{Propagate \& Veto}\\ \scriptsize J2016/2010 $\to$ epoch $E_b$\\ + mask-hole check};
+  \node[k] (kn) at (13.6,5.8) {\textbf{\code{KNOWN_MOVER} / \code{VARIABLE}}\\ \scriptsize PM motion-ratio ($0.7\text{--}1.3$) or VSX/NEOWISE};
+  \node[m] (ar) at (13.6,4.2) {\textbf{\code{BRIGHT_STAR} / \code{MASK_ARTEFACT}}\\ \scriptsize $G{<}7$, $W1{<}5.5$, or all bands masked};
+  \node[c] (ca) at (13.6,2.6) {\textbf{\code{STATIC_CHANGED} / \code{CANDIDATE}}\\ \scriptsize steady source vs.\ genuinely unmatched};
+  \draw[ar] (mt.east) -- ++(0.6,0) |- (kn.west);
+  \draw[ar] (mt.east) -- (ar.west);
+  \draw[ar] (mt.east) -- ++(0.6,0) |- (ca.west);
+  % Bottom green callout
+  \node[draw=good,thick,fill=good2,align=left,inner sep=5.5pt,text width=15.4cm,font=\scriptsize,rounded corners=2pt] at (8.1,1.05)
+    {\textbf{epoch-propagation fix now implemented (\code{catalog_tools.py}):} Gaia DR3 (J2016.0) and AllWISE ($\sim$2010.56) proper motions propagate rows to each SPHEREx exposure MJD before matching. Barnard's Star ($\sim$94\arcsec{} move over 9\,yr) now matches cleanly as \code{KNOWN_MOVER} (0 candidates in its field).};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} A detection is not a discovery until you have asked whether something was already
-there, and that is a second hypothesis test: is the nearest catalogue source consistent with this
-position? The pixel is converted to sky with a flat approximation -- legitimate at nine arcminutes -- and
-the nearest source is looked up in Gaia, WISE and the variable-star index. Thirty arcseconds is the
-verdict radius, five arcseconds grades the confidence.\par
-Both numbers are deliberately loose and I want to defend that: the PSF is four arcseconds across, so a
-tight radius would miss real counterparts and flatter me with false candidates. The red box is what that
-choice costs. Gaia measured positions in 2016, these images are from 2025, and Barnard's Star -- the
-fastest star in the sky -- has moved ninety-four arcseconds in between, far outside any match radius. So
-the pipeline labels my own target as an unexplained candidate. The fix is standard practice: propagate
-the catalogue positions to the epoch of observation with their proper motions. It is a two-line change,
-and it is not yet in, which is exactly why slide twenty-two says seventeen candidates and not five.
+\textbf{Spoken script.} A detection is not a discovery until catalogue triage tests whether something was
+already there -- and early prototypes of this pipeline fell into a classic trap. Gaia positions sit at
+epoch 2016 and AllWISE at 2010.6, while SPHEREx observes in 2025--2026: Barnard's Star moved
+ninety-four arcseconds in between, so naive position matching mislabelled my own target a candidate.\par
+In the current codebase that bug is fixed. Before \code{step4_triage} runs, \code{catalog_tools}
+propagates Gaia and AllWISE coordinates with their proper motions to each exposure's exact MJD, uses the
+exact TAN WCS transform, scales the match radius with brightness from ten arcseconds at the faint end to
+a hundred and twenty arcseconds for bright halos, filters unreliable WISE diffraction spikes, checks
+\code{coadd_matched} mask holes and fourteen-year NEOWISE light curves, and outputs six classes rather
+than a blunt binary guess. Barnard's Star is now cleanly \code{KNOWN_MOVER}.
 
 \newpage
 
@@ -851,50 +871,54 @@ and it is not yet in, which is exactly why slide twenty-two says seventeen candi
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Every pixel knows its wavelength, so aperture photometry per band gives a low-resolution spectrum
-\item Three indices: CH$_4$ at 1.6/1.74, H$_2$O continuum over troughs, NIR slope 4.6/1.1
-\item T dwarf: strong methane; L dwarf: water; a hot star or quasar: a red power law
-\item The classifier reports the three indices, never a bare label
+\item \code{WCS-WAVE} (\code{WAVE-TAB} table + \code{CWAVE} fallback) follows each moving target across exposures
+\item Real 6-band snapshots yield observed SEDs (mJy, compared with AllWISE W1--W4) across 10--18 wavelengths
+\item Three physical indices: mean $\mathrm{CH_4}$ ($1.6/1.74$ \& $2.1/2.33$), $\mathrm{H_2O}$ continuum/troughs, $\log_{10}$ NIR slope ($4.6/1.1$)
+\item Honest guard in \code{app.py}: \code{three_index_classifier} is gated on $\ge 30$ channels (five physical classes)
 \end{itemize}
 
-\textbf{Figure / diagram.} The wavelength axis with the index band-pairs shaded, and three schematic
-spectra underneath showing what each index is for.
+\textbf{Figure / diagram.} Top: the wavelength windows for $\mathrm{CH_4}$, $\mathrm{H_2O}$, and NIR slope.
+Bottom: schematic spectra for three of the five implemented classes and the 30-channel gating contract.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
-  \draw[-{Stealth[length=7pt]},thick,slate] (0.2,5.6) -- (14.8,5.6);
-  \foreach \w/\x in {0.75/0.4,1.0/2.3,2.0/6.0,3.0/9.2,4.0/12.4,5.0/14.6}{\draw[slate] (\x,5.6) -- (\x,5.3); \node[anchor=north,font=\scriptsize] at (\x,5.28) {\w};}
-  \node[anchor=north,font=\scriptsize] at (15.4,5.28) {\textmu m};
-  \fill[accent!30] (1.5,5.6) rectangle (2.6,6.15);
-  \node[anchor=south,font=\scriptsize,align=center,text=accent] at (2.05,6.2) {H$_2$O\\ continuum};
-  \fill[good!40] (3.6,5.6) rectangle (4.2,6.15);
-  \node[anchor=south,font=\scriptsize,align=center,text=good] at (3.9,6.2) {CH$_4$\\ 1.6 / 1.74};
-  \fill[accent!30] (5.2,5.6) rectangle (6.0,6.15);
-  \node[anchor=south,font=\scriptsize,align=center,text=accent] at (5.6,6.2) {H$_2$O\\ trough};
-  \fill[warn!30] (13.4,5.6) rectangle (14.5,6.15);
-  \node[anchor=south,font=\scriptsize,align=center,text=warn] at (13.95,6.2) {NIR\\ slope};
-  % three schematic spectra
-  \draw[rule,thick,fill=white] (0.3,1.6) rectangle (4.7,4.6);
-  \draw[bad,thick] plot[smooth] coordinates {(0.6,4.2) (1.5,4.0) (2.2,3.2) (2.9,3.5) (3.5,3.1) (4.4,3.4)};
-  \node[anchor=north,font=\scriptsize,text=bad] at (2.5,1.55) {T dwarf: deep methane};
-  \draw[rule,thick,fill=white] (5.3,1.6) rectangle (9.7,4.6);
-  \draw[accent,thick] plot[smooth] coordinates {(5.6,3.9) (6.5,3.7) (7.1,3.1) (7.6,3.7) (8.3,3.6) (9.4,3.9)};
-  \node[anchor=north,font=\scriptsize,text=accent] at (7.5,1.55) {L dwarf: water};
-  \draw[rule,thick,fill=white] (10.3,1.6) rectangle (14.7,4.6);
-  \draw[warn,thick] plot[smooth] coordinates {(10.6,2.4) (11.5,2.7) (12.4,3.2) (13.3,3.6) (14.4,4.3)};
-  \node[anchor=north,font=\scriptsize,text=warn] at (12.5,1.55) {quasar: red power law};
-  \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=14.4cm,font=\scriptsize] at (7.5,0.3)
-    {\textbf{design decision:} the classifier always prints the three indices beside its label, so a reader who disagrees with ``T dwarf'' can see the methane ratio and overrule it};
+  \draw[-{Stealth[length=7pt]},thick,slate] (0.2,5.5) -- (14.8,5.5);
+  \foreach \w/\x in {0.75/0.4,1.0/2.3,2.0/6.0,3.0/9.2,4.0/12.4,5.0/14.6}{\draw[slate] (\x,5.5) -- (\x,5.2); \node[anchor=north,font=\scriptsize] at (\x,5.18) {\w};}
+  \node[anchor=north,font=\scriptsize] at (15.4,5.18) {\textmu m};
+  \fill[accent!30] (2.6,5.5) rectangle (3.3,6.05);
+  \node[anchor=south,font=\scriptsize,align=center,text=accent] at (2.45,6.1) {H$_2$O cont.\\ 1.29, 2.17};
+  \fill[good!40] (4.0,5.5) rectangle (4.8,6.05);
+  \node[anchor=south,font=\scriptsize,align=center,text=good] at (4.65,6.1) {CH$_4$ (1)\\ 1.6 / 1.74};
+  \fill[good!40] (6.1,5.5) rectangle (7.2,6.05);
+  \node[anchor=south,font=\scriptsize,align=center,text=good] at (6.65,6.1) {CH$_4$ (2)\\ 2.1 / 2.33};
+  \fill[accent!30] (8.7,5.5) rectangle (9.8,6.05);
+  \node[anchor=south,font=\scriptsize,align=center,text=accent] at (9.25,6.1) {H$_2$O trough\\ 1.5, 2.0, 3.05};
+  \fill[warn!30] (13.4,5.5) rectangle (14.5,6.05);
+  \node[anchor=south,font=\scriptsize,align=center,text=warn] at (13.95,6.1) {NIR slope\\ 4.6 / 1.1};
+  % three schematic spectra matching exact classifier labels
+  \draw[rule,thick,fill=white] (0.3,1.65) rectangle (4.7,4.55);
+  \draw[bad,thick] plot[smooth] coordinates {(0.6,4.1) (1.5,3.9) (2.2,3.1) (2.9,3.4) (3.5,2.9) (4.4,3.3)};
+  \node[anchor=north,font=\scriptsize,text=bad] at (2.5,1.58) {Ultracool Y / T-type brown dwarf};
+  \draw[rule,thick,fill=white] (5.3,1.65) rectangle (9.7,4.55);
+  \draw[accent,thick] plot[smooth] coordinates {(5.6,3.8) (6.5,3.6) (7.1,3.0) (7.6,3.6) (8.3,3.5) (9.4,3.8)};
+  \node[anchor=north,font=\scriptsize,text=accent] at (7.5,1.58) {Icy KBO / M-dwarf \& Mira giant};
+  \draw[rule,thick,fill=white] (10.3,1.65) rectangle (14.7,4.55);
+  \draw[warn,thick] plot[smooth] coordinates {(10.6,2.3) (11.5,2.6) (12.4,3.1) (13.3,3.5) (14.4,4.2)};
+  \node[anchor=north,font=\scriptsize,text=warn] at (12.5,1.58) {Dusty T Tauri / variable star};
+  \node[draw=rule,thick,fill=white,align=left,inner sep=5pt,text width=14.4cm,font=\scriptsize] at (7.5,0.3)
+    {\textbf{design \& channel honesty:} archival 2--6 band cutouts yield 12--18 SED points + AllWISE comparison; \code{app.py} requires $\ge 30$ channels before reporting a 3-index class label (always alongside all 3 raw indices) rather than guessing from 4 bands.};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} The last piece of theory is nearly free, and it is why SPHEREx is interesting for
-this kind of work. Because every pixel carries its wavelength in a table, measuring an aperture in each
-band gives a low-resolution spectrum of the detection without any follow-up telescope. It reduces to
-three numbers that are physically motivated: methane absorption at one-point-six over one-point-seven-four
-microns marks a T dwarf; water, the ratio of continuum to trough, marks an L dwarf; and the slope from
-one to four-point-six microns separates stars from a red power law, which is a dusty galaxy or a quasar.\par
-The three little spectra underneath are what those cases look like. The important design decision is in
-the bottom box: the classifier prints the three indices next to its label, never the label alone, so a
-reader who disagrees can see the methane ratio and overrule it.
+\textbf{Spoken script.} The last piece of photometry turns SPHEREx's wavelength calibration to our
+advantage. Because every Level-2 pixel carries a \code{WCS-WAVE} lookup table, aperture photometry
+following a moving target's predicted track builds an observed SED directly from the cutouts, compared
+against AllWISE W1 to W4 fluxes in millijanskys.\par
+When denser spectral sampling is available -- either a synthetic one-hundred-and-two-band table or thirty
+plus channels -- \code{step5_spectrum} compresses it into three physically transparent indices: a mean
+methane ratio across one-point-six and two-point-one microns, a water continuum-to-trough ratio, and a
+logarithmic near-infrared slope from one-point-one to four-point-six microns, mapping into five classes:
+ultracool Y-dwarf, T-type brown dwarf, icy KBO, dusty T Tauri, or M-dwarf/Mira giant. On real two- to
+six-band archival cutouts, \code{app.py} explicitly withholds the class label rather than hallucinating
+from fewer than thirty channels.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 16 ---
@@ -902,14 +926,14 @@ reader who disagrees can see the methane ratio and overrule it.
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Synthetic sources are planted at known SNR and proper motion, then stages two and three re-run
-\item A trial counts as recovered if a detection of the right class lands within 2\,px
-\item The output is a $6\times4$ matrix, never a single number: the proper-motion axis is the point
-\item Result on real frames: near-zero. The test is measuring the wrong amplitude
+\item Synthetic Gaussian dipoles planted directly on co-adds at known S/N and $\mu$, then \code{zogy()} re-run
+\item Recovered if $|S|>5.0$ anywhere in a $10\times10$\,px box around injection (no class check)
+\item Output: a $6\times4$ matrix ($[3..20]\sigma \times [1..10]\arcsec/\mathrm{yr}$, 10 trials per cell)
+\item Measured on real frames: 0.0--0.4 max (Barnard's Star 0.3, Pleiades 0.0) -- amplitude uses flat mean noise
 \end{itemize}
 
-\textbf{Figure / diagram.} Left: the measured recovery matrix as a heat map. Right: why it fails -- the
-variance plane the injection uses against the residual structure the data actually contain.
+\textbf{Figure / diagram.} Left: the exact measured 24-cell recovery matrix for Barnard's Star. Right:
+why recovery stays low -- injecting relative to flat mean noise against structured PSF residuals.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   \begin{scope}
@@ -920,218 +944,331 @@ variance plane the injection uses against the residual structure the data actual
       xlabel style={font=\scriptsize},ylabel style={font=\scriptsize},
       xtick={1,2,5,10},ytick={3,5,7,10,15,20},xmin=0.5,xmax=10.5,ymin=2.5,ymax=20.5,
       tick label style={font=\scriptsize,text=slate},axis line style={slate},
-      point meta min=0,point meta max=0.35,
-      title={recovered fraction},title style={font=\scriptsize}]
+      point meta min=0,point meta max=0.40,
+      title={Barnard's Star recovery (10 trials/cell)},title style={font=\scriptsize}]
     \addplot[matrix plot,mesh/cols=4,mesh/rows=6,point meta=explicit] coordinates {
-      (1,3)[0.0] (2,3)[0.0] (5,3)[0.0] (10,3)[0.0]
-      (1,5)[0.1] (2,5)[0.0] (5,5)[0.1] (10,5)[0.1]
-      (1,7)[0.1] (2,7)[0.0] (5,7)[0.1] (10,7)[0.1]
-      (1,10)[0.1] (2,10)[0.1] (5,10)[0.2] (10,10)[0.2]
-      (1,15)[0.1] (2,15)[0.1] (5,15)[0.2] (10,15)[0.3]
-      (1,20)[0.1] (2,20)[0.2] (5,20)[0.2] (10,20)[0.3]};
+      (1,3)[0.0] (2,3)[0.0] (5,3)[0.1] (10,3)[0.0]
+      (1,5)[0.1] (2,5)[0.0] (5,5)[0.0] (10,5)[0.1]
+      (1,7)[0.0] (2,7)[0.0] (5,7)[0.0] (10,7)[0.0]
+      (1,10)[0.1] (2,10)[0.0] (5,10)[0.1] (10,10)[0.2]
+      (1,15)[0.0] (2,15)[0.3] (5,15)[0.0] (10,15)[0.1]
+      (1,20)[0.0] (2,20)[0.0] (5,20)[0.0] (10,20)[0.2]};
     \end{axis}
   \end{scope}
-  \draw[rule,thick,fill=white] (8.4,5.4) rectangle (15.8,6.6);
-  \draw[accent,thick] (8.6,5.8) -- (15.6,5.8);
-  \node[anchor=north west,font=\scriptsize,text=accent] at (8.6,6.5) {the variance plane: flat, and what the injection uses};
-  \draw[rule,thick,fill=white] (8.4,3.4) rectangle (15.8,4.9);
-  \draw[bad,thick] plot[smooth] coordinates {(8.6,3.70) (9.4,4.25) (10.1,3.75) (10.9,4.30) (11.7,3.70) (12.5,4.25) (13.3,3.75) (14.1,4.30) (14.9,3.70) (15.5,4.20)};
-  \node[anchor=north west,font=\scriptsize,text=bad] at (8.6,4.88) {the real residual: PSF mismatch, not in the variance};
-  \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=7.4cm,font=\scriptsize] at (12.1,1.9)
-    {amplitude $=\rho\,\overline{\sigma}$ sits far below the real residual, so a ``20$\sigma$'' fake source is invisible.\\[3pt] The test is wrong -- not the pipeline -- and until it is fixed there is no completeness number.};
+  \draw[rule,thick,fill=white] (8.4,5.4) rectangle (16.4,6.6);
+  \draw[accent,thick] (8.6,5.8) -- (16.2,5.8);
+  \node[anchor=north west,font=\scriptsize,text=accent] at (8.55,6.5) {scalar mean \code{noise1.mean()} used for injection};
+  \draw[rule,thick,fill=white] (8.4,3.4) rectangle (16.4,4.9);
+  \draw[bad,thick] plot[smooth] coordinates {(8.6,3.70) (9.5,4.25) (10.3,3.75) (11.2,4.30) (12.1,3.70) (13.0,4.25) (13.9,3.75) (14.8,4.30) (15.5,3.70) (16.1,4.20)};
+  \node[anchor=north west,font=\scriptsize,text=bad] at (8.55,4.88) {real residual: PSF mismatch + global $S/\sigma(S)$ rescale};
+  \node[draw=bad,thick,fill=bad2,align=left,inner sep=6pt,text width=7.8cm,font=\scriptsize] at (12.4,1.9)
+    {amplitude $=\rho\,\overline{\sigma}$ sits far below the global residual scatter, and a real star adds a bright PSF peak into the denominator.\\[3pt] So completeness remains unmeasured until injection is done on raw cutouts in local noise.};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} A detection chain is only as good as its completeness curve, so stage six plants
-fake sources and counts how many come back. The grid is signal-to-noise from three to twenty, proper
-motion from one to ten arcseconds per year, twenty trials per cell, and a trial counts if the right kind
-of detection lands within two pixels of the injection.\par
-And here is the uncomfortable result, which I am showing rather than hiding. On real frames almost
-nothing is recovered: for Barnard's Star, zero out of twenty-four cells; the best field reaches three in
-ten only at the brightest end. The reason is on the right. The amplitude that gets injected is tied to
-the mean of the variance plane, which is flat, while the real residual in a co-added frame is dominated
-by PSF mismatch, which is not in the variance plane at all. So a fake source injected at ``twenty sigma''
-is a barely visible bump on top of the real residual. The test measures the wrong thing, and until that
-is fixed there is no completeness limit -- which is why the results slides say unexplained rather than
-new.
+\textbf{Spoken script.} A detection chain is only as good as its completeness curve, so stage six
+plants fake moving dipoles onto the co-added stacks and counts how many come back. The grid spans
+signal-to-noise from three to twenty and proper motion from one to ten arcseconds per year -- ten trials
+per cell across twenty-four cells -- calling \code{zogy()} directly and checking if the absolute
+significance exceeds five within a ten-by-ten pixel box.\par
+And here is the uncomfortable result, which I report transparently. Recovery peaks at zero point three
+on Barnard's Star, zero point zero everywhere on the Pleiades, and zero point four on R Draconis. The
+reason is structural: injected amplitude uses the scalar mean variance plane, while real bright stars
+and PSF mismatches inflate the global scatter that \code{zogy()} normalises by. Until injection moves
+to the raw exposure level using local empirical noise, we refuse to quote a false completeness limit.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 17 ---
-\slidehead{17}{Implementation I: the code, and what changed}{1:05}
+\slidehead{17}{Implementation I: Python modules and FastAPI backend}{1:05}
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Six stage scripts (1\,318 lines), the service (808), the front end (1\,586): 6\,154 in total
-\item Every stage is importable and runnable on its own, including on synthetic data
-\item Five revisions turned a demo into a system, and each one was a bug with a lesson
-\item Everything is deterministic; one metadata file is the contract between stages
+\item Seven stage scripts (2\,397 lines), five support modules (1\,826), and \code{app.py} (2\,859): 7\,082 runtime Python lines
+\item Cross-epoch mask matching (\code{coadd_matched}) and custom SIP WCS inversion prevent asymmetric artefacts
+\item Content-addressed GCS snapshots (\code{snapshot_store.py}) + zero-disk \code{BytesIO} IRSA streaming (\code{live_ingest.py})
+\item Critical review: \code{app.py} is a 2\,859-line monolith; \code{FIELD_REGISTRY} is per-instance RAM (cap 8)
 \end{itemize}
 
-\textbf{Figure / diagram.} Lines of code per module on the left, and on the right the revision that
-matters most -- the guard that stops the service printing a meaningless noise estimate.
+\textbf{Figure / diagram.} Left: lines of code across all 13 runtime Python modules. Right: FastAPI execution
+paths (cached snapshot reads vs.\ SSE live streaming with parallel catalogue queries). Bottom: three key contracts and limitations.
 
-\figbox{\begin{tikzpicture}[font=\footnotesize]
-  \begin{scope}
-    \begin{axis}[width=8.6cm,height=5.6cm,xbar,bar width=7pt,xmin=0,xmax=1800,
-      xlabel={lines of code},xlabel style={font=\scriptsize},
-      symbolic y coords={{step1 ingest},{step2 coadd},{step3 zogy},{step4 triage},{step5 spectrum},{step6 injection},{app.py},{export\_static},{static/app.js}},
-      ytick=data,tick label style={font=\scriptsize,text=slate},axis line style={slate},
-      grid=major,grid style={rule!70},nodes near coords,nodes near coords style={font=\scriptsize,text=slate},
-      enlarge y limits=0.12]
-    \addplot[fill=accent!35,draw=accent] coordinates {
-      (636,{step1 ingest}) (198,{step2 coadd}) (117,{step3 zogy}) (87,{step4 triage})
-      (190,{step5 spectrum}) (80,{step6 injection}) (808,{app.py}) (169,{export\_static})
-      (1586,{static/app.js})};
+\figbox{\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  bd/.style={draw=bad,thick,fill=bad2,align=left,inner sep=4pt,font=\scriptsize,rounded corners=2pt},
+  ar/.style={-{Stealth[length=4.5pt]},draw=slate,thick}]
+  % Top-left: pgfplots xbar of all 13 runtime Python modules
+  \begin{scope}[shift={(0.3,2.55)}]
+    \begin{axis}[width=6.6cm,height=5.15cm,xbar,bar width=5pt,xmin=0,xmax=3550,
+      title={\textbf{\scriptsize Runtime Python Modules (7\,082 LOC)}},
+      title style={yshift=-4pt,text=ink},
+      xlabel={lines of code},xlabel style={font=\scriptsize,yshift=2pt},
+      symbolic y coords={{step6\_injection},{step3\_zogy},{step5\_spectrum},{export\_static},{step2\_coadd},{snapshot\_store},{live\_ingest},{step4\_triage},{step7\_neowise},{catalog\_tools},{cloud\_refresh},{step1\_ingest},{app.py}},
+      ytick=data,tick label style={font=\tiny,text=slate},axis line style={slate},
+      grid=major,grid style={rule!70},nodes near coords,nodes near coords style={font=\tiny,text=slate},
+      enlarge y limits=0.07]
+    \addplot[fill=accent!38,draw=accent] coordinates {
+      (93,{step6\_injection}) (117,{step3\_zogy}) (198,{step5\_spectrum})
+      (213,{export\_static}) (294,{step2\_coadd}) (318,{snapshot\_store})
+      (330,{live\_ingest}) (349,{step4\_triage}) (402,{step7\_neowise})
+      (442,{catalog\_tools}) (523,{cloud\_refresh}) (944,{step1\_ingest}) (2859,{app.py})};
     \end{axis}
   \end{scope}
-  \begin{scope}[shift={(9.6,0.4)}]
-    \node[draw=accent,thick,fill=accent2,align=left,inner sep=6pt,text width=7.0cm,font=\scriptsize] at (3.5,3.6)
-      {\textbf{R1 -- undefined noise must not print as a number}\\[4pt]
-       {\ttfamily def usable(sig):}\\[-2pt]
-       {\ttfamily\hspace*{8pt}return sig if isfinite(sig)}\\[-2pt]
-       {\ttfamily\hspace*{8pt}\hspace*{14pt}and 1e-4 $<$ sig $<$ 1e3 else None}\\[4pt]
-       Betelgeuse saturates, the inverse-variance denominator collapses, and the old code printed a five-sigma depth of $1.6\times10^{6}$. It now reports \emph{no estimate} and says why.};
-    \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=7.0cm,font=\scriptsize] at (3.5,0.2)
-      {\textbf{the other four}\\[3pt]
-       R2\; epoch grouping is data-driven, not half-and-half\\
-       R3\; arbitrary fields live in a RAM registry, not on disk\\
-       R4\; a static build disables what it cannot do, and says so\\
-       R5\; the interface explains itself with a three-tab guide};
-  \end{scope}
+
+  % Top-right: Backend Execution & Concurrency Flow
+  \draw[rule,thick,fill=white,rounded corners=2pt] (8.1,1.75) rectangle (16.5,7.90);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (8.25,7.82) {Backend Execution Paths (\texttt{app.py} + workers)};
+
+  \node[wn,text width=7.6cm] (fast) at (12.3,7.00) {\textbf{FastAPI} (12 endpoints, \texttt{slowapi} IP key, \texttt{GZip})};
+
+  % Left sub-branch: Snapshot read path
+  \node[gn,text width=3.5cm] (mc) at (10.18,5.94) {\texttt{\_MANIFEST\_CACHE}\\ 10\,s TTL (\texttt{current.json})};
+  \node[gn,text width=3.5cm] (oc) at (10.18,4.68) {\texttt{\_OBJECT\_CACHE}\\ 256\,MB SHA-256 LRU};
+  \node[bx,text width=3.5cm] (gcs) at (10.18,3.42) {\texttt{\_snapshot\_mode()}\\ \texttt{auto}: GCS bucket $\to$ API};
+  \draw[ar] (fast.south -| mc) -- (mc);
+  \draw[ar] (mc) -- (oc);
+  \draw[ar] (oc) -- (gcs);
+  \node[font=\tiny,text=good,anchor=north] at (10.18,2.60) {background 4-thr warmer};
+
+  % Right sub-branch: Live SSE pipeline path
+  \node[bx,text width=3.75cm] (sse) at (14.42,5.94) {\texttt{\_progress\_stream} (SSE)\\ \texttt{contextvars} + 15\,s ping};
+  \node[bx,text width=3.75cm] (par) at (14.42,4.68) {\texttt{live\_ingest} (4 thr)\\ \texttt{\_CATALOG\_POOL} (4 thr)};
+  \node[wn,text width=3.75cm] (pipe) at (14.42,3.42) {\texttt{step2}--\texttt{5} + \texttt{catalog\_tools}\\ \texttt{?result=gzip} (base64)};
+  \draw[ar] (fast.south -| sse) -- (sse);
+  \draw[ar] (sse) -- (par);
+  \draw[ar] (par) -- (pipe);
+  \node[font=\tiny,text=warn,anchor=north] at (14.42,2.60) {\texttt{BoundedSemaphore} + 420\,s budget};
+
+  % Bottom strip: 3 Critical Engineering Contracts & Debt
+  \node[gn,align=left,text width=5.1cm,anchor=south west] at (0.0,0.0)
+    {\textbf{Numerical \& WCS Guards}\\
+     \texttt{coadd\_matched} intersects valid bands across epochs; custom \texttt{all\_world2pix} rescues negative-\texttt{CRPIX} SIP divergence.};
+  \node[bx,align=left,text width=5.2cm,anchor=south west] at (5.6,0.0)
+    {\textbf{Atomic Snapshot Contract}\\
+     \texttt{cloud\_refresh.py} writes SHA-256 blobs under a 30-min heartbeat \texttt{refresh.lock}, swaps \texttt{current.json} by generation, GC after 48\,h.};
+  \node[bd,text width=5.1cm,anchor=south west] at (11.2,0.0)
+    {\textbf{Critical Audit (Open Debt)}\\
+     \texttt{app.py} (2\,859 lines) couples routing \& science; \texttt{FIELD\_REGISTRY} is RAM-only (max 8); \texttt{step6} uses flat mean noise.};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} On the engineering. The pipeline is six scripts totalling about thirteen hundred
-lines, one service of eight hundred, and a front end of sixteen hundred -- six thousand one hundred and
-fifty-four in total, small enough that a reviewer can read all of it in an afternoon. Each stage has its
-own entry point, so a single stage can be re-run on cached data when something looks wrong.\par
-Five revisions matter enough to name. The most instructive is R1, on the right: Betelgeuse saturates the
-detector, almost every pixel is flagged, the inverse-variance denominator collapses, and the old code
-happily reported a five-sigma depth of one point six million. That is worse than reporting nothing,
-because it looks like a measurement. The fix is four lines: anything outside a physically possible range
-becomes ``no estimate'', with a note explaining why. The other four are the same flavour of honesty --
-data-driven epoch grouping, a RAM registry for arbitrary fields, a static build that disables what it
-cannot do, and an interface that explains itself.
+\textbf{Spoken script.} Turning to the Python backend. What started as six small stage scripts has grown
+into seven pipeline stages -- adding \code{step7_neowise} for fourteen-year infrared light curves -- plus
+five shared infrastructure modules and a FastAPI service in \code{app.py}, totalling seven thousand and
+eighty-two lines of runtime Python. Every stage remains independently importable and testable, backed by
+eighteen hundred lines of coverage and snapshot tests.\par
+Look at the execution diagram on the right. \code{app.py} serves two very different workloads: fast
+snapshot reads hit a ten-second manifest cache and a two-hundred-and-fifty-six megabyte immutable LRU cache
+before ever touching Google Cloud Storage, and fall back transparently to the deployed API when a developer
+laptop lacks bucket credentials. Live requests take the right branch: \code{live_ingest} streams FITS
+cutouts into \code{BytesIO} on four threads while a parallel catalogue pool fetches Gaia, AllWISE and VSX,
+pushing stage updates over server-sent events and packing the multi-megabyte result as gzip-base64.\par
+Critically, three engineering debts stand out in the code: \code{app.py} at nearly twenty-nine hundred
+lines mixes HTTP routing with pipeline orchestration, custom fields live only in a per-instance eight-slot
+RAM registry, and \code{step6} still injects against mean variance rather than local residuals.
 
 \newpage
 
 % -------------------------------------------------------------- SLIDE 18 ---
-\slidehead{18}{Implementation II: one result set, three deployments}{0:55}
+\slidehead{18}{Implementation II: architecture, connections, and hosting}{0:55}
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Live: FastAPI, five read-only endpoints, a 30-minute in-RAM cache, nothing written
-\item Static: every response pre-rendered to JSON -- 28\,MB, and it works with no server at all
-\item Hybrid: a static page plus a same-origin proxy, discovered by one probe at load
-\item A static build disables ``live from IRSA'' and says why, instead of failing silently
+\item Split Cloud Run backend (B4 fix): \code{spherex-lens-api} (concurrency 80) isolates reads from \code{spherex-lens-live} (concurrency 1)
+\item Dual-path frontend connection beats Netlify's 26\,s proxy limit: \code{/live-api/*} rewrites vs.\ direct CORS SSE streams
+\item Cloud Scheduler triggers a 12-hour Cloud Run Job that publishes content-addressed snapshots to private GCS
+\item Portable alternatives: single-container Docker (\code{fly.toml}, \code{render.yaml}) and pure static export (\code{export_static.py})
 \end{itemize}
 
-\textbf{Figure / diagram.} The three shapes in three columns, with the request path drawn for each and
-the latency written underneath.
+\textbf{Figure / diagram.} Top: end-to-end hosting and connection topology across Netlify, Cloud Run, Cloud Storage, and IRSA.
+Bottom left: frontend URL routing decision logic. Bottom right: deployment shapes compared.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  hd/.style={draw=ink,thick,fill=white,align=center,inner sep=4pt,text width=3.0cm,font=\bfseries},
-  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=5pt,text width=3.0cm},
-  st/.style={draw=good,thick,fill=good2,align=center,inner sep=5pt,text width=3.0cm},
-  ar/.style={-{Stealth[length=6pt]},draw=slate,thick}]
-  \node[hd] at (2.2,6.6) {LIVE};
-  \node[hd] at (8.0,6.6) {STATIC};
-  \node[hd] at (13.8,6.6) {HYBRID};
-  \node[bx] (b1) at (2.2,5.5) {browser};
-  \node[st] (a1) at (2.2,4.2) {FastAPI};
-  \node[bx] (i1) at (2.2,2.9) {IRSA};
-  \draw[ar] (b1) -- (a1); \draw[ar,dashed] (a1) -- (i1);
-  \node[font=\scriptsize,text=muted,align=center] at (2.2,2.0) {cold 6--25 s\\[2pt] cached about 1 s};
-  \node[bx] (b2) at (8.0,5.5) {browser};
-  \node[st] (a2) at (8.0,4.2) {JSON files};
-  \node[draw=rule,thick,fill=white,align=center,inner sep=5pt,text width=3.0cm] (i2) at (8.0,2.9) {no server};
-  \draw[ar] (b2) -- (a2);
-  \node[font=\scriptsize,text=muted,align=center] at (8.0,2.0) {instant\\[2pt] works offline};
-  \node[bx] (b3) at (13.8,5.5) {browser};
-  \node[st] (a3) at (13.8,4.2) {JSON and a proxy};
-  \node[bx] (i3) at (13.8,2.9) {FastAPI};
-  \draw[ar] (b3) -- (a3); \draw[ar,dashed] (a3) -- (i3);
-  \node[font=\scriptsize,text=muted,align=center] at (13.8,2.0) {instant, then live\\[2pt] for the rest};
-  \node[draw=slate,thick,fill=white,align=center,inner sep=6pt,text width=14.6cm,font=\scriptsize] at (8.0,0.7)
-    {the same script in all three: the only difference is the page's mode attribute and whether a proxy probe answers};
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  bd/.style={draw=bad,thick,fill=bad2,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  sl/.style={draw=slate,thick,fill=white,align=center,inner sep=3.5pt,font=\scriptsize,rounded corners=2pt},
+  ar/.style={-{Stealth[length=4.5pt]},draw=slate,thick}]
+
+  % Main topology box
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,2.60) rectangle (16.5,7.65);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.15,7.58) {Production Architecture: Netlify Static Edge + Dual Cloud Run + Private GCS (Terraform)};
+
+  % Tier 1: Browser / Netlify CDN
+  \node[bx,text width=3.0cm] (cdn) at (1.75,6.25) {\textbf{Netlify CDN (\texttt{site/})}\\ \texttt{index.html}, \texttt{app.js}, \texttt{sw.js}\\ \texttt{Cache-Control} + headers};
+  \node[sl,text width=3.0cm] (br) at (1.75,4.00) {\textbf{Browser Client}\\ Static shell (1.6\,MB)\\ + \texttt{spx-data-v1} SW cache};
+  \draw[ar] (cdn) -- (br);
+
+  % Tier 2: Dual Cloud Run Services
+  \node[gn,text width=4.3cm] (api) at (7.75,6.40) {\textbf{\texttt{spherex-lens-api} (Snapshot)}\\ concurrency=80, max=3, 30\,s, 2\,GiB\\ \texttt{/targets}, \texttt{/dashboard}, \texttt{/mosaic}};
+  \node[wn,text width=4.3cm] (live) at (7.75,4.00) {\textbf{\texttt{spherex-lens-live} (Pipeline)}\\ concurrency=1, max=6, 900\,s, 2\,GiB\\ SSE \texttt{/stream}, \texttt{/field}, \texttt{POST /refresh}};
+
+  % Arrows Browser -> Cloud Run
+  \draw[ar,good] (br.north east) -- node[pos=0.52,above,sloped,font=\tiny,text=good] {\texttt{/live-api/*} ($<26$\,s)} (api.west);
+  \draw[ar,warn,dashed] (br.east) -- node[pos=0.50,above,font=\tiny,text=warn,fill=white,inner sep=1pt] {direct CORS SSE} (live.west);
+  \draw[ar,slate,dotted] (br.south east) -- node[pos=0.50,below,font=\tiny,text=slate] {\texttt{POST /refresh}} (live.south west);
+
+  % Tier 3: GCP Refresh, Secret Manager, GCS & External Archives
+  \node[sl,text width=3.45cm] (gcs) at (14.55,6.45) {\textbf{Private GCS Bucket}\\ \texttt{current.json} pointer\\ \texttt{manifests/}, \texttt{snapshots/}};
+  \node[bx,text width=3.45cm] (job) at (14.55,4.85) {\textbf{Cloud Run Job (4\,GiB)}\\ \texttt{cloud\_refresh.py} (24\,h max)\\ $\uparrow$ Cloud Scheduler (12\,h)};
+  \node[bd,text width=3.45cm] (ext) at (14.55,3.28) {\textbf{IRSA / Gaia / VSX}\\ + Secret Manager token};
+
+  \draw[ar,good] (api.east) -- node[above,font=\tiny,text=good] {RO} (gcs.west);
+  \draw[ar,accent] (job.north) -- node[right,font=\tiny,text=accent] {RW} (gcs.south);
+  \draw[ar,slate] (live.east) -- node[below,sloped,font=\tiny,text=slate] {SIA2/TAP} (ext.west);
+  \draw[ar,slate,dashed] (job.south) -- (ext.north);
+  \draw[ar,bad,dotted] (live.north east) -- node[above,sloped,font=\tiny,text=bad] {invoke job} (job.west);
+
+  % Bottom-left: Frontend connection router
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,0.0) rectangle (8.05,2.42);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.15,2.34) {Frontend Connection Routing (\texttt{app.js})};
+  \node[sl,text width=1.95cm,font=\tiny] (r0) at (1.18,0.96) {\texttt{STATIC\_MODE}?\\ \texttt{body[data-mode]}};
+  \node[gn,text width=2.10cm] (r1) at (4.05,1.42) {\texttt{/live-api/*}\\ cached reads};
+  \node[wn,text width=2.10cm] (r2) at (4.05,0.48) {\texttt{data-live-api}\\ direct SSE stream};
+  \node[bx,text width=1.90cm] (r3) at (6.90,0.96) {Pure Static\\ \texttt{api/*.json}\\ (live off)};
+  \draw[ar] (r0.east) -- (r1.west);
+  \draw[ar] (r0.east) -- (r2.west);
+  \draw[ar,dashed] (r1.east) -- node[pos=0.52,below,sloped,font=\tiny,text=slate] {no proxy} (r3.north west);
+
+  % Bottom-right: Deployment shapes
+  \draw[rule,thick,fill=white,rounded corners=2pt] (8.35,0.0) rectangle (16.5,2.42);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (8.50,2.34) {Hosting \& Local Parity Shapes};
+  \node[gn,text width=2.30cm] at (9.68,0.92) {\textbf{Netlify + GCP}\\ Static CDN + 2 Cloud\\ Run services + Job};
+  \node[bx,text width=2.30cm] at (12.42,0.92) {\textbf{Fly / Render}\\ Single \texttt{Dockerfile}\\ 1\,GiB, auto-sleep};
+  \node[sl,text width=2.30cm] at (15.16,0.92) {\textbf{Local Dev}\\ \texttt{run-local.ps1} ADC\\ or \texttt{SNAPSHOT\_API}};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} The last piece of engineering is how the result is served, and it is deliberately
-built in three shapes because each answers a different question. Live: a service with five read-only
-endpoints, a thirty-minute in-RAM cache and nothing written to disk -- thirty to sixty seconds for a cold
-field, about a second when cached. Static: a script renders every response for every field to JSON, which
-is twenty-eight megabytes and works from a USB stick with no server. Hybrid: a static page with a
-same-origin proxy to a Python host, which is how a static host can still offer the live features.\par
-One consequence is a principle rather than a detail. On the pure static deployment, live fetching cannot
-work -- so the page disables that control, relabels it ``live from IRSA, needs a backend'', and prints the
-reason underneath. If a proxy appears later, a single probe turns it back on. A toggle that silently does
-nothing is worse than one that is switched off.
+\textbf{Spoken script.} The serving architecture solves two constraints that break naive deployments: head-of-line
+blocking and proxy timeouts. Originally a single FastAPI container stalled whenever one visitor triggered
+a forty-second IRSA fetch. Terraform now splits the backend into two Cloud Run services sharing one image:
+\code{spherex-lens-api} handles eighty concurrent snapshot reads per instance with a thirty-second timeout,
+while \code{spherex-lens-live} isolates heavy IRSA streams at concurrency one and a nine-hundred-second timeout.\par
+Connecting the Netlify static frontend to that backend uses a split route for the same reason. Short
+snapshot reads go through Netlify's same-origin \code{/live-api} rewrite, whereas long SSE streams bypass
+Netlify's twenty-six-second proxy cap and connect directly to \code{spherex-lens-live} via an explicit CORS
+allowlist. Every twelve hours, Cloud Scheduler runs a four-gigabyte Cloud Run Job that validates updated
+fields and atomically swaps \code{current.json} in a private bucket, while \code{fly.toml}, \code{render.yaml},
+and \code{run-local.ps1} keep single-container and laptop parity simple.
 
 \newpage
+
 % -------------------------------------------------------------- SLIDE 19 ---
-\slidehead{19}{Implementation III: the front end}{0:45}
+\slidehead{19}{Implementation III: frontend engine and UI/UX}{0:45}
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item 1\,586 lines of plain JavaScript: no framework, no build step, no tracker
-\item A canvas engine with three layers (co-add, difference, significance) plus overlays
-\item One JSON per field carries the map, the detections, the objects, the spectrum and the provenance
-\item A three-tab guide written for someone who has never seen an astronomical image
+\item 6\,982 lines of zero-build vanilla web code (\code{app.js} 4\,260, \code{style.css} 1\,902, \code{index.html} 638, \code{sw.js} 182)
+\item NASA HDS dark-slate mission UI: top chrome, horizontal toolbar, telemetry strip, 4 KPIs, split viewer + verdict
+\item Two-stage \code{<canvas>} engine: offscreen 0.5--99.5\% stretch/LUT rasteriser + 5 pan/zoom vector overlays
+\item Offline-first \code{sw.js} (SHA-256 verified \code{spx-data-v1}) + 200\,MB IndexedDB history + honest UI disabling
 \end{itemize}
 
-\textbf{Figure / diagram.} A wireframe of the actual page with the panels labelled, and the three-layer
-canvas stack drawn beside it.
+\textbf{Figure / diagram.} Left: wireframe of the current mission-control layout. Top right: two-stage canvas
+rendering pipeline. Bottom right: client-side offline cache, IndexedDB history, and capability guard stack.
 
-\figbox{\begin{tikzpicture}[font=\footnotesize]
-  % wireframe
-  \draw[rule,thick,fill=white] (0.3,1.4) rectangle (8.9,6.8);
-  \draw[rule,fill=slate!10] (0.3,6.3) rectangle (8.9,6.8);
-  \node[anchor=west,font=\scriptsize] at (0.45,6.55) {brand \;\textbullet\; status \;\textbullet\; GUIDE \;\textbullet\; auto demo};
-  \draw[rule,fill=white] (0.45,1.55) rectangle (3.30,6.15);
-  \node[anchor=north,font=\scriptsize] at (1.87,6.05) {/01 target control};
-  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,5.35) {field dropdown};
-  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,4.35) {run, recovery, share};
-  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,3.35) {live toggle};
-  \node[draw=rule,fill=slate!6,align=center,inner sep=3pt,text width=2.5cm,font=\scriptsize] at (1.87,2.35) {verdict, 11 statistics};
-  \draw[accent,thick,fill=accent2] (3.50,4.30) rectangle (8.75,6.15);
-  \node[font=\scriptsize] at (6.12,5.6) {/02 canvas map};
-  \draw[rule,fill=white] (3.50,1.55) rectangle (6.05,4.10);
-  \node[font=\scriptsize,text=slate] at (4.77,2.8) {detections};
-  \draw[rule,fill=white] (6.20,1.55) rectangle (8.75,4.10);
-  \node[font=\scriptsize,text=slate] at (7.47,2.8) {sources};
-  % layer stack with labels inside
-  \foreach \i/\lab/\col in {0/{significance $S$}/good,1/{difference $D$}/warn,2/{co-add}/accent}{
-    \draw[\col,thick,fill=\col!15] (9.6,\i*1.5+1.9) -- (10.5,\i*1.5+2.5) -- (15.4,\i*1.5+2.5) -- (14.5,\i*1.5+1.9) -- cycle;
-    \node[font=\scriptsize,text=\col] at (12.5,\i*1.5+2.2) {\lab};}
-  \node[anchor=north,font=\scriptsize,text=muted] at (12.5,1.75) {three switchable layers};
-  \node[draw=rule,thick,fill=white,align=left,inner sep=6pt,text width=4.8cm,font=\scriptsize] at (12.5,0.6)
-    {overlays: survey grid, Gaia and VSX crosses, dipole markers, an RA/Dec crosshair, a scale bar};
+\figbox{\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3pt,font=\scriptsize,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=3pt,font=\scriptsize,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3pt,font=\scriptsize,rounded corners=2pt},
+  bd/.style={draw=bad,thick,fill=bad2,align=left,inner sep=3pt,font=\scriptsize,rounded corners=2pt},
+  sl/.style={draw=slate,thick,fill=white,align=center,inner sep=3pt,font=\scriptsize,rounded corners=2pt},
+  ar/.style={-{Stealth[length=4.5pt]},draw=slate,thick}]
+
+  % Left: Accurate UI/UX Wireframe (x: 0..8.75, y: 0..7.55)
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,0.0) rectangle (8.75,7.55);
+  \draw[rule,fill=ink!10] (0.12,7.02) rectangle (8.63,7.45);
+  \node[anchor=west,font=\tiny\bfseries,text=ink] at (0.20,7.23) {SPHERExLens \textbullet\ IRSA QR2};
+  \node[anchor=east,font=\tiny,text=slate] at (8.55,7.23) {[Status]\; Guide\; Demo\; Reset};
+
+  % Control toolbar + telemetry strip
+  \draw[rule,fill=slate!6] (0.12,6.44) rectangle (8.63,6.94);
+  \node[font=\tiny,text=slate,text width=8.3cm,align=center] at (4.37,6.69) {Target dropdown \;\textbar\; Run \;\textbar\; RA/Dec + Load IRSA \;\textbar\; Fresh IRSA \;\textbar\; History / Stats / Recovery / Share};
+  \draw[rule,fill=accent2!55] (0.12,5.98) rectangle (8.63,6.36);
+  \node[anchor=west,font=\tiny,text=accent] at (0.20,6.17) {RA \textbullet\ DEC \textbullet\ EXP};
+  \node[anchor=east,font=\tiny,text=muted] at (8.55,6.17) {SSE live status + elapsed timer};
+
+  % 4 Metric cards
+  \foreach \i/\lbl/\col in {0/{Detections ($>5\sigma$)}/accent,1/{Unaccounted}/bad,2/{Max SNR}/good,3/{Baseline (d)}/warn}{
+    \draw[\col,thick,fill=\col!10] (0.14+\i*2.14,5.32) rectangle (2.15+\i*2.14,5.88);
+    \node[font=\tiny,text=ink] at (1.14+\i*2.14,5.60) {\lbl};}
+
+  % Primary split: Sky Viewer + Triage Verdict
+  \draw[accent,thick,fill=accent2!70] (0.14,3.18) rectangle (5.38,5.20);
+  \node[anchor=north,font=\scriptsize\bfseries,text=accent] at (2.76,5.12) {Sky Viewer (\texttt{<canvas>})};
+  \node[font=\tiny,text=slate,align=center] at (2.76,4.20) {Field / All-sky \;\textbullet\; Co-add / Diff $D$ / Sig $S$\\ Linear / Asinh / Log \;\textbullet\; 6 LUT ramps\\ Pan/zoom ($0.35\times$--$12\times$), cursor readout};
+
+  \draw[good,thick,fill=good2!60] (5.52,3.18) rectangle (8.61,5.20);
+  \node[anchor=north,font=\scriptsize\bfseries,text=good] at (7.06,5.12) {Triage Verdict};
+  \node[font=\tiny,text=slate,align=center] at (7.06,4.15) {Category badge, $p_{\mathrm{chance}}$\\ Motion check, VSX/Gaia\\ NEOWISE history links};
+
+  % Lower analytical panels (2x2 compact)
+  \draw[rule,fill=slate!4] (0.14,2.08) rectangle (4.30,3.04);
+  \node[font=\tiny,text=ink,align=center] at (2.22,2.56) {\textbf{Detections \& Epoch Pairs}\\ click-to-inspect rows};
+  \draw[rule,fill=slate!4] (4.45,2.08) rectangle (8.61,3.04);
+  \node[font=\tiny,text=ink,align=center] at (6.53,2.56) {\textbf{4 Diagnostics Canvases}\\ histogram, noise, pairs, recovery};
+  \draw[rule,fill=slate!4] (0.14,1.02) rectangle (4.30,1.98);
+  \node[font=\tiny,text=ink,align=center] at (2.22,1.50) {\textbf{Target SED \& NEOWISE}\\ 2010--2024 IR light curve};
+  \draw[rule,fill=slate!4] (4.45,1.02) rectangle (8.61,1.98);
+  \node[font=\tiny,text=ink,align=center] at (6.53,1.50) {\textbf{Movers, Catalogue \& Provenance}\\ filterable table + IRSA FITS links};
+
+  % Floating tool windows + modals bar
+  \draw[warn,thick,fill=warn2] (0.14,0.12) rectangle (8.61,0.88);
+  \node[font=\tiny,text=ink,text width=8.2cm,align=center] at (4.37,0.50) {\textbf{Floating Draggable Windows \& Modals}: Research History \;\textbullet\; 14-row Statistics \;\textbar\; Recovery Grid \;\textbar\; 3-tab Guide \;\textbar\; 18-field Cloud Dialog};
+
+  % Top-right: Two-Stage Canvas Pipeline
+  \draw[rule,thick,fill=white,rounded corners=2pt] (9.02,4.05) rectangle (16.5,7.55);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (9.16,7.47) {Two-Stage Canvas Engine (\texttt{app.js})};
+
+  \node[sl,text width=1.45cm] (c1) at (9.94,6.46) {$180\times180$\\ float grid};
+  \node[bx,text width=2.15cm] (c2) at (12.16,6.46) {0.5--99.5\% clip\\ linear/asinh/log};
+  \node[gn,text width=2.45cm] (c3) at (14.98,6.46) {256-LUT (6 ramps)\\ Offscreen canvas};
+  \draw[ar] (c1) -- (c2); \draw[ar] (c2) -- (c3);
+
+  \node[wn,text width=7.0cm] (c4) at (12.76,5.42) {\textbf{Composite} (\texttt{draw()}, smooth iff $<3\times$)};
+  \draw[ar] (c3.south) -- (c4.north -| c3);
+
+  \node[sl,text width=7.0cm,align=center] (c5) at (12.76,4.48) {\textbf{5 Vector Overlays}: 1\arcmin{} grid, Gaia/WISE/VSX,\\ movers, dipole/monopole, RA/Dec crosshair};
+  \draw[ar] (c4) -- (c5);
+
+  % Bottom-right: Client Persistence, UX Guardrails & Audit
+  \draw[rule,thick,fill=white,rounded corners=2pt] (9.02,0.0) rectangle (16.5,3.85);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (9.16,3.77) {Offline Stack, UX Guardrails \& Audit};
+
+  \node[gn,text width=3.35cm] (sw) at (10.86,2.88) {\textbf{\texttt{sw.js}} (\texttt{spx-data-v1})\\ SHA-256 + index diff};
+  \node[bx,text width=3.35cm] (idb) at (14.66,2.88) {\textbf{IndexedDB} (200\,MB)\\ \texttt{spx-history} + JSON};
+  \node[wn,text width=7.0cm] (ux) at (12.76,1.82) {\textbf{Honest UI (\texttt{syncBackendUi})}: disables \texttt{Fresh IRSA} \& \texttt{Load field} when offline or static; keeps History};
+  \node[bd,text width=7.0cm] (aud) at (12.76,0.65) {\textbf{Critical Audit}: \texttt{app.js} (4\,260 lines) is an unbundled monolith with shared \texttt{state}; splitting ES modules would ease testing.};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} The front end is sixteen hundred lines of plain JavaScript, with no framework and
-no build step, which is why it will still run in five years. It is a small canvas engine with three
-switchable layers -- the co-add, the difference image and the significance map -- plus overlays for the
-survey grid, the catalogue positions, the dipole markers and a readout of whatever is under the cursor.
-On the left of the wireframe, target control: pick a field, run, read the verdict and eleven statistics,
-or ask for a recovery grid.\par
-The thing to point at is the Guide button in the top bar. It opens three tabs written for someone who has
-never looked at an astronomical image: how it works, how to use this page click by click, and a glossary
-of the ten words that matter. It is plain HTML inside the page, so it ships in the static build and needs
-no backend -- and it states the backend limitation in the same place as everything else.
+\textbf{Spoken script.} The front end is six thousand nine hundred and eighty-two lines of zero-build vanilla
+HTML, CSS and JavaScript, styled in a dark-slate NASA Horizon Design System palette. Notice how the layout
+evolved from a simple sidebar into a mission-control console: a compact top chrome with a live cloud
+status pill, a single-row control bar, a telemetry strip, four metric cards, and the primary split between
+the sky viewer and the triage verdict panel, followed by diagnostics, SED and NEOWISE light curves,
+expected movers, provenance links, and three draggable floating tool windows.\par
+Under the hood, the sky viewer uses a two-stage canvas pipeline: each one-hundred-and-eighty-pixel layer
+is clipped, stretched in linear, asinh or log space, and baked into an offscreen canvas through one of six
+lookup tables before interactive pan, zoom and five vector overlays composite on top. Finally, the service
+worker verifies SHA-256 headers for offline snapshots alongside a two-hundred-megabyte IndexedDB research
+history, while \code{syncBackendUi} explicitly disables and labels controls that require a live server --
+though refactoring the four-thousand-two-hundred-line \code{app.js} monolith into ES modules remains clear
+technical debt.
 
 \newpage
 
 % -------------------------------------------------------------- SLIDE 20 ---
-\slidehead{20}{Results I: eighteen fields, eighty-eight detections}{1:05}
+\slidehead{20}{Results I: eighteen fields, 109 detections}{1:05}
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item 88 detections over 18 fields: 71 KNOWN (81\%) and 17 CANDIDATE
-\item Detection count is not discovery count: M1, Sirius and R Draconis are 100\% explained
-\item The amber bars -- WISE 0855, Epsilon Indi B, Barnard's Star -- are the interesting ones
-\item Four fields produce nothing usable, and they are on the next slide
+\item 109 detections over 18 fields (246 cutouts, \code{D1--D6}): 99 KNOWN (91\%) and 10 CANDIDATE (9\%)
+\item Detection count is not discovery count: Barnard's Star, Sirius, R Draconis, M104, M1, M31 are 100\% explained
+\item The amber bars -- Epsilon Indi B (3), WISE 0855 (2), Pleiades (2), TRAPPIST-1 (2), 3C 273 (1) -- are the open residuals
+\item Two fields produce zero detections: M42 (null sky) and Sgr\,A* (no shared band across epochs)
 \end{itemize}
 
-\textbf{Figure / diagram.} Stacked bars for all eighteen fields, visually grouped into the five brief
-targets and the thirteen famous objects, with the totals in the caption strip.
+\textbf{Figure / diagram.} Stacked bars for all eighteen fields from the live snapshot, visually grouped into
+the five brief targets and the thirteen famous objects.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
 \begin{axis}[width=16.6cm,height=7.0cm,
@@ -1147,41 +1284,41 @@ targets and the thirteen famous objects, with the totals in the caption strip.
     \node[font=\scriptsize,text=muted,anchor=south] at (rel axis cs:0.13,1.06) {five brief targets};
     \node[font=\scriptsize,text=muted,anchor=south] at (rel axis cs:0.64,1.06) {thirteen famous objects};}]
 \addplot[fill=good!45,draw=good] coordinates {
-  ({Brd},1) ({EpsInd},5) ({W0855},5) ({RWA},2) ({RDra},7) ({M31},2) ({M42},0) ({M45},6) ({M1},10)
-  ({M51},3) ({M104},3) ({M57},1) ({SgrA},7) ({3C273},3) ({Bete},2) ({Sir},10) ({Prox},4) ({TRAPP},0)};
-\addlegendentry{KNOWN -- explained by Gaia, WISE or VSX}
+  ({Brd},2) ({EpsInd},6) ({W0855},8) ({RWA},5) ({RDra},6) ({M31},10) ({M42},0) ({M45},4) ({M1},5)
+  ({M51},6) ({M104},10) ({M57},10) ({SgrA},0) ({3C273},4) ({Bete},1) ({Sir},10) ({Prox},4) ({TRAPP},8)};
+\addlegendentry{KNOWN (99) -- mover, variable, static-changed, bright-star or mask artefact}
 \addplot[fill=warn!45,draw=warn] coordinates {
-  ({Brd},2) ({EpsInd},3) ({W0855},5) ({RWA},1) ({RDra},0) ({M31},1) ({M42},0) ({M45},0) ({M1},0)
-  ({M51},1) ({M104},0) ({M57},1) ({SgrA},0) ({3C273},1) ({Bete},0) ({Sir},0) ({Prox},2) ({TRAPP},0)};
-\addlegendentry{CANDIDATE -- unexplained at $5\sigma$}
+  ({Brd},0) ({EpsInd},3) ({W0855},2) ({RWA},0) ({RDra},0) ({M31},0) ({M42},0) ({M45},2) ({M1},0)
+  ({M51},0) ({M104},0) ({M57},0) ({SgrA},0) ({3C273},1) ({Bete},0) ({Sir},0) ({Prox},0) ({TRAPP},2)};
+\addlegendentry{CANDIDATE (10) -- unexplained at $5\sigma$}
 \end{axis}
 \end{tikzpicture}}
 
-\textbf{Spoken script.} Here is the whole result in one chart. Eighteen bars, one per field, green for
-detections the catalogues already explain and amber for the ones they do not. Two things to notice.\par
-First, the distribution of detections is not the distribution of discoveries. The Crab, Sirius and
-R Draconis all look busy -- ten, ten and seven detections -- and every one of them is explained, which is
-the correct outcome, because these are famous and well-catalogued objects. The interesting bars are the
-amber ones: five in WISE 0855, three in Epsilon Indi B, two in Barnard's Star.\par
-Second, look at the sample itself: five brief targets on the left, thirteen famous objects on the right --
-galaxies, nebulae, a quasar, the Galactic Centre, Betelgeuse, Sirius. Every one went through the identical
-code path: one hundred and twenty-eight cutouts, eighty-eight detections, eighty-one percent explained.
-That is the strongest evidence available that the pipeline is not tuned to one kind of object.
+\textbf{Spoken script.} Here is the whole result from the current six-band snapshot in one chart.
+Eighteen bars, one per field, green for detections explained by catalogues or explicit artefact rules,
+amber for the ten remaining unexplained residuals.\par
+Two things stand out. First, busyness is not discovery: Andromeda, Sirius, the Ring Nebula, the Sombrero
+Galaxy, RW Aurigae, R Draconis, and Barnard's Star are one hundred percent explained -- by proper motion,
+known variability, bright-star wings, or matched mask holes. Second, look at the sample breadth: five
+brief targets on the left, thirteen diverse objects on the right -- galaxies, nebulae, a quasar, red and
+brown dwarfs -- all through the same pipeline: two hundred and forty-six cutouts, one hundred and nine
+detections, ninety-one percent explained, and two cleanly empty or refused fields rather than silent
+zeros.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 21 ---
-\slidehead{21}{Results II: what the seventeen candidates are}{1:00}
+\slidehead{21}{Results II: what the ten candidates are (and how triage caught Barnard's Star)}{1:00}
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Most are positions where a $>5\sigma$ change has no catalogue source within $30\arcsec$
-\item Five sit in WISE 0855, the field with the fewest catalogue sources per unit noise
-\item Barnard's Star's 56.8$\sigma$ dipole is itself a mislabel: epoch mismatch, not a discovery
-\item So ``candidate'' means unexplained, not new -- and that distinction is the result
+\item All 10 candidates sit in 5 fields: Epsilon Indi B (3), WISE 0855 (2), M45 (2), TRAPPIST-1 (2), 3C 273 (1)
+\item Artifact vetoes eliminate bright-star rings (Sirius, R Dra, Bete) and mask holes (M104: 8, M57: 3, TRAPP: 2)
+\item Epoch propagation resolved Barnard's Star ($36.2\sigma$ dipole): now matched as \code{KNOWN_MOVER} (0 candidates)
+\item ``Candidate'' still means \emph{unexplained by Gaia/WISE/VSX/NEOWISE}, not a claimed discovery
 \end{itemize}
 
-\textbf{Figure / diagram.} A scatter of the detections in one field, known against unexplained, beside a
-cartoon of the epoch-propagation problem.
+\textbf{Figure / diagram.} Left: a scatter of detections in a field (KNOWN classes vs.\ unexplained
+candidates). Right: before/after of the epoch-propagation fix in \code{catalog_tools.py}.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   \begin{scope}
@@ -1194,39 +1331,40 @@ cartoon of the epoch-propagation problem.
       legend style={font=\scriptsize,draw=rule,at={(0.02,0.02)},anchor=south west}]
     \addplot[only marks,mark=o,mark size=2.6pt,good,line width=0.8pt] coordinates {
       (-120,-60) (60,-130) (-40,150) (150,90) (10,10) (-170,60)};
-    \addlegendentry{KNOWN}
-    \addplot[only marks,mark=*,mark size=3.0pt,warn] coordinates {(-60,-160) (110,-40) (30,120) (-140,-140) (180,20)};
-    \addlegendentry{CANDIDATE}
-    \addplot[only marks,mark=triangle*,mark size=4.0pt,bad] coordinates {(-190,170)};
-    \addlegendentry{the dipole target}
+    \addlegendentry{KNOWN (static/var/artefact)}
+    \addplot[only marks,mark=*,mark size=3.0pt,warn] coordinates {(-60,-160) (110,-40)};
+    \addlegendentry{CANDIDATE (e.g.\ 2 in W0855)}
+    \addplot[only marks,mark=triangle*,mark size=4.0pt,good] coordinates {(-190,170)};
+    \addlegendentry{Barnard's Star: KNOWN\_MOVER}
     \end{axis}
   \end{scope}
   \begin{scope}[shift={(9.6,0.6)}]
-    \draw[rule,thick,fill=white] (0,0) rectangle (7.0,3.8);
-    \fill[accent] (1.0,1.9) circle (0.11);
-    \node[font=\scriptsize,text=accent,below] at (1.0,1.74) {Gaia 2016};
-    \fill[good] (6.0,1.9) circle (0.11);
-    \node[font=\scriptsize,text=good,below] at (6.0,1.74) {SPHEREx 2026};
-    \draw[warn,dashed,thick] (1.0,1.9) circle (0.95);
-    \node[font=\scriptsize,text=warn,above] at (1.0,2.92) {$30\arcsec$ radius};
-    \draw[-{Stealth[length=6pt]},thick,bad,dashed] (1.15,2.25) -- (5.85,2.25);
-    \node[font=\scriptsize,text=muted,align=center] at (3.5,0.55) {$10.4\arcsec$/yr $\times$ 9\,yr $\approx$ 94\arcsec\\ so no match is found};
-    \node[draw=good,thick,fill=good2,align=left,inner sep=6pt,text width=7.0cm,font=\scriptsize] at (3.5,4.9)
-      {\textbf{the fix}: propagate catalogue positions to the observation epoch using the catalogue proper motions -- two lines, not yet done};
+    \draw[rule,thick,fill=white,rounded corners=2pt] (0,0) rectangle (7.0,3.8);
+    \fill[accent] (1.0,2.0) circle (0.11);
+    \node[font=\scriptsize,text=accent,below] at (1.0,1.82) {Gaia 2016};
+    \fill[good] (5.9,2.0) circle (0.11);
+    \node[font=\scriptsize,text=good,below] at (5.9,1.82) {SPHEREx 2026};
+    \draw[bad,dashed,thick] (1.0,2.0) circle (0.72);
+    \node[font=\scriptsize,text=bad,above] at (1.35,2.78) {naive cone: miss};
+    \draw[good,thick] (5.9,2.0) circle (0.72);
+    \node[font=\scriptsize,text=good,above] at (5.55,2.78) {propagated: hit};
+    \draw[-{Stealth[length=6pt]},thick,good] (1.15,2.15) -- (5.75,2.15);
+    \node[font=\scriptsize,text=muted,align=center] at (3.5,0.62) {$10.4\arcsec/\mathrm{yr}\times 9\text{--}10\,\mathrm{yr}\approx 94\arcsec$\\ \code{propagate_catalogs} moves Gaia to 2026};
+    \node[draw=good,thick,fill=good2,align=left,inner sep=5.5pt,text width=7.0cm,font=\scriptsize,rounded corners=2pt] at (3.5,4.9)
+      {\textbf{verified in current snapshot:} propagating Gaia DR3 + AllWISE proper motions turned Barnard's Star ($36.2\sigma$ dipole) from a false candidate into \code{KNOWN_MOVER}.};
   \end{scope}
 \end{tikzpicture}}
 
-\textbf{Spoken script.} What are the seventeen? Care is needed here, because this is where a project like
-this usually gets oversold. The scatter on the left is a typical field: hollow circles are detections the
-catalogues explain, filled dots are the unexplained ones, and the triangle is the target itself.\par
-Most of the seventeen are simply positions where a five-sigma change has no catalogue source within
-thirty arcseconds. Five of them are in WISE 0855, the field with the fewest catalogue sources per unit
-noise -- exactly what you would expect if the candidate rate tracks catalogue density rather than
-astrophysics. And the single most significant detection in the whole sample, Barnard's Star at fifty-seven
-sigma, is itself a mislabel for the epoch reason on the right: Gaia's position is from 2016, this image
-is from 2026, the star has moved ninety-four arcseconds, and nothing matches.\par
-So the result actually being claimed is narrow: seventeen positions where a five-sigma change is
-unexplained by three catalogues. Not seventeen new objects. The word on the slide is unexplained.
+\textbf{Spoken script.} What are the remaining ten candidates, and why did the candidate count fall from
+seventeen to ten? Two engineering upgrades did the heavy lifting. First, bright-star diffraction and
+\code{coadd_matched} mask-hole tagging cleanly absorbed the systematic artefacts in Sirius, R Draconis,
+Sombrero M104, and the Ring Nebula instead of dumping them into the candidate bucket.\par
+Second, proper-motion propagation in \code{catalog_tools} moved Gaia and AllWISE coordinates forward to
+each SPHEREx epoch before matching. Barnard's Star -- our fastest mover at ninety-four arcseconds since
+2016 -- now lands squarely inside its propagated match cone as \code{KNOWN_MOVER} with zero remaining
+candidates in its field. The remaining ten positions in Epsilon Indi B, WISE 0855, the Pleiades,
+TRAPPIST-1, and 3C 273 are genuine five-sigma outliers outside every catalogue cone -- unexplained, not
+yet claimed as new discoveries.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 22 ---
@@ -1234,69 +1372,83 @@ unexplained by three catalogues. Not seventeen new objects. The word on the slid
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Open \code{site/index.html} -- already loaded in a second tab, 100\% zoom
-\item \textbf{1} pick Barnard's Star, point at the dipole, hover it \;\textbullet\; \textbf{2} click it: verdict, SNR, proper motion
-\item \textbf{3} switch layers: co-add, difference, significance
-\item \textbf{4} all-sky view, then the Crab Nebula (10 detections, all KNOWN)
-\item \textbf{5} recovery grid on the current field \;\textbullet\; \textbf{6} the Guide tab
+\item Open the browser app (\code{site/index.html} or deployed URL) at 100\% zoom, Barnard's Star loaded
+\item \textbf{1} select Barnard's Star in the top \code{Target} bar + \code{Run Pipeline} \;\textbullet\; \textbf{2} click the $36.2\sigma$ dipole (\code{KNOWN_MOVER})
+\item \textbf{3} switch canvas layers inside Sky Viewer: \code{Co-add} $\to$ \code{Diff D} $\to$ \code{Sig S}
+\item \textbf{4} toggle \code{All-sky} mosaic, jump to Crab Nebula (\code{M1}, 5/5 \code{KNOWN}) \;\textbullet\; \textbf{5} open floating \code{Recovery} window \;\textbullet\; \textbf{6} open \code{Guide}
 \end{itemize}
 
-\textbf{Figure / diagram.} A map of the screen with the six numbered callouts sitting in the gutters
-beside the exact controls used, so nothing has to be hunted for on stage.
+\textbf{Figure / diagram.} Map of the actual horizontal mission UI with the six numbered callouts placed
+directly beside the exact DOM controls so nothing has to be hunted for on stage.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  cb/.style={circle,draw=bad,thick,fill=bad,text=white,inner sep=1.4pt,font=\scriptsize\bfseries},
-  pan/.style={draw=slate,thick,fill=white,align=center,inner sep=4pt},
-  chip/.style={draw=accent,thick,fill=accent2,align=center,inner sep=4pt}]
-  \draw[rule,thick,fill=white] (0,0) rectangle (16.0,8.0);
-  % top bar
-  \draw[rule,fill=slate!10] (0,7.4) rectangle (16.0,8.0);
-  \node[anchor=west,font=\scriptsize] at (0.2,7.7) {status bar};
-  \node[chip] (guide) at (13.4,7.7) {GUIDE};
-  \node[cb,above=1pt of guide] {6};
-  % left column
-  \node[pan,minimum width=3.8cm,minimum height=6.4cm] (left) at (2.3,3.9) {};
-  \node[anchor=north,font=\scriptsize] at (2.3,6.95) {/01 target control};
-  \node[chip] (drop) at (2.3,6.2) {field dropdown};
-  \node[cb,right=2pt of drop] {1};
-  \node[chip,minimum width=1.0cm] (rec) at (2.3,4.9) {recovery};
+  cb/.style={circle,draw=bad,thick,fill=bad,text=white,inner sep=1.3pt,font=\scriptsize\bfseries},
+  pan/.style={draw=slate,thick,fill=white,align=center,inner sep=3.5pt,rounded corners=2pt},
+  chip/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3pt,rounded corners=2pt}]
+  \draw[rule,thick,fill=white] (0,0) rectangle (16.2,8.0);
+  % Chrome header
+  \draw[rule,fill=slate!10] (0,7.35) rectangle (16.2,8.0);
+  \node[anchor=west,font=\scriptsize\bfseries] at (0.2,7.67) {SPHERExLens \textbullet\ NASA/IPAC IRSA};
+  \node[chip,font=\tiny] at (9.9,7.67) {SNAPSHOT READY};
+  \node[cb] at (11.8,7.67) {6};
+  \node[chip,font=\tiny] (guide) at (12.85,7.67) {Guide};
+  \node[chip,font=\tiny] at (14.4,7.67) {Auto Demo};
+  \node[chip,font=\tiny] at (15.65,7.67) {Reset};
+
+  % Horizontal .control-bar
+  \draw[rule,fill=accent2!35] (0,6.55) rectangle (16.2,7.35);
+  \node[chip,font=\tiny] (drop) at (1.9,6.95) {Target: Barnard's Star $\blacktriangledown$};
+  \node[cb,left=2pt of drop] {1};
+  \node[chip,fill=good2,draw=good,font=\tiny] at (4.4,6.95) {$\blacktriangleright$ Run Pipeline};
+  \node[draw=rule,fill=white,font=\tiny,inner sep=2.5pt] at (6.7,6.95) {RA / Dec / Label};
+  \node[chip,font=\tiny] at (8.7,6.95) {Fresh IRSA};
+  \node[draw=rule,fill=white,font=\tiny,inner sep=2.5pt] at (10.6,6.95) {History};
+  \node[draw=rule,fill=white,font=\tiny,inner sep=2.5pt] at (12.1,6.95) {Statistics};
+  \node[chip,font=\tiny] (rec) at (13.8,6.95) {Recovery};
   \node[cb,right=2pt of rec] {5};
-  \foreach \x/\lab in {1.1/{co-add},2.3/{difference},3.5/{signif.}}{\node[draw=rule,fill=slate!10,inner sep=3pt,font=\scriptsize] at (\x,3.9) {\lab};}
-  \node[cb] at (2.3,3.30) {3};
-  % map
-  \node[pan,minimum width=6.3cm,minimum height=4.4cm] (map) at (8.6,5.4) {};
-  \node[anchor=north,font=\scriptsize] at (8.6,7.35) {/02 canvas map};
-  \fill[bad] (8.2,5.5) circle (0.13);
-  \fill[good] (8.7,5.7) circle (0.13);
-  \draw[-{Stealth[length=4pt]},thick,slate] (8.28,5.52) -- (8.62,5.66);
-  \node[cb,above=6pt] at (6.3,6.6) {2};
-  % tables
-  \node[pan,minimum width=6.3cm,minimum height=1.9cm] (tab) at (8.6,1.4) {detections \;\textbullet\; image sources};
-  % all-sky
-  \node[pan,minimum width=3.9cm,minimum height=2.6cm] (sky) at (13.6,6.0) {all-sky view};
-  \node[cb] at (11.65,4.45) {4};
-  % steps
-  \node[pan,minimum width=3.9cm,minimum height=3.8cm] (steps) at (13.6,2.1) {};
-  \node[anchor=north,font=\scriptsize] at (13.6,3.58) {the six moves};
-  \foreach \i/\txt in {1/{pick Barnard's Star},2/{click the dipole},3/{switch layers},4/{all-sky, then Crab},5/{recovery grid},6/{open the Guide}}{\node[anchor=west,font=\scriptsize,text=muted] at (11.95,3.05-\i*0.46) {\i: \txt};}
+  \node[draw=rule,fill=white,font=\tiny,inner sep=2.5pt] at (15.4,6.95) {Share};
+
+  % Sky Viewer (left 62%)
+  \node[pan,minimum width=9.6cm,minimum height=4.4cm] (map) at (5.0,4.15) {};
+  \node[anchor=north west,font=\scriptsize\bfseries] at (0.35,6.25) {Sky Viewer};
+  \node[cb] at (3.20,6.05) {4};
+  \node[chip,font=\tiny] (skybtn) at (4.55,6.05) {Field \textbar\ All-sky};
+  \node[chip,font=\tiny] (lay) at (7.65,6.05) {Co-add \textbar\ Diff D \textbar\ Sig S};
+  \node[cb,right=2pt of lay] {3};
+  \fill[bad] (4.7,4.0) circle (0.14);
+  \fill[good] (5.3,4.25) circle (0.14);
+  \draw[-{Stealth[length=4pt]},thick,slate] (4.82,4.06) -- (5.18,4.20);
+  \node[font=\tiny,text=slate] at (5.0,3.55) {36.2$\sigma$ dipole (\code{KNOWN_MOVER})};
+  \node[cb] at (4.1,4.35) {2};
+
+  % Triage Verdict Sidebar (right)
+  \node[pan,minimum width=5.8cm,minimum height=4.4cm] (verd) at (13.1,4.15) {};
+  \node[anchor=north west,font=\scriptsize\bfseries] at (10.35,6.25) {Triage Verdict};
+  \node[draw=good,fill=good2,text width=5.2cm,align=left,font=\tiny,inner sep=3.5pt] at (13.1,5.15)
+    {\textbf{\#1 KNOWN\_MOVER} \;\textbullet\; $36.2\sigma$ dipole\\
+     matched propagated Gaia DR3 + PM};
+  \node[draw=rule,fill=white,text width=5.2cm,align=left,font=\tiny,inner sep=3.5pt] at (13.1,3.35)
+    {\textbf{Diagnostics \& SED / 14-yr NEOWISE}\\
+     epoch-pair summary, W1/W2 curve, aperture flux};
+
+  % Bottom Strip: Tables + Six-move key (strictly separated boxes!)
+  \node[pan,minimum width=9.6cm,minimum height=1.55cm,font=\scriptsize] (tab) at (5.0,0.95)
+    {\textbf{Detections \;\textbullet\; Expected Movers \;\textbullet\; Catalogue \;\textbullet\; Provenance}};
+  \node[pan,minimum width=5.8cm,minimum height=1.55cm,align=left,text width=5.4cm,font=\tiny] (steps) at (13.1,0.95)
+    {\textbf{the six demo moves:} \textbf{1} pick Barnard's Star \;\textbullet\; \textbf{2} click $36.2\sigma$ dipole (\code{KNOWN_MOVER}) \;\textbullet\; \textbf{3} Co-add/Diff D/Sig S \;\textbullet\; \textbf{4} All-sky $\to$ Crab M1 \;\textbullet\; \textbf{5} floating Recovery window \;\textbullet\; \textbf{6} open Guide};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} I would like to show this working rather than describe it, so the site is open in
-the second tab. This is the static version, no server, so everything you are about to see is pre-computed
-JSON being drawn by the browser.\par
-First, Barnard's Star, which is the demo I would recommend to anyone. The map shows the significance of
-the difference between two visits. Point at that bright pair in the middle -- a dipole, the star's old
-position in red, its new one in green -- and the tooltip gives the verdict, the significance and the
-catalogues that match. Click it and the verdict panel opens: this is the fifty-seven-sigma detection, a
-proper motion around twenty-five arcseconds a year, and no catalogue match, for the epoch reason from
-slide fourteen.\par
-Now the layer switch: co-add, then difference, then significance -- the whole chain, visible one step at
-a time. Over to the all-sky view, where every field is a thumbnail; I will pick the Crab, which gives ten
-detections and all ten explained, because that is the contrast I want you to see. Finally the recovery
-grid for the field, which is the completeness matrix, and the Guide tab, which is what a visitor sees
-before anyone explains anything to them.\par
-If the laptop misbehaves, the fallback is the same content in the report -- figures three, six and seven
--- and I will move on rather than debug in front of you.
+\textbf{Spoken script.} I would like to show this working live rather than describe it, so the browser
+app is already open in the second tab backed by the published Cloud Run snapshot.\par
+Step one: in the top horizontal control bar, choose Barnard's Star and click Run Pipeline. Step two:
+hover and click the bright thirty-six-point-two-sigma dipole in the Sky Viewer -- red lobe where the
+star used to be, green where it moved -- and watch the right-hand Triage Verdict panel identify it as
+\code{KNOWN_MOVER}, matched after propagating Gaia's proper motion.\par
+Step three: toggle the viewer buttons across Co-add, Diff D, and Sig S to inspect every numerical layer.
+Step four: switch to All-sky mosaic and jump to the Crab Nebula -- five detections, all five explained.
+Step five: click Recovery in the toolbar to pop open the floating twenty-four-cell completeness window.
+Step six: click Guide in the header to show the non-specialist reference drawer. If the network hiccups,
+IndexedDB already caches the snapshots offline, or we move smoothly to the report fallback.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 23 ---
@@ -1304,11 +1456,10 @@ If the laptop misbehaves, the fallback is the same content in the report -- figu
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item \textbf{Works}: ZOGY on masked co-adds gives a calibrated $5\sigma$ map, morphology separates
-      movers from variables, triage explains 81\% of detections
-\item \textbf{Honest}: four fields return nothing, completeness is unmeasured, one candidate is our own bug
-\item \textbf{Next}: local-noise injection, proper-motion propagation, an empirical PSF, all 102 bands
-\item Artefact: six stages, the derived JSON, a static site, and a guide for non-specialists
+\item \textbf{Works}: ZOGY on matched co-adds gives a calibrated $5\sigma$ map; triage explains 91\% (99/109) with epoch propagation \& NEOWISE
+\item \textbf{Honest}: two fields return no usable detections (\code{M42}, \code{Sgr A*}), completeness stays unmeasured, monolith debt remains
+\item \textbf{Next}: raw-cutout local-noise injection, empirical PSF / SFFT, $\ge 30$-band real spectra, split \code{app.py}/\code{app.js}
+\item Artefact: 7 stages + 5 support modules (7\,082\,LOC Python) + 6\,982\,LOC UI, Netlify PWA + Dual Cloud Run + GCS
 \end{itemize}
 
 \textbf{Figure / diagram.} Three pillars -- works, honest, next -- with the artefact listed underneath and
@@ -1317,33 +1468,33 @@ a compact reference strip at the bottom.
 \figbox{\begin{tikzpicture}[font=\footnotesize,
   p/.style={draw=rule,thick,fill=white,align=center,inner sep=7pt,text width=4.6cm}]
   \node[p] (a) at (2.6,2.6) {\Large\bfseries WORKS\\[5pt] \footnotesize calibrated $5\sigma$ via ZOGY\\
-      81\% of detections explained\\ movers told from variables};
-  \node[p] (b) at (8.4,2.6) {\Large\bfseries HONEST\\[5pt] \footnotesize four empty fields reported\\
-      completeness not invented\\ our own bug diagnosed};
-  \node[p] (c) at (14.2,2.6) {\Large\bfseries NEXT\\[5pt] \footnotesize local-noise injection\\
-      proper-motion propagation\\ empirical PSF, all 102 bands};
+      91\% (99/109) explained\\ movers + 14-yr NEOWISE};
+  \node[p] (b) at (8.4,2.6) {\Large\bfseries HONEST\\[5pt] \footnotesize M42 null \& Sgr\,A* refused\\
+      completeness not invented\\ \code{app.py} / \code{app.js} monoliths};
+  \node[p] (c) at (14.2,2.6) {\Large\bfseries NEXT\\[5pt] \footnotesize raw local-noise injection\\
+      empirical PSF / SFFT\\ split \code{app.py}/\code{app.js}, 102 bands};
   \node[draw=accent,thick,fill=accent2,align=center,inner sep=6pt,text width=16.2cm,font=\footnotesize] at (8.4,-0.2)
-    {artefact: 6\,154 lines \;\textbullet\; \code{site/index.html}, 28\,MB, no server \;\textbullet\;
-     every number traceable to a Level-2 file at IRSA \;\textbullet\; 33-page report};
+    {artefact: 7\,082\,LOC Python + 6\,982\,LOC UI \;\textbullet\; Netlify PWA + Cloud Run + GCS 12\,h snapshots \;\textbullet\;
+     18 fields, 246 cutouts traceable to IRSA};
   \node[align=left,text width=16.2cm,font=\scriptsize,text=muted,anchor=north west] at (0.3,-0.9)
     {\textbf{references:} Alard \& Lupton 1998 \;\textbullet\; Bramich 2008 \;\textbullet\;
      Zackay, Ofek \& Gal-Yam 2016 \;\textbullet\; Hu et al.\ 2022 (SFFT) \;\textbullet\;
      ZTF and DES pipelines, and the broker literature (ANTARES, ALeRCE, Lasair) \;\textbullet\;
-     Gaia DR3, AllWISE, AAVSO VSX \;\textbullet\; SPHEREx mission and IRSA documentation};
+     Gaia DR3, AllWISE, NEOWISE-R, AAVSO VSX \;\textbullet\; SPHEREx mission and IRSA documentation};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} To close, three statements, and then questions.\par
-It works: proper subtraction on masked co-adds gives a significance map whose threshold means something,
-the morphology separates movers from variables wherever the displacement exceeds the PSF, and catalogue
-triage explains four fifths of what the pipeline finds.\par
-It is honest: four fields came back empty and the deck says so, the completeness is still unmeasured
-rather than invented, and the single most significant detection in the sample is a bug found in my own
-triage and described rather than hidden.\par
-And the next three changes are small, and each one converts a caveat into a number: inject at the image
-level with local noise, propagate catalogue proper motions before matching, and use an empirical PSF per
-detector. Everything is in the repository -- the six stages, the derived JSON, the static site, and a
-guide written for someone who has never seen an astronomical image. Thank you; I am happy to take
-questions.
+It works: proper subtraction on mask-matched co-adds gives a calibrated significance map, morphology
+separates movers from variables, and catalogue triage -- now backed by proper-motion epoch propagation,
+artefact tagging, and fourteen-year NEOWISE light curves -- explains ninety-one percent of all
+detections.\par
+It is honest: two fields produced zero detections for documented physical or coverage reasons, completeness
+remains explicitly unmeasured because flat-noise injection is biased, and technical monolith debt in
+\code{app.py} and \code{app.js} is surfaced openly.\par
+And the next steps turn each caveat into a measurement: inject at raw-exposure level using local noise,
+adopt an empirical per-detector PSF or SFFT, modularise the backend and frontend, and unlock dense
+hundred-and-two-band spectra. Everything lives in the repository, backed by tests, immutable cloud
+snapshots, and a non-specialist Guide. Thank you; I am happy to take questions.
 
 \newpage
 % -------------------------------------------------------------- BACKUP -----
@@ -1352,33 +1503,34 @@ questions.
 
 \textbf{Questions you are most likely to be asked.}
 \begin{description}[leftmargin=1.6em,itemsep=4pt]
-\item[``Why only two or three bands, and not all 102?''] Cost: a hundred and two cutouts per epoch per
-field is roughly 500\,MB and seventy minutes of archive time, \emph{per field}. Subtraction does not need
-the extra bands; the spectral indices do, and that is the first item on the next-steps list.
-\item[``Is thirty arcseconds not far too generous a match radius?''] For astrometry, yes. For vetoing it
-is deliberate: a loose radius biases towards KNOWN, which is the conservative direction. The alternative
-inflates the candidate list and flatters the result.
-\item[``What is the real false-positive rate?''] Predicted 0.018 pixels per frame at $5\sigma$; the
-observed detections are tens of sigma above that floor, so the map is not noise-dominated. No measured
-rate is quoted, because completeness is unmeasured.
-\item[``Could this scale to the whole sky?''] The CPU could: six seconds per field times 1.8 million
-nine-arcminute fields is about 125 days on one core. The archive is the bottleneck, which is why the
-design caches aggressively and pre-renders.
-\item[``Why ZOGY rather than SFFT?''] ZOGY is closed form and its null distribution is analytic, which is
-what makes the false-positive budget explicit -- the argument on slide twelve. SFFT would be the better
-choice for an undersampled space PSF, and is listed as future work.
+\item[``Why six detectors (or two in live mode), and not all 102 bands?''] Cost: a hundred and two cutouts
+per epoch per field is roughly 500\,MB and seventy minutes of archive time, \emph{per field}. Full snapshots
+co-add \code{D1--D6}, while live streaming defaults to \code{D1, D4} for latency; the classifier already
+refuses to label below 30 channels.
+\item[``How do you avoid inflating the candidate list?''] Match radii scale with brightness
+($10\arcsec$ faint to $120\arcsec$ halos), proper motions are propagated to each MJD via
+\code{propagate_catalogs}, and \code{wise_reliable} with \code{p_chance} veto spurious links toward \code{KNOWN}.
+\item[``What is the real false-positive rate?''] Predicted 0.0186 extreme pixels per frame at two-tailed
+$|S|>5\sigma$ ($2N^2\Phi(-5)$); observed detections reach $8\text{--}44\sigma$, far above noise. No completeness
+limit is quoted while \code{step6} uses scalar mean noise.
+\item[``Could this scale to the whole sky?''] CPU could: under 1.5\,s per field times 1.8 million
+nine-arcminute fields is tractable on cloud workers. The IRSA cutout service is the bottleneck, which is
+why Cloud Run runs 12-hour incremental fingerprint checks and publishes immutable GCS snapshots.
+\item[``Why ZOGY rather than SFFT?''] ZOGY is closed form and its null distribution is analytic, making
+the false-positive budget explicit (slide twelve). SFFT handles space-based PSF variation even better and
+is listed as next work alongside an empirical PSF.
 \end{description}
 
 \vspace{4pt}
 \textbf{Pre-flight checklist, five minutes before.}
 \begin{itemize}[leftmargin=1.5em,itemsep=2pt]
-\item Two browser tabs: \code{site/index.html} (static, offline-safe) and, if the network is good, the
-local API on \code{localhost:8000} for the live fetch.
-\item Zoom 100\%, one field already loaded -- Barnard's Star -- so the demo does not start on a spinner.
+\item Two browser tabs: the deployed Netlify PWA (offline-ready via Service Worker + IndexedDB) or
+\code{static/index.html} on \code{localhost:8000} if showing local execution.
+\item Zoom 100\%, Barnard's Star already loaded (36.2$\sigma$ dipole, \code{KNOWN_MOVER}) so the demo starts cleanly.
 \item A screen recording of the demo on the desktop, as the fallback file.
-\item This document open at page 23, the demo map, so the callouts match the screen.
-\item Numbers on the tip of the tongue: 18 fields, 128 cutouts, 88 detections, 71 explained,
-17 unexplained, 4 empty fields, 0.018 false pixels per frame.
+\item This document open at page 23 (Slide 22), the screen map, so callouts match the live browser UI.
+\item Numbers on the tip of the tongue: 18 fields, 246 cutouts, 109 detections, 99 explained (91\%),
+10 unexplained, 2 empty fields (\code{M42}, \code{Sgr A*}), 0.0186 false pixels per frame.
 \end{itemize}
 
 \end{document}

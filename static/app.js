@@ -61,8 +61,8 @@ function syncBackendUi() {
   if (wrap) wrap.classList.toggle('is-disabled', !ok);
   if (label) {
     label.textContent = ok || isOffline
-      ? 'Fetch fresh SPHEREx data from IRSA (selected field)'
-      : 'Live from IRSA \u2014 needs a backend';
+      ? 'Fresh IRSA'
+      : 'Fresh IRSA (no backend)';
   }
   if (hint && isOffline) {
     hint.textContent = 'Unavailable offline: fetching from IRSA needs a connection. '
@@ -1143,6 +1143,12 @@ function historyMatches(entry, filter) {
 function renderResearchHistory() {
   const list = $('history-list');
   if (!list) return;
+  const badge = $('history-badge');
+  if (badge) {
+    badge.textContent = researchHistory.entries.length
+      ? String(researchHistory.entries.length)
+      : '';
+  }
   const total = researchHistory.entries.reduce((sum, e) => sum + (e.bytes || 0), 0);
   setText('history-usage', researchHistory.entries.length
     ? `${researchHistory.entries.length} saved · ${fmt.bytes(total)} of ${fmt.bytes(HISTORY_LIMIT_BYTES)}`
@@ -1538,11 +1544,17 @@ const RAMPS = {
   diff: ramp([[0, [24, 62, 140]], [0.5, [248, 248, 246]], [1, [170, 28, 24]]]),
   snr: ramp([[0, [12, 8, 26]], [0.35, [86, 24, 104]], [0.6, [190, 62, 72]],
              [0.8, [244, 140, 60]], [1, [252, 244, 180]]]),
+  viridis: ramp([[0, [18, 12, 46]], [0.3, [46, 86, 138]], [0.6, [34, 152, 136]],
+                 [0.85, [145, 212, 72]], [1, [252, 232, 46]]]),
+  gray: ramp([[0, [10, 12, 16]], [1, [248, 250, 252]]]),
+  invgray: ramp([[0, [248, 250, 252]], [1, [10, 12, 16]]]),
 };
 
 const state = {
   data: null,
   layer: 'zogy_snr',
+  stretch: 'linear',
+  lut: 'auto',
   target: null,
   scaling: {},           // per-layer [min, max]
   view: { scale: 1, tx: 0, ty: 0 },
@@ -1574,6 +1586,20 @@ function percentile(arr, p) {
   return flat[i];
 }
 
+function stretchNorm(u, mode, symmetric) {
+  const c = Math.min(1, Math.max(0, u));
+  if (mode === 'linear') return c;
+  if (symmetric) {
+    const s = 2 * c - 1;
+    const mag = mode === 'log'
+      ? Math.log10(1 + 49 * Math.abs(s)) / Math.log10(50)
+      : Math.asinh(6 * Math.abs(s)) / Math.asinh(6);
+    return 0.5 + 0.5 * Math.sign(s) * mag;
+  }
+  if (mode === 'log') return Math.log10(1 + 99 * c) / 2;
+  return Math.asinh(10 * c) / Math.asinh(10);
+}
+
 function buildLayer(name, arr, lutName, symmetric) {
   const npix = arr.length;
   const canvas = document.createElement('canvas');
@@ -1581,7 +1607,8 @@ function buildLayer(name, arr, lutName, symmetric) {
   canvas.height = npix;
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(npix, npix);
-  const lut = RAMPS[lutName];
+  const effectiveLut = state.lut && state.lut !== 'auto' ? state.lut : lutName;
+  const lut = RAMPS[effectiveLut] || RAMPS[lutName];
 
   let lo, hi;
   if (symmetric) {
@@ -1598,7 +1625,7 @@ function buildLayer(name, arr, lutName, symmetric) {
   for (let y = 0; y < npix; y++) {
     for (let x = 0; x < npix; x++) {
       const v = arr[y][x];
-      const t = Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
+      const t = stretchNorm((v - lo) / (hi - lo), state.stretch, symmetric);
       const i = Math.round(t * 255) * 3;
       const row = npix - 1 - y;                 // image row 0 at the bottom
       const o = 4 * (row * npix + x);
@@ -1633,7 +1660,7 @@ function currentNpix() {
 function fitView() {
   const npix = currentNpix();
   const { w, h } = canvasSize();
-  const pad = 34;
+  const pad = 56;
   const s = Math.max(0.4, Math.min((w - pad) / npix, (h - pad) / npix));
   state.view.scale = s;
   state.view.tx = (w - s * npix) / 2;
@@ -1676,8 +1703,8 @@ function valueAt(x, y) {
 
 // ------------------------------------------------------------------ drawing
 
-const DET_COLORS = { dipole: '#0f9d58', monopole: '#d97706' };
-const CAT_COLORS = { gaia: '#2563eb', wise: '#0f9d58', vsx: '#d97706' };
+const DET_COLORS = { dipole: '#22c55e', monopole: '#f59e0b' };
+const CAT_COLORS = { gaia: '#4d94ff', wise: '#3fb950', vsx: '#d29922' };
 
 // Triage categories (step4_triage.py). Priority 1-2 = worth a human look.
 const CATEGORY_INFO = {
@@ -1729,7 +1756,7 @@ function drawTargetAndMovers(ctx) {
       ctx.beginPath(); ctx.moveTo(cx, cy + a); ctx.lineTo(cx, cy + b); ctx.stroke();
     });
     if (tp.moving) {
-      ctx.fillStyle = '#7c3aed';
+      ctx.fillStyle = '#c4a7ff';
       ctx.font = '9px ui-monospace, Menlo, monospace';
       ctx.fillText('target (now)', cx + 13, cy - 10);
     }
@@ -1775,7 +1802,7 @@ function draw() {
   if (state.highlight) {
     const { cx, cy } = toCanvas(state.highlight.x, state.highlight.y);
     ctx.save();
-    ctx.strokeStyle = '#0f172a';
+    ctx.strokeStyle = '#4d94ff';
     ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = '#ffffff';
@@ -1839,7 +1866,7 @@ function drawDetections(ctx) {
   dets.forEach((d, i) => {
     const pos = d.position || [0, 0];
     const { cx, cy } = toCanvas(pos[1], pos[0]);
-    const color = DET_COLORS[d.kind] || '#0f172a';
+    const color = DET_COLORS[d.kind] || '#e6edf3';
     const big = i === state.selected;
     const r = big ? 8 : 6;
 
@@ -1871,7 +1898,7 @@ function drawDetections(ctx) {
 function drawCrosshair(ctx) {
   const { cx, cy } = state.crosshair;
   ctx.save();
-  ctx.strokeStyle = 'rgba(15, 23, 42, .45)';
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.42)';
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 3]);
   ctx.beginPath();
@@ -2136,6 +2163,33 @@ function renderStats(data) {
   setText('stat-snr', s.max_snr ? s.max_snr.toFixed(1) : '--');
 }
 
+const REASON_TAGS = [
+  [/^catalogued as non-variable/i, 'STATIC ANOMALY', 'vf-warn'],
+  [/^no catalogue entry/i, 'UNMATCHED', 'vf-alert'],
+  [/^VSX\b/i, 'VSX VARIABLE', 'vf-info'],
+  [/^Gaia DR3 flags/i, 'GAIA VARIABLE', 'vf-info'],
+  [/^catalogued motion/i, 'PROPER MOTION', 'vf-ok'],
+  [/^already varied in NEOWISE/i, 'NEOWISE VAR', 'vf-info'],
+  [/^stable in NEOWISE/i, 'NEOWISE STABLE', 'vf-warn'],
+  [/^saturated in SPHEREx/i, 'SATURATED', 'vf-warn'],
+  [/mover saturates SPHEREx/i, 'MOVER SAT.', 'vf-warn'],
+  [/^nearby AllWISE entry ignored/i, 'WISE IGNORED', 'vf-mute'],
+  [/exceeds|dipole separation/i, 'ASTROMETRY', 'vf-warn'],
+  [/chance alignment/i, 'CHANCE ALIGN', 'vf-warn'],
+  [/saturating/i, 'BRIGHT STAR', 'vf-mute'],
+  [/unmasked|bands dropped/i, 'MASK', 'vf-mute'],
+];
+
+function formatVerdictFlag(reason) {
+  const rule = REASON_TAGS.find(([re]) => re.test(reason));
+  const [, tag, cls] = rule || [null, 'NOTE', 'vf-mute'];
+  const cleaned = String(reason)
+    .replace(/\s*--\s*/g, ' \u2014 ')
+    .replace(/^catalogued as non-variable, non-moving/i, 'non-variable, non-moving entry');
+  return `<div class="verdict-flag"><span class="vf-tag ${cls}">${tag}</span>` +
+    `<span class="vf-text">${fmt.escape(cleaned)}</span></div>`;
+}
+
 function renderVerdict(det) {
   const box = $('verdict-box');
   if (!det) {
@@ -2144,61 +2198,83 @@ function renderVerdict(det) {
   }
   const cat = categoryOf(det);
   const info = cat ? CATEGORY_INFO[cat] : null;
+  const hasReasons = Boolean((det.reasons || []).length);
   let html = `<div class="verdict-head">${categoryBadge(det)}` +
-    (info ? `<span class="verdict-hint">${fmt.escape(info.hint)}</span>` : '') + '</div>';
+    (!hasReasons && info ? `<span class="verdict-hint">${fmt.escape(info.hint)}</span>` : '') + '</div>';
   let rows = '';
-  // P11 s8: the label sits in a pill (wrapper only; label text unchanged)
-  const line = (label, value) => { rows += `<tr><th><span class="v-pill">${label}</span></th><td>${value}</td></tr>`; };
+  const line = (label, detail, num = '') => {
+    rows += `<tr><th><span class="v-pill">${label}</span></th>` +
+      `<td class="v-detail">${detail}</td>` +
+      `<td class="v-num mono">${num}</td></tr>`;
+  };
 
   if ((det.reasons || []).length) {
-    html += '<ul class="verdict-reasons">' +
-      det.reasons.map((r) => `<li>${fmt.escape(r)}</li>`).join('') + '</ul>';
+    html += '<div class="verdict-flags">' +
+      det.reasons.map(formatVerdictFlag).join('') + '</div>';
   }
   const keys = Object.keys(det.matches || {});
   if (keys.length) {
-    line('Matched', keys.map((k) => {
+    const details = [];
+    const seps = [];
+    keys.forEach((k) => {
       const m = det.matches[k];
       const name = m.source && (m.source.name || m.source.designation);
       const p = m.p_chance != null ? ` p<sub>chance</sub>=${m.p_chance.toFixed(2)}` : '';
-      return `${k}${name ? ` (${fmt.escape(name)})` : ''} ${m.sep_arcsec.toFixed(1)}\u2033${p}`;
-    }).join('<br>'));
+      details.push(`${fmt.escape(k)}${name ? ` (${fmt.escape(name)})` : ''}${p}`);
+      seps.push(m.sep_arcsec != null ? `${m.sep_arcsec.toFixed(1)}\u2033` : '--');
+    });
+    line('Matched', details.join('<br>'), seps.join('<br>'));
   } else if (!cat) {
-    line('Match', 'No catalog match \u00b7 follow-up recommended');
+    line('Match', 'No catalog match \u00b7 follow-up recommended', '\u2014');
   }
   const v = det.vsx;
   if (v) {
-    let s = fmt.escape(v.label || v.type || 'variable');
-    if (v.period_d) s += ` \u00b7 P ${fmt.num(v.period_d, 2)} d`;
-    if (v.cycles_in_baseline != null) s += ` (${v.cycles_in_baseline} cycles in baseline)`;
-    if (v.amplitude_mag != null) s += ` \u00b7 amp ${v.amplitude_mag} mag ${fmt.escape(v.passband || '')}`;
-    if (v.url) s += ` \u00b7 <a href="${fmt.escape(v.url)}" target="_blank" rel="noopener">AAVSO \u2197</a>`;
-    line('VSX', s);
+    const parts = [fmt.escape(v.label || v.type || 'variable')];
+    if (v.period_d) parts.push(`P ${fmt.num(v.period_d, 2)} d`);
+    if (v.cycles_in_baseline != null) parts.push(`${v.cycles_in_baseline} cyc`);
+    if (v.passband) parts.push(fmt.escape(v.passband));
+    if (v.url) parts.push(`<a href="${fmt.escape(v.url)}" target="_blank" rel="noopener">AAVSO \u2197</a>`);
+    const vNum = v.amplitude_mag != null ? `${v.amplitude_mag} mag`
+      : (v.period_d ? `${fmt.num(v.period_d, 2)} d` : '\u2014');
+    line('VSX', parts.join(' \u00b7 '), vNum);
   }
-  if (det.delta_mag != null) line('SPHEREx \u0394mag', `${det.delta_mag > 0 ? '+' : ''}${det.delta_mag}`);
+  if (det.delta_mag != null) {
+    line('SPHEREx \u0394mag', 'Epoch flux change', `${det.delta_mag > 0 ? '+' : ''}${det.delta_mag} mag`);
+  }
   const g = det.gaia;
-  if (g && (g.distance_pc || g.var_flag === 'VARIABLE')) {
+  if (g && (g.distance_pc || g.var_flag === 'VARIABLE' || g.abs_g != null)) {
     const parts = [];
-    if (g.distance_pc) parts.push(`${fmt.num(g.distance_pc, 1)} pc${g.nearby ? ' (nearby)' : ''}`);
+    if (g.nearby) parts.push('nearby');
     if (g.abs_g != null) parts.push(`M<sub>G</sub> ${g.abs_g}`);
     if (g.var_flag === 'VARIABLE') parts.push('Gaia VARIABLE');
-    line('Gaia', parts.join(' \u00b7 '));
+    const gNum = g.distance_pc ? `${fmt.num(g.distance_pc, 1)} pc` : (g.var_flag === 'VARIABLE' ? 'VAR' : '--');
+    line('Gaia', parts.join(' \u00b7 ') || 'DR3', gNum);
   }
   const w = det.wise;
-  if (w && w.w1_w2 != null) line('AllWISE W1\u2212W2', `${w.w1_w2} \u00b7 ${fmt.escape(w.colour_class || '')}`);
+  if (w && w.w1_w2 != null) {
+    line('AllWISE W1\u2212W2', fmt.escape(w.colour_class || 'IR colour'), `${w.w1_w2} mag`);
+  }
   const mc = det.motion_check;
   if (mc) {
-    line('Motion', `${fmt.escape(mc.catalogue)} ${fmt.num(mc.pm_masyr / 1000, 2)}\u2033/yr \u2192 ` +
-      `${fmt.num(mc.predicted_arcsec, 1)}\u2033 predicted vs ${mc.measured_arcsec != null ? fmt.num(mc.measured_arcsec, 1) : '--'}\u2033 \u00b7 ${fmt.escape(mc.status || '')}`);
+    line('Motion',
+      `${fmt.escape(mc.catalogue)} ${fmt.num(mc.pm_masyr / 1000, 2)}\u2033/yr \u00b7 ` +
+      `pred ${fmt.num(mc.predicted_arcsec, 1)}\u2033 \u00b7 ${fmt.escape(mc.status || '')}`,
+      `${mc.measured_arcsec != null ? fmt.num(mc.measured_arcsec, 1) : '--'}\u2033`);
   }
   const n = det.neowise;
   if (n && n.n_visits) {
     const w1 = n.w1 || {};
-    line('NEOWISE', `${n.n_visits} visits \u00b7 W1 amp ${w1.amplitude ?? '--'} mag, ` +
-      `\u03c7\u00b2\u1d63 ${w1.chi2_red ?? '--'} \u00b7 ${n.variable ? 'VARIABLE' : 'stable'}` +
-      (n.pm_significant ? ` \u00b7 pm ${fmt.num(n.pm_total_masyr / 1000, 2)}\u2033/yr` : ''));
+    const pm = n.pm_significant ? ` \u00b7 pm ${fmt.num(n.pm_total_masyr / 1000, 2)}\u2033/yr` : '';
+    line('NEOWISE',
+      `W1 amp ${w1.amplitude ?? '--'} mag \u00b7 \u03c7\u00b2\u1d63 ${w1.chi2_red ?? '--'} \u00b7 ` +
+      `${n.variable ? 'VARIABLE' : 'stable'}${pm}`,
+      `${n.n_visits} visits`);
   }
-  line('Position', `RA ${fmt.num(det.ra, 5)} \u00b7 Dec ${fmt.num(det.dec, 5)}`);
-  line('Detection', `SNR ${fmt.num(det.snr, 1)}\u03c3 \u00b7 ${fmt.escape(det.kind)} \u00b7 confidence ${fmt.escape(det.confidence || '--')}`);
+  if (det.mask && det.mask.bands_excluded) {
+    line('Mask', 'Unmasked epoch check', `${det.mask.bands_excluded}/${det.mask.n_bands} excl`);
+  }
+  line('Position', 'ICRS (RA, Dec)', `${fmt.num(det.ra, 5)}, ${fmt.num(det.dec, 5)}`);
+  line('Detection', `${fmt.escape(det.kind)} \u00b7 conf ${fmt.escape(det.confidence || '--')}`, `${fmt.num(det.snr, 1)}\u03c3`);
   html += `<table class="kv-table verdict-table"><tbody>${rows}</tbody></table>`;
   box.innerHTML = html;
 }
@@ -2402,6 +2478,7 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
     ? 'Starting a fresh IRSA request'
     : 'Loading the selected field data');
   let streamed = null;
+  if (state.target !== target) state.recovery = null;
   state.target = target;
   show('map-loader');
   setStatus(`LOADING ${target.replace(/_/g, ' ').toUpperCase()} \u00b7 FIELD DATA`, 'busy');
@@ -2540,18 +2617,17 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
       }
       setText('cloud-support-freshness', supportTimes.join(' · '));
     } else if (data.source === 'live') {
-      freshness = 'fresh SPHEREx data from IRSA for this run';
+      freshness = 'fresh SPHEREx cutouts from IRSA';
       setText('cloud-support-freshness', '');
     } else {
       freshness = data.generated_at
-        ? `local cache; pipeline completed ${formatTimestamp(data.generated_at)}`
-        : 'local cache; pipeline completion time unavailable';
+        ? `cache \u00b7 ${formatTimestamp(data.generated_at)}`
+        : 'local cache';
       setText('cloud-support-freshness', '');
     }
     if (data.irsa_check) freshness = `${irsaCheckText(data.irsa_check)}; ${freshness}`;
     if (savedEntry) {
-      freshness = `saved result from ${formatTimestamp(savedEntry.saved_at)}, ` +
-        'opened from History on this device';
+      freshness = `history snapshot (${formatTimestamp(savedEntry.saved_at)})`;
     }
     const missingCatalogs = unavailableCatalogs(data);
     if (missingCatalogs.length) {
@@ -2560,8 +2636,7 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
     }
     const offlineView = fromSavedCopy && offline.mode === 'offline';
     if (offlineView) {
-      freshness = `offline copy saved on this device ${formatTimestamp(
-        offline.meta?.saved_at)}; ${freshness}`;
+      freshness = `offline copy (${formatTimestamp(offline.meta?.saved_at)}); ${freshness}`;
     }
     setText('map-hint',
       `${data.common} \u00b7 ${data.n_epoch1}+${data.n_epoch2} exposures \u00b7 ` +
@@ -2570,23 +2645,22 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null, savedE
       || (data.source === 'scheduled' ? data.generated_at : null);
     progress.update(data.irsa_check?.reused_snapshot
       ? `IRSA checked in ${(streamed?.elapsedSeconds
-        ?? (performance.now() - pipelineStarted) / 1000).toFixed(1)} s: no new images, ` +
-        'so the full snapshot result is shown'
+        ?? (performance.now() - pipelineStarted) / 1000).toFixed(1)} s: snapshot up to date`
       : data.source === 'live'
       ? `IRSA pipeline complete in ${(streamed?.elapsedSeconds
         ?? preloadedElapsed
         ?? (performance.now() - pipelineStarted) / 1000).toFixed(1)} s`
       : (data.source === 'scheduled'
         ? (processedAt
-          ? `Field data loaded; last processed ${formatTimestamp(processedAt)}`
-          : 'Field data loaded; processing time unavailable')
+          ? `Snapshot loaded (${formatTimestamp(processedAt)})`
+          : 'Snapshot loaded')
         : (data.generated_at
-          ? `Field data loaded from local cache; pipeline completed ${formatTimestamp(data.generated_at)}`
-          : 'Field data loaded from local cache; pipeline completion time unavailable')));
-    setStatus(savedEntry ? 'SAVED RESULT \u00b7 HISTORY'
-      : offlineView ? 'OFFLINE \u00b7 SAVED CLOUD SNAPSHOT' : data.source === 'scheduled'
-        ? 'SCHEDULED CLOUD SNAPSHOT'
-        : 'NORMAL OPS \u00b7 FIELD LOADED', offlineView || savedEntry ? 'busy' : undefined);
+          ? `Loaded from cache (${formatTimestamp(data.generated_at)})`
+          : 'Loaded from local cache')));
+    setStatus(savedEntry ? 'HISTORY \u00b7 SAVED'
+      : offlineView ? 'OFFLINE \u00b7 SNAPSHOT' : data.source === 'scheduled'
+        ? 'SNAPSHOT \u00b7 READY'
+        : 'CACHE \u00b7 READY', offlineView || savedEntry ? 'busy' : undefined);
     if (savedEntry) progress.update(`Opened the saved result from ${formatTimestamp(savedEntry.saved_at)}`);
     // A fresh IRSA run of a registered field is research work: keep it.
     if (!preloadedData && state.live && data.source === 'live') {
@@ -3310,7 +3384,15 @@ function resetAll() {
   drawObjectTable();
   state.selected = -1;
   state.crosshair = null;
+  state.recovery = null;
+  state.stretch = 'linear';
+  state.lut = 'auto';
+  const stretchEl = $('stretch-select');
+  if (stretchEl) stretchEl.value = 'linear';
+  const lutEl = $('lut-select');
+  if (lutEl) lutEl.value = 'auto';
   if (state.data) {
+    rebuildLayers();
     fitView();
     updateZoomLabel();
     draw();
@@ -3318,6 +3400,7 @@ function resetAll() {
     state.selected = 0;
     document.querySelectorAll('#detections-body tr')
       .forEach((tr, i) => tr.classList.toggle('selected', i === 0));
+    drawRecoveryChart(null);
   }
   setText('recovery-out', 'injection-recovery not run yet');
   $('recovery-out').style.whiteSpace = 'normal';
@@ -3387,12 +3470,18 @@ function syncTcSummaries() {
   const stats = $('tc-stats-sum');
   if (stats) {
     const exp = t('stat-exp');
+    const snr = t('stat-snr');
     stats.textContent = exp && exp !== '--'
-      ? `${exp} exposures · ${t('stat-epochs')} epochs · SNR max ${t('stat-snr')}`
+      ? `${exp}\u00b7${snr}`
       : '';
   }
   const rec = $('tc-recovery-sum');
-  if (rec) rec.textContent = t('recovery-out').split('\n')[0];
+  if (rec) {
+    const rawRec = t('recovery-out');
+    rec.textContent = !rawRec || /not run yet/i.test(rawRec)
+      ? ''
+      : rawRec.split('\n')[0].slice(0, 22);
+  }
 }
 
 function attachTcSummaries() {
@@ -3448,20 +3537,136 @@ function attachMotion() {
       }
     }, 150);
   });
+}
 
-  // Scroll reveal, once per section; skipped entirely with reduced motion.
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduce || !('IntersectionObserver' in window)) return;
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach((e) => {
-      if (!e.isIntersecting) return;
-      e.target.classList.add('in');
-      io.unobserve(e.target);
+function closeAllTooltips(except = null) {
+  document.querySelectorAll('.tip-wrap.open').forEach((wrap) => {
+    if (wrap === except) return;
+    wrap.classList.remove('open');
+    const btn = wrap.querySelector('[data-tip-toggle]');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  });
+}
+
+let winZCounter = 410;
+
+function focusToolWindow(win) {
+  document.querySelectorAll('.win-dialog').forEach((d) => d.classList.remove('win-active'));
+  if (!win) return;
+  winZCounter += 1;
+  win.style.zIndex = String(winZCounter);
+  win.classList.add('win-active');
+}
+
+function closeToolWindow(win) {
+  if (!win || win.classList.contains('hidden')) return;
+  win.classList.add('hidden');
+  win.classList.remove('win-active');
+  const btn = document.querySelector(`[data-win="${win.id}"]`);
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function positionToolWindow(win, trigger) {
+  const pad = 12;
+  const baseWidth = win.id === 'win-history' ? 430 : 380;
+  const width = Math.min(baseWidth, window.innerWidth - pad * 2);
+  win.style.width = `${width}px`;
+  if (win.dataset.positioned === '1') {
+    const curLeft = parseFloat(win.style.left) || pad;
+    const curTop = parseFloat(win.style.top) || 88;
+    win.style.left = `${Math.max(pad, Math.min(curLeft, window.innerWidth - width - pad))}px`;
+    win.style.top = `${Math.max(46, Math.min(curTop, window.innerHeight - 80))}px`;
+    return;
+  }
+  const openCount = [...document.querySelectorAll('.win-dialog:not(.hidden)')]
+    .filter((d) => d !== win).length;
+  const cascade = openCount * 22;
+  const rect = trigger ? trigger.getBoundingClientRect() : null;
+  const desiredLeft = rect ? rect.right - width + cascade : window.innerWidth - width - 24 - cascade;
+  const desiredTop = rect ? rect.bottom + 8 + cascade : 88 + cascade;
+  win.style.left = `${Math.max(pad, Math.min(desiredLeft, window.innerWidth - width - pad))}px`;
+  win.style.top = `${Math.max(46, Math.min(desiredTop, window.innerHeight - 180))}px`;
+}
+
+function toggleToolWindow(winId, trigger) {
+  const win = $(winId);
+  if (!win) return;
+  if (!win.classList.contains('hidden')) {
+    closeToolWindow(win);
+    return;
+  }
+  win.classList.remove('hidden');
+  if (trigger) trigger.setAttribute('aria-expanded', 'true');
+  positionToolWindow(win, trigger);
+  focusToolWindow(win);
+}
+
+function attachToolWindowsAndTips() {
+  document.querySelectorAll('[data-win]').forEach((btn) => {
+    btn.addEventListener('click', () => toggleToolWindow(btn.dataset.win, btn));
+  });
+
+  document.querySelectorAll('[data-win-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeToolWindow($(btn.dataset.winClose)));
+  });
+
+  document.querySelectorAll('.win-dialog').forEach((win) => {
+    win.addEventListener('pointerdown', () => focusToolWindow(win));
+    const handle = win.querySelector('[data-drag-handle]');
+    if (!handle) return;
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target.closest('button')) return;
+      e.preventDefault();
+      focusToolWindow(win);
+      const rect = win.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const originLeft = rect.left;
+      const originTop = rect.top;
+      win.dataset.positioned = '1';
+      const onMove = (ev) => {
+        const maxLeft = Math.max(8, window.innerWidth - Math.min(rect.width, window.innerWidth - 16) - 8);
+        const maxTop = Math.max(44, window.innerHeight - 44);
+        win.style.left = `${Math.max(8, Math.min(originLeft + (ev.clientX - startX), maxLeft))}px`;
+        win.style.top = `${Math.max(44, Math.min(originTop + (ev.clientY - startY), maxTop))}px`;
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
     });
-  }, { rootMargin: '0px 0px -40px 0px', threshold: 0.05 });
-  document.querySelectorAll('.workspace .section').forEach((sec) => {
-    sec.classList.add('reveal');
-    io.observe(sec);
+  });
+
+  document.querySelectorAll('[data-tip-toggle]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wrap = btn.closest('.tip-wrap');
+      if (!wrap) return;
+      const opening = !wrap.classList.contains('open');
+      closeAllTooltips(opening ? wrap : null);
+      wrap.classList.toggle('open', opening);
+      btn.setAttribute('aria-expanded', String(opening));
+      if (opening) {
+        const pop = wrap.querySelector('.tip-popover');
+        if (pop) {
+          pop.style.left = '0';
+          pop.style.right = 'auto';
+          const r = pop.getBoundingClientRect();
+          if (r.right > window.innerWidth - 12) {
+            pop.style.left = 'auto';
+            pop.style.right = '0';
+          }
+        }
+      }
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.tip-wrap')) closeAllTooltips();
   });
 }
 
@@ -3488,6 +3693,21 @@ function attachUiEvents() {
       draw();
     });
   });
+
+  const stretchSel = $('stretch-select');
+  if (stretchSel) {
+    stretchSel.addEventListener('change', (e) => {
+      state.stretch = e.target.value;
+      if (state.data) { rebuildLayers(); draw(); }
+    });
+  }
+  const lutSel = $('lut-select');
+  if (lutSel) {
+    lutSel.addEventListener('change', (e) => {
+      state.lut = e.target.value;
+      if (state.data) { rebuildLayers(); draw(); }
+    });
+  }
 
   document.querySelectorAll('#view-switch .seg').forEach((btn) => {
     btn.addEventListener('click', () => switchView(btn.dataset.view));
@@ -3580,10 +3800,22 @@ function attachUiEvents() {
     });
   }
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeGuide();
+    if (e.key !== 'Escape') return;
+    if (document.querySelector('.tip-wrap.open')) {
+      closeAllTooltips();
+      return;
+    }
+    const openWins = [...document.querySelectorAll('.win-dialog:not(.hidden)')];
+    if (openWins.length) {
+      openWins.sort((a, b) => (parseInt(a.style.zIndex || '400', 10) - parseInt(b.style.zIndex || '400', 10)));
+      closeToolWindow(openWins[openWins.length - 1]);
+      return;
+    }
+    closeGuide();
   });
 
   attachMotion();
+  attachToolWindowsAndTips();
 
   const liveToggle = $('tog-live');
   if (liveToggle) {
@@ -3784,32 +4016,33 @@ function drawBars(id, labels, values, colour, unit) {
   }
   const { ctx, plotBottom, plotTop, plotLeft, plotRight } = f;
   const max = Math.max(...values, 1e-9);
-  const bw = (plotRight - plotLeft) / values.length;
+  const slotW = (plotRight - plotLeft) / values.length;
+  const barW = Math.min(48, Math.max(8, slotW - 10));
   values.forEach((v, i) => {
     const hgt = (plotBottom - plotTop) * (v / max);
-    const x = plotLeft + i * bw;
+    const cx = plotLeft + i * slotW + slotW / 2;
+    const bx = cx - barW / 2;
     ctx.fillStyle = colour;
-    ctx.globalAlpha = 0.8;
-    ctx.fillRect(x + 4, plotBottom - hgt, Math.max(2, bw - 8), hgt);
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(bx, plotBottom - hgt, barW, hgt);
     ctx.globalAlpha = 1;
     ctx.fillStyle = chartTheme().text;
     ctx.font = chartTheme().font;
     ctx.textAlign = 'center';
-    ctx.fillText(String(labels[i]), x + bw / 2, plotBottom + 13);
-    ctx.fillText(Number(v).toFixed(v < 10 ? 2 : 0), x + bw / 2, plotBottom - hgt - 4);
+    ctx.fillText(String(labels[i]), cx, plotBottom + 13);
+    ctx.fillText(Number(v).toFixed(v < 10 ? 2 : 0), cx, plotBottom - hgt - 4);
   });
 }
 
 function drawRecoveryChart(grid) {
+  const wrap = $('chart-recovery-wrap');
+  const diag = $('diag-charts');
+  const hasGrid = Boolean(grid && grid.length);
+  if (wrap) wrap.classList.toggle('hidden', !hasGrid);
+  if (diag) diag.classList.toggle('has-3', !hasGrid);
+  if (!hasGrid) return;
   const f = chartFrame('chart-recovery', 'recovered % vs SNR');
   if (!f) return;
-  if (!grid || !grid.length) {
-    f.ctx.fillStyle = chartTheme().muted;
-    f.ctx.font = chartTheme().font;
-    f.ctx.textAlign = 'center';
-    f.ctx.fillText('press \u201cRecovery Grid\u201d', f.w / 2, f.h / 2);
-    return;
-  }
   const { ctx, plotBottom, plotTop, plotLeft, plotRight } = f;
   const snrs = [...new Set(grid.map((g) => g.snr))].sort((a, b) => a - b);
   const mus = [...new Set(grid.map((g) => g.mu))].sort((a, b) => a - b);
@@ -3945,25 +4178,36 @@ function notesTable(notes) {
 }
 
 function renderHistory(data) {
-  drawSed(data.sed);
   const nw = data.neowise || {};
-  drawLightCurve(nw, data.epochs);
+  const sed = data.sed || {};
+  const visits = (nw.target && nw.target.visits) || [];
+  const hasSed = (sed.points || []).concat(sed.spherex || [])
+    .some((p) => p.mjy > 0 && p.lam_um > 0);
+  const hasNw = visits.length > 0;
+  const hasWiseComp = (sed.wise_comparison || []).length > 0;
+
+  const secHistory = $('sec-history');
+  const historyCharts = $('history-charts');
+  const sedWrap = $('chart-sed-wrap');
+  const nwWrap = $('chart-neowise-wrap');
+  if (sedWrap) sedWrap.classList.toggle('hidden', !hasSed);
+  if (nwWrap) nwWrap.classList.toggle('hidden', !hasNw);
+  if (historyCharts) historyCharts.classList.toggle('hidden', !hasSed && !hasNw);
+  if (secHistory) secHistory.classList.toggle('hidden', !hasSed && !hasNw && !hasWiseComp);
+
+  if (hasSed) drawSed(sed);
+  if (hasNw) drawLightCurve(nw, data.epochs);
 
   const notes = [];
-  const visits = (nw.target && nw.target.visits) || [];
   const queriedAt = nw.generated_utc
     ? `; last queried ${formatTimestamp(nw.generated_utc)}`
     : '';
-  if (!nw.available) {
-    notes.push('NEOWISE history is unavailable or has not been refreshed' +
-      (data.source === 'live' ? ' (a live SPHEREx fetch does not refresh NEOWISE)' : '') + '.');
-  } else if (!visits.length) {
-    notes.push('NEOWISE query completed; no matching visits were returned' + queriedAt + '.');
-  } else {
-    notes.push(`Stored NEOWISE history: ${visits.length} visits${queriedAt}` +
-      (data.source === 'live' ? '; this live SPHEREx fetch did not refresh it.' : '.'));
+  if (hasNw || (nw.available && visits.length === 0)) {
+    notes.push(hasNw
+      ? `Stored NEOWISE history: ${visits.length} visits${queriedAt}` +
+        (data.source === 'live' ? '; this live SPHEREx fetch did not refresh it.' : '.')
+      : `NEOWISE query completed; no matching visits were returned${queriedAt}.`);
   }
-  const sed = data.sed || {};
   (sed.wise_comparison || []).forEach((c) => {
     notes.push(`${c.band}: SPHEREx ${c.spherex_mjy} mJy vs AllWISE ${c.wise_mjy} mJy ` +
       `(ratio ${c.ratio}, Δ ${c.delta_mag > 0 ? '+' : ''}${c.delta_mag} mag over ${c.years_between ?? '?'} yr)`);
@@ -3979,8 +4223,8 @@ function renderHistory(data) {
         (s.pm_significant ? ' (significant)' : ''));
     }
   }
-  if (sed.note && (sed.wise_comparison || []).length) notes.push(sed.note);
-  $('history-out').innerHTML = notesTable(notes.length ? notes : ['no catalogue counterpart for this target']);
+  if (sed.note && hasWiseComp) notes.push(sed.note);
+  $('history-out').innerHTML = notes.length ? notesTable(notes) : '';
 
   const movers = data.expected_movers || [];
   const tbody = $('movers-body');
