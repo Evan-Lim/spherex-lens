@@ -15,10 +15,11 @@ from step5_spectrum import _wavelength_from_wave_tab
 
 APERTURE_PX = 2.0          # native 6.2" pixels; PSF FWHM ~7.5" = 1.2 px
 ANNULUS_PX = (4.0, 7.0)
-# FLAGS bits that make a measurement unusable (SPHEREx L2: saturation,
-# cosmic ray, non-functional, hot/cold pixels...).  Any nonzero bit inside the
-# aperture marks the point, and lightcurve.py drops it.
-BAD_FLAG_MASK = 0xFFFFFFFF
+# FLAGS bits that make a measurement unusable: the same set the co-add masks
+# (step2_coadd.BAD_BITS).  SOURCE (bit 21) and FULLSAMPLE are informational --
+# SOURCE marks pixels *on a real star*, so treating every bit as bad flagged
+# nearly every aperture and the first NEP run analysed 0 stars.
+from step2_coadd import BAD_BITS as BAD_FLAG_MASK  # noqa: E402
 
 
 def _mjd(header):

@@ -66,6 +66,11 @@ def select_rows(rows, max_exposures=200, n_time_bins=None, seed=0):
         take = int(carry)
         carry -= take
         bands = per_bin.get(b, {})
+        # quota a sparse/empty bin cannot use rolls forward to later bins
+        available = sum(len(v) for v in bands.values())
+        if available < take:
+            carry += take - available
+            take = available
         for lst in bands.values():
             rng.shuffle(lst)
         names = sorted(bands)
@@ -79,17 +84,50 @@ def select_rows(rows, max_exposures=200, n_time_bins=None, seed=0):
     return sorted(chosen, key=_mjd)[:max_exposures]
 
 
-def fetch(rows, ra, dec, size_deg=0.1, workers=3):
-    """Download cutouts (cached on disk by step1_ingest); returns [(path, row)]."""
+def deep_cache_dir(ra, dec, size_deg):
+    """Cutouts depend on centre and size, so each (centre, size) gets its own
+    folder -- never the shared dashboard cache, whose file names carry
+    neither (a deep cutout there would poison later dashboard ingests)."""
+    root = os.environ.get("SPHEREX_CACHE", "data_cache")
+    return os.path.join(root, "deep", f"{ra:.4f}_{dec:+.4f}_{size_deg:g}")
+
+
+def fetch(rows, ra, dec, size_deg=0.1, workers=3, retries=3):
+    """Download and validate cutouts; returns [(path, row)]."""
+    import time
     from concurrent.futures import ThreadPoolExecutor
 
+    folder = deep_cache_dir(ra, dec, size_deg)
+    os.makedirs(folder, exist_ok=True)
+
     def one(row):
-        try:
-            path = ingest.download_cutout(row, ra, dec, size_deg=size_deg)
-        except Exception as e:                  # one bad cutout never stops the run
-            print(f"    cutout failed: {type(e).__name__}: {e}")
-            path = None
-        return (path, row) if path and os.path.exists(path) else None
+        base = os.path.basename(row["access_url"]).replace(".fits", "_cut.fits")
+        path = os.path.join(folder, base)
+        if not os.path.exists(path):
+            params = {"path": row["access_url"].split("/ibe/data/")[-1],
+                      "center": f"{ra},{dec}", "size": str(size_deg)}
+            for attempt in range(retries):
+                try:
+                    resp = ingest.requests.get(ingest.IRSA_CUTOUT, params=params,
+                                               timeout=300)
+                except Exception as e:      # one bad cutout never stops the run
+                    print(f"    cutout failed: {type(e).__name__}: {e}")
+                    resp = None
+                if resp is not None and resp.status_code == 200 \
+                        and "fits" in resp.headers.get("content-type", ""):
+                    tmp = path + ".part"
+                    with open(tmp, "wb") as f:
+                        f.write(resp.content)
+                    os.replace(tmp, path)
+                    break
+                time.sleep(5 * (attempt + 1))      # IRSA answers 503 when busy
+            else:
+                return None
+        ok, reason = ingest.validate_cutout(path, ra, dec)
+        if not ok:
+            print(f"    rejected {base}: {reason}")
+            return None
+        return path, row
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         out = [x for x in pool.map(one, rows) if x]

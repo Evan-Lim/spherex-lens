@@ -102,3 +102,36 @@ class RouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RealCutoutPhotometryTests(unittest.TestCase):
+    """Forced photometry on a committed DR1 cutout (WISE 0855 field, D1)."""
+
+    def test_source_flag_does_not_reject_real_stars(self):
+        import glob
+        import os
+        from astropy.io import fits
+        from astropy.wcs import WCS
+        from spherexlens.deep import photometry
+        path = sorted(glob.glob(os.path.join(os.path.dirname(__file__),
+                                             "fixtures", "level2_*_cut.fits.gz")))[0]
+        with fits.open(path) as h:
+            img = h["IMAGE"].data
+            flags = h["FLAGS"].data
+            wcs = WCS(h["IMAGE"].header)
+        # brightest pixels away from the edge = real stars, many carry SOURCE
+        y, x = np.unravel_index(np.argsort(np.nan_to_num(img[10:-10, 10:-10]),
+                                           axis=None)[-40:], (img.shape[0] - 20,
+                                                              img.shape[1] - 20))
+        src = []
+        for i, (yy, xx) in enumerate(zip(y + 10, x + 10)):
+            ra, dec = wcs.pixel_to_world_values(float(xx), float(yy))
+            src.append({"id": i, "ra": float(ra), "dec": float(dec)})
+        on_source = sum(bool(flags[yy, xx] & (1 << 21)) for yy, xx in zip(y + 10, x + 10))
+        out = photometry.measure(path, src)
+        self.assertGreater(len(out), 10)
+        self.assertGreater(on_source, 0, "fixture should contain SOURCE-flagged stars")
+        unflagged = [m for m in out if not m["flagged"]]
+        self.assertGreater(len(unflagged), len(out) // 2)
+        self.assertTrue(all(m["wavelength_um"] for m in out))
+        self.assertTrue(all(m["flux_mjy"] > 0 for m in unflagged[:5]))

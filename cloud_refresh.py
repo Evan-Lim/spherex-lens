@@ -19,7 +19,8 @@ from snapshot_store import SnapshotStore
 
 
 CACHE = os.environ["SPHEREX_CACHE"]
-COLLECTION = os.environ.get("SPHEREX_COLLECTION", "spherex_dr1")
+import config as _config
+COLLECTION = _config.SPHEREX_COLLECTION
 SIZE_DEG = float(os.environ.get("SPHEREX_CUTOUT_SIZE_DEG", "0.2"))
 CATALOG_REFRESH_DAYS = int(os.environ.get("SPHEREX_CATALOG_REFRESH_DAYS", "7"))
 PREVIOUS_SNAPSHOT_RETENTION_HOURS = int(

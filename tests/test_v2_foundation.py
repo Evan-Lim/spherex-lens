@@ -79,3 +79,14 @@ class RouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GateTests(unittest.TestCase):
+    def test_missing_nan_or_bool_metric_fails(self):
+        from spherexlens.eval.gate import compare
+        base = {"classifier": {"precision": 0.94, "recall": 0.9}}
+        self.assertEqual(compare({"classifier": {"precision": 0.94, "recall": 0.9}}, base), [])
+        self.assertTrue(compare({"classifier": {"recall": 0.9}}, base))
+        self.assertTrue(compare({"classifier": {"precision": float("nan"), "recall": 0.9}}, base))
+        self.assertTrue(compare({"classifier": {"precision": True, "recall": 0.9}}, base))
+        self.assertTrue(compare({"classifier": {"precision": 0.80, "recall": 0.9}}, base))

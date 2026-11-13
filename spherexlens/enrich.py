@@ -38,7 +38,13 @@ def register(name, order=100):
     return deco
 
 
+IMPORT_ERRORS = {}   # module -> "ExcType: message" for enrichers that failed to load
+
+
 def load_enrichers():
+    """Import every enricher module once.  A module that fails to import (bug,
+    missing third-party dependency) is recorded and skipped -- it must never
+    turn every dashboard into a 500."""
     global _LOADED
     if _LOADED:
         return
@@ -48,7 +54,11 @@ def load_enrichers():
         except ModuleNotFoundError as e:
             if e.name and mod.startswith(e.name):
                 continue            # subsystem not present in this build
-            raise
+            IMPORT_ERRORS[mod] = f"{type(e).__name__}: {e}"
+            traceback.print_exc()
+        except Exception as e:
+            IMPORT_ERRORS[mod] = f"{type(e).__name__}: {e}"
+            traceback.print_exc()
     _LOADED = True
 
 
@@ -61,6 +71,9 @@ def run_enrichers(payload, ctx, only=None):
     """Run every registered enricher on a dashboard payload, in order."""
     load_enrichers()
     report = payload.setdefault("enrichment", {})
+    for mod, err in IMPORT_ERRORS.items():
+        report[mod.rsplit(".", 1)[-1]] = {"status": "error",
+                                          "error": f"failed to load: {err}"}
     for _, name, fn in list(_REGISTRY):
         if only is not None and name not in only:
             continue
