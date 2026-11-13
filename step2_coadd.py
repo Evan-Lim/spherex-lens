@@ -6,7 +6,8 @@ FLAGS bitmask to reject cosmic rays and saturated pixels, reprojects each
 exposure onto a common tangent plane, and produces an inverse-variance
 weighted co-added image for a given detector array.
 
-Tested against SPHEREx QR3 Level-2 cutouts.
+Tested against SPHEREx QR3 and DR1 Level-2 cutouts.  DR1 adds ZODI and EPSF
+layers: ZODI is subtracted before the sky fit, EPSF gives each epoch's PSF.
 """
 
 import os
@@ -14,6 +15,8 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 from reproject import reproject_interp
+
+import config
 
 # SPHEREx Level-2 FLAGS bits, taken from the MP_* ("mask plane") keywords in
 # the FLAGS HDU header of a real cutout.  The blueprint's bit values were
@@ -89,6 +92,93 @@ def load_exposure(source):
             var = np.ones_like(img)
 
     return img, flags, var, wcs
+
+
+def load_exposure_full(source, target_radec=None):
+    """
+    Everything the v2 pipeline needs from one cutout, as a dict:
+
+        img, flags, var, wcs, header -- as load_exposure (header = IMAGE header)
+        zodi       -- ZODI layer (MJy/sr, same grid as IMAGE) or None
+        psf        -- normalised, centred, odd-sized PSF on the 3"/px
+                      north-up target grid (spherexlens.imaging.psf_from_hdul)
+        psf_fwhm_arcsec      -- FWHM of the selected ePSF zone (instrument)
+        psf_grid_fwhm_arcsec -- FWHM of the resampled kernel (incl. the
+                                bilinear reprojection blur)
+        psf_source -- "epsf" or "gaussian_fallback"; psf_zone, psf_note
+        axis_angles_deg -- detector x/y axes on the target grid (spike masks)
+        header_psf_fwhm_arcsec, mjd, detector, obsid
+
+    target_radec -- (ra, dec): pick the PSF zone at the target, not the cutout
+    centre.  `source` is a path or raw FITS bytes, as for load_exposure.
+    """
+    import io
+    from spherexlens.imaging import psf_from_hdul
+
+    handle = io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source
+    with fits.open(handle) as hdul:
+        img_hdu = hdul["IMAGE"] if "IMAGE" in hdul else hdul[0]
+        hdr = img_hdu.header.copy()
+        img = img_hdu.data.astype(float)
+        wcs = WCS(hdr)
+        flags = (hdul["FLAGS"].data.astype(int) if "FLAGS" in hdul
+                 else np.zeros_like(img, dtype=int))
+        var = (hdul["VARIANCE"].data.astype(float) if "VARIANCE" in hdul
+               else np.ones_like(img))
+        zodi = None
+        if "ZODI" in hdul and hdul["ZODI"].data is not None:
+            z = hdul["ZODI"].data.astype(float)
+            if z.shape == img.shape and np.isfinite(z).any():
+                zodi = z
+        xy = None
+        if target_radec is not None:
+            try:
+                pix = wcs.all_world2pix([[target_radec[0], target_radec[1]]], 0,
+                                        tolerance=1e-8, maxiter=100, quiet=True)[0]
+                if (np.all(np.isfinite(pix)) and 0 <= pix[0] <= img.shape[1] - 1
+                        and 0 <= pix[1] <= img.shape[0] - 1):
+                    xy = (float(pix[0]), float(pix[1]))
+            except Exception:
+                xy = None
+        psf = psf_from_hdul(hdul, hdr, wcs, xy=xy)
+
+    def _get(key, cast):
+        try:
+            return cast(hdr[key])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    out = {"img": img, "flags": flags, "var": var, "wcs": wcs, "header": hdr,
+           "zodi": zodi,
+           "header_psf_fwhm_arcsec": _get("PSF_FWHM", float),
+           "mjd": _get("MJD-AVG", float) or _get("MJD-OBS", float),
+           "detector": _get("DETECTOR", int),
+           "obsid": _get("OBSID", str)}
+    out.update(psf)
+    out.setdefault("axis_angles_deg", None)
+    return out
+
+
+def prepare_exposure(ex, subtract_sky=True, subtract_zodi=None):
+    """
+    ZODI then sky subtraction for one load_exposure_full() dict.
+
+    The ZODI layer is the Kelsall+1998 model in the IMAGE's own units, so it
+    is subtracted pixel by pixel first; the existing constant sky fit then
+    takes out what the model leaves.  Missing ZODI = no-op.  Returns
+    (img, valid, zodi_applied).
+    """
+    subtract_zodi = config.SUBTRACT_ZODI if subtract_zodi is None else subtract_zodi
+    img, flags, var = ex["img"], ex["flags"], ex["var"]
+    valid = ((flags & BAD_BITS) == 0) & np.isfinite(img) & (var > 0)
+    applied = False
+    if subtract_zodi and ex.get("zodi") is not None:
+        z = ex["zodi"]
+        img = np.where(np.isfinite(z), img - z, img)
+        applied = True
+    if subtract_sky:
+        img = img - sky_level(img, valid)
+    return img, valid, applied
 
 
 def _bilinear_sample(image, xs, ys):
@@ -173,9 +263,9 @@ def coadd_detector(fits_paths, target_wcs, npix=180, subtract_sky=True):
     Inverse-variance co-add of a list of FITS files (one epoch, no mask
     matching -- the dashboard uses coadd_matched for epoch comparisons).
 
-    subtract_sky -- remove each exposure's own sky level first: exposures from
-        different detectors (D1 at ~1 um, D4 at ~3 um) sit at very different
-        zodiacal levels.
+    subtract_sky -- remove each exposure's ZODI model and its own sky level
+        first: exposures from different detectors (D1 at ~1 um, D4 at ~3 um)
+        sit at very different zodiacal levels.
 
     Returns (coadded_image, noise_sigma).
     """
@@ -184,20 +274,19 @@ def coadd_detector(fits_paths, target_wcs, npix=180, subtract_sky=True):
 
     for path in fits_paths:
         try:
-            img, flags, var, wcs = load_exposure(path)
+            ex = load_exposure_full(path)
         except Exception as e:
             print(f" Skipping {path}: {e}")
             continue
 
-        valid = ((flags & BAD_BITS) == 0) & np.isfinite(img) & (var > 0)
-        if subtract_sky:
-            img = img - sky_level(img, valid)
+        img, valid, _ = prepare_exposure(ex, subtract_sky=subtract_sky,
+                                         subtract_zodi=None if subtract_sky else False)
         img_masked = np.where(valid, img, np.nan)
-        var_masked = np.where(valid, var, LARGE_VAR)
+        var_masked = np.where(valid, ex["var"], LARGE_VAR)
 
         try:
-            img_reproj = reproject_to_target(img_masked, wcs, target_wcs, npix)
-            var_reproj = reproject_to_target(var_masked, wcs, target_wcs, npix)
+            img_reproj = reproject_to_target(img_masked, ex["wcs"], target_wcs, npix)
+            var_reproj = reproject_to_target(var_masked, ex["wcs"], target_wcs, npix)
         except Exception as e:
             print(f" Reprojection failed for {path}: {e}")
             continue
@@ -211,7 +300,16 @@ def coadd_detector(fits_paths, target_wcs, npix=180, subtract_sky=True):
     return coadd, np.sqrt(coadd_var)
 
 
-def coadd_matched(groups, target_wcs, npix=180, subtract_sky=True):
+def _target_radec(target_wcs, npix):
+    try:
+        ra, dec = target_wcs.pixel_to_world_values(npix / 2.0, npix / 2.0)
+        return float(ra), float(dec)
+    except Exception:
+        return None
+
+
+def coadd_matched(groups, target_wcs, npix=180, subtract_sky=True,
+                  return_psf=False, quality_min=None, subtract_zodi=None):
     """
     Co-add several epochs with *matched* masks.
 
@@ -223,37 +321,85 @@ def coadd_matched(groups, target_wcs, npix=180, subtract_sky=True):
     equally bright in every band, the co-add fakes a change exactly there
     (seen on TRAPPIST-1: two "new sources" on pixels masked in one 2026 frame).
 
+    Each exposure first loses its ZODI model and sky level (prepare_exposure)
+    and is scored (spherexlens.imaging.score_exposures); exposures below
+    ``quality_min`` (default config.EXPOSURE_QUALITY_MIN; pass 0 to keep all)
+    are left out, never emptying an epoch.
+
     Returns (stacks, noise_maps, excluded, n_bands):
         stacks[e], noise_maps[e] -- co-add and 1-sigma map per epoch
         excluded -- per pixel, how many bands were dropped by the matching
         n_bands  -- number of distinct bands
+    With return_psf=True a fifth element, a dict, is appended:
+        psfs[e]          -- effective PSF of epoch e: inverse-variance-weighted
+                            mean of its exposures' PSFs (3"/px, sum 1)
+        psf_info[e]      -- {"source", "fwhm_arcsec", "grid_fwhm_arcsec", ...}
+        exposure_quality -- one row per exposure (CONTRACT.md, phase 3.2)
+        edge_map         -- per pixel, number of exposure footprints with an
+                            edge within config.EDGE_MASK_PX
+        axis_angles_deg  -- detector-axis directions on the grid (all exposures)
     """
-    reproj = {e: [] for e in groups}
+    from spherexlens.imaging import (combine_psfs, exposure_metrics,
+                                     fallback_psf_info, footprint_edge_map,
+                                     fwhm_from_array, score_exposures)
+
+    quality_min = config.EXPOSURE_QUALITY_MIN if quality_min is None else quality_min
+    radec = _target_radec(target_wcs, npix)
+
+    # ---- pass 1: read and score every exposure (native pixels) -------------
+    loaded = []
     for e, items in groups.items():
         for source, band in items:
             try:
-                img, flags, var, wcs = load_exposure(source)
+                ex = load_exposure_full(source, target_radec=radec)
             except Exception as exc:
                 print(f" Skipping {source if isinstance(source, str) else band}: {exc}")
                 continue
-            valid = ((flags & BAD_BITS) == 0) & np.isfinite(img) & (var > 0)
-            if subtract_sky:
-                img = img - sky_level(img, valid)
-            try:
-                img_r = reproject_to_target(np.where(valid, img, np.nan), wcs, target_wcs, npix)
-                var_r = reproject_to_target(np.where(valid, var, LARGE_VAR), wcs, target_wcs, npix)
-            except Exception as exc:
-                print(f" Reprojection failed for {band}: {exc}")
-                continue
-            ok = np.isfinite(img_r) & np.isfinite(var_r) & (var_r < 1e6)
-            reproj[e].append((band, img_r, var_r, ok))
+            img, valid, zodi_applied = prepare_exposure(ex, subtract_sky=subtract_sky,
+                                                        subtract_zodi=subtract_zodi)
+            # OBSID is shared by the D1..D6 frames of one exposure; the
+            # detector suffix matches the IRSA file names (..._0241_1D1_...)
+            obs_id = ex.get("obsid") or (os.path.basename(source)
+                                         if isinstance(source, str) else str(band))
+            if ex.get("obsid") and ex.get("detector") is not None:
+                obs_id = f"{obs_id}D{ex['detector']}"
+            loaded.append({"epoch": e, "band": band, "ex": ex, "img": img,
+                           "valid": valid, "zodi_applied": zodi_applied,
+                           "obs_id": obs_id,
+                           "psf_fwhm_arcsec": ex.get("psf_fwhm_arcsec"),
+                           "metrics": exposure_metrics(ex["img"], ex["flags"], ex["var"],
+                                                       ex["header"], BAD_BITS)})
+    if loaded:
+        score_exposures(loaded, quality_min=quality_min)
+
+    # ---- pass 2: reproject the kept exposures -------------------------------
+    reproj = {e: [] for e in groups}
+    footprints, angles = [], []
+    for rec in loaded:
+        if not rec["kept"]:
+            continue
+        ex, band, e = rec["ex"], rec["band"], rec["epoch"]
+        try:
+            img_r = reproject_to_target(np.where(rec["valid"], rec["img"], np.nan),
+                                        ex["wcs"], target_wcs, npix)
+            var_r = reproject_to_target(np.where(rec["valid"], ex["var"], LARGE_VAR),
+                                        ex["wcs"], target_wcs, npix)
+        except Exception as exc:
+            print(f" Reprojection failed for {band}: {exc}")
+            rec["kept"] = False
+            rec["reasons"].append(f"reprojection failed: {exc}")
+            continue
+        ok = np.isfinite(img_r) & np.isfinite(var_r) & (var_r < 1e6)
+        footprints.append(np.isfinite(var_r))
+        angles.extend(ex.get("axis_angles_deg") or [])
+        reproj[e].append((band, img_r, var_r, ok, rec))
 
     bands = sorted({b for items in reproj.values() for b, *_ in items})
     common = {}
     for b in bands:
         m = np.ones((npix, npix), dtype=bool)
         for e in reproj:
-            in_e = [ok for bb, _, _, ok in reproj[e] if bb == b]
+            in_e = [ok for bb, _, _, ok, _ in reproj[e] if bb == b]
             m &= np.logical_or.reduce(in_e) if in_e else False
         common[b] = m
 
@@ -261,23 +407,63 @@ def coadd_matched(groups, target_wcs, npix=180, subtract_sky=True):
     for b in bands:
         any_cov = np.zeros((npix, npix), dtype=bool)
         for e in reproj:
-            for bb, img_r, var_r, ok in reproj[e]:
+            for bb, img_r, var_r, ok, _ in reproj[e]:
                 if bb == b:
                     any_cov |= np.isfinite(var_r)
         covered += (any_cov & ~common[b]).astype(np.int16)
 
-    stacks, noise_maps = {}, {}
+    stacks, noise_maps, psfs, psf_info = {}, {}, {}, {}
     for e, items in reproj.items():
         num = np.zeros((npix, npix))
         den = np.zeros((npix, npix))
-        for b, img_r, var_r, ok in items:
+        p_list, p_w, fw, n_epsf = [], [], [], 0
+        for b, img_r, var_r, ok, rec in items:
             use = ok & common[b]
             w = np.where(use, 1.0 / np.maximum(var_r, 1e-12), 0.0)
             num += np.where(use, img_r, 0.0) * w
             den += w
+            wsum = float(w.sum())
+            p_list.append(rec["ex"]["psf"])
+            p_w.append(wsum)
+            fw.append((rec["ex"].get("psf_fwhm_arcsec"), wsum))
+            n_epsf += rec["ex"].get("psf_source") == "epsf"
         stacks[e] = num / np.maximum(den, 1e-12)
         noise_maps[e] = np.sqrt(1.0 / np.maximum(den, 1e-12))
-    return stacks, noise_maps, covered, len(bands)
+        if return_psf:
+            psf = combine_psfs(p_list, p_w) if p_list else None
+            if psf is None:
+                psf, n_epsf = fallback_psf_info("no exposure in epoch")["psf"], 0
+            good = [(f, w) for f, w in fw if f and w > 0]
+            fwhm = (sum(f * w for f, w in good) / sum(w for _, w in good)
+                    if good else fwhm_from_array(psf, config.PIXSCALE_ARCSEC))
+            src = ("epsf" if items and n_epsf == len(items)
+                   else "gaussian_fallback" if n_epsf == 0 else "mixed")
+            psfs[e] = psf
+            psf_info[e] = {"source": src,
+                           "fwhm_arcsec": round(float(fwhm), 2) if fwhm else None,
+                           "grid_fwhm_arcsec": round(float(
+                               fwhm_from_array(psf, config.PIXSCALE_ARCSEC)), 2),
+                           "n_epsf": int(n_epsf), "n_exposures": len(items)}
+
+    if not return_psf:
+        return stacks, noise_maps, covered, len(bands)
+
+    quality = []
+    for rec in loaded:
+        fw = rec["psf_fwhm_arcsec"]
+        quality.append({"obs_id": rec["obs_id"], "epoch": rec["epoch"],
+                        "band": rec["band"], "score": rec["score"],
+                        "kept": rec["kept"], "reasons": rec["reasons"],
+                        "components": rec["components"],
+                        "zodi_subtracted": rec["zodi_applied"],
+                        "psf_source": rec["ex"].get("psf_source"),
+                        "psf_fwhm_arcsec": round(fw, 2) if fw else None,
+                        "mjd": rec["ex"].get("mjd")})
+    extras = {"psfs": psfs, "psf_info": psf_info, "exposure_quality": quality,
+              "edge_map": (footprint_edge_map(footprints) if footprints
+                           else np.zeros((npix, npix), dtype=np.int16)),
+              "axis_angles_deg": sorted({round(a, 1) for a in angles})}
+    return stacks, noise_maps, covered, len(bands), extras
 
 
 if __name__ == "__main__":
