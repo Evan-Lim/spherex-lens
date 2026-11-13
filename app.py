@@ -837,13 +837,17 @@ def significance_histogram(S, bins=32):
     values = values[np.isfinite(values)]
     if values.size == 0:
         return {"bins": [], "counts": [], "edges": []}
-    lo, hi = -6.0, max(6.0, float(np.percentile(values, 99.9)))
+    thr = float(config.DETECTION_SIGMA)
+    # both tails reach past the detection threshold, so fading (negative)
+    # detections are visible too, not clipped into the edge bin
+    lo, hi = -(thr + 2.0), max(thr + 2.0, float(np.percentile(values, 99.9)))
     counts, edges = np.histogram(np.clip(values, lo, hi), bins=bins,
                                  range=(lo, hi))
     return {
         "edges": [round(float(e), 2) for e in edges],
         "counts": [int(c) for c in counts],
         "n_pixels": int(values.size),
+        "threshold": thr,          # the UI highlights |S| beyond this
     }
 
 

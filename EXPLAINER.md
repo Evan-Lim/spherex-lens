@@ -238,6 +238,11 @@ statistically optimal. Two outputs come out:
 A **sigma** is a ruler for surprise: 1 sigma happens all the time by chance, 3
 sigma is unusual, **5 sigma is the standard astronomy threshold for "this is
 probably real"** (roughly a 1-in-3.5-million fluke for pure Gaussian noise).
+Real SPHEREx difference images are not pure Gaussian noise: bright stars leave
+leftovers. So this pipeline measured its own false alarms (the *null test*:
+subtract two pictures taken at the same time, where nothing can have changed)
+and uses **6 sigma**: at 5 it let through twice as many fake candidates, while
+finding no more of the planted test objects.
 
 The code then looks for two shapes in **S**:
 
@@ -399,8 +404,9 @@ The screen has two columns and nothing requires a page reload.
 ### 5.1 Top bar
 
 * **SPHERExLens** -- the project name.
-* **NEXUS // SPHEREX-QR2** -- which NASA data release you are looking at
-  (`spherex_qr2` is the second SPHEREx quick release).
+* **SPHEREx DR1** -- which NASA data release you are looking at
+  (`spherex_dr1`, SPHEREx's first full Data Release; the earlier quick
+  releases such as QR2 have been retired by the archive).
 * **Status pill** -- green `NORMAL OPS - FIELD LOADED` when data is loaded, amber
   while the pipeline runs, red if a request failed.
 * **Guide** -- opens a three-tab explainer written for someone who has never
@@ -445,7 +451,7 @@ as an unavailable tile rather than silently omitted.
 
 ### 5.3 Right column (/02) -- Command Dashboard
 
-* **Field metrics**: four cards -- detections above 5 sigma, how many are
+* **Field metrics**: four cards -- detections above the detection threshold (6 sigma), how many are
   unaccounted for, the strongest significance, and the time baseline between the
   two epochs in days.
 * **Live map**: see 5.4.
@@ -574,7 +580,7 @@ finish in 200 ms.
 
 | Chart | What it tells you |
 |---|---|
-| **Significance histogram** | A healthy subtraction is a narrow peak around zero (noise) with a long tail (real sources). Bars beyond 5 sigma are highlighted red -- those are the detections. |
+| **Significance histogram** | A healthy subtraction is a narrow peak around zero (noise) with a long tail (real sources). Bars beyond the detection threshold (6 sigma) are highlighted red -- those are the detections. |
 | **Noise per epoch** | How deep each stack is. More exposures or more bands make a shorter bar. |
 | **Detections per epoch pair** | Which time baseline found the most change (E1->E3 usually beats E1->E2). |
 | **Injection recovery** | The honesty curve: fraction of fake sources recovered vs brightness and speed. Empty until you press *Recovery Grid*. |
@@ -607,7 +613,7 @@ bar in the corner always shows how long one arcminute is at the current zoom.
 | Shown as | Meaning |
 |---|---|
 | **RA / Dec** | Sky address in hours-minutes-seconds and degrees-arcminutes-arcseconds. |
-| **Detections** | Number of 5-sigma peaks in the significance map: "how many things changed". |
+| **Detections** | Number of peaks above the 6-sigma threshold in the significance map: "how many things changed". |
 | **Unaccounted** | Detections with no catalogue match: "how many are worth a human look". |
 | **Max SNR** | The strongest peak, in sigma. 30 sigma is very loud; 5.7 is barely over the line. |
 | **Baseline** | Days between the two epochs. Longer baseline = more time for movement to accumulate. |
@@ -754,7 +760,7 @@ Gaia DR3 300 / VSX 47 entries cross-matched`.
 | **Proper motion** | A star's apparent movement across the sky, in arcseconds per year. |
 | **PSF** | Point spread function: the blurry shape a point of light makes. |
 | **SIA2** | IVOA "Simple Image Access v2", the web standard used to find the images. |
-| **Sigma** | A unit of statistical surprise; 5 sigma is the usual "real" threshold. |
+| **Sigma** | A unit of statistical surprise; 5 sigma is the usual "real" threshold in astronomy, and this pipeline uses 6 because its own null test showed 5 lets through twice as many fake candidates. |
 | **TAP / ADQL** | Standard query protocol and SQL dialect for astronomy databases. |
 | **Triage** | Deciding whether a detection is already known. |
 | **Variance / inverse-variance weighting** | Uncertainty squared; weighting by 1/variance favours trustworthy pixels. |

@@ -288,7 +288,7 @@ may therefore be listed in the all-sky map but have no comparable thumbnail.
 `static/` is a two-column RefractID-style console that works in both deployment
 shapes (live FastAPI or pre-rendered static files):
 
-* **Top bar** -- brand, data release (`NEXUS // SPHEREX-QR2`), status pill
+* **Top bar** -- brand, data release (`SPHEREx DR1`), status pill
   (`NORMAL OPS · FIELD LOADED` / amber while running / red on error),
   **Guide**, **Auto Demo** (cycles the fields every 12 s) and **Reset**.
 * **Guide** -- a three-tab explainer written for a non-specialist: *How it works*
@@ -567,7 +567,7 @@ the static build (Netlify) and the live server behave identically.
 
 | Product | Archive | Endpoint |
 |---|---|---|
-| SPHEREx Level-2 images/cutouts (QR2, QR3) | NASA/IPAC IRSA | SIA2: `https://irsa.ipac.caltech.edu/SIA` · TAP: `https://irsa.ipac.caltech.edu/TAP` |
+| SPHEREx Level-2 images/cutouts (DR1; earlier QR2, QR3) | NASA/IPAC IRSA | SIA2: `https://irsa.ipac.caltech.edu/SIA` · TAP: `https://irsa.ipac.caltech.edu/TAP` |
 | Gaia DR3 | IRSA TAP (fallback: VizieR) | table `gaia.gaia_dr3_source` · VizieR `I/355/gaiadr3` |
 | AllWISE | IRSA TAP (fallback: VizieR) | table `allwise_p3as_psd` · VizieR `II/328/allwise` (not on the Harvard mirror) |
 | AAVSO VSX | VizieR (Harvard → CDS → NAOJ) | catalog `B/vsx/vsx` (type, period, amplitude, OID) |
@@ -586,14 +586,14 @@ before the event.
 **a) The script in this repo (recommended, does everything):**
 
 ```bash
-python step1_ingest.py                      # QR2, 4 cutouts per target
+python step1_ingest.py                      # DR1 (QR2 was retired by IRSA)
 python step1_ingest.py --collection spherex_qr3 --size 0.15
 ```
 
 `step1_ingest.py` loops over the five mandatory targets and, for each one:
 
 1. issues an **SIA2 cone search** --
-   `https://irsa.ipac.caltech.edu/SIA?POS=CIRCLE ra dec 0.1&COLLECTION=spherex_qr2`
+   `https://irsa.ipac.caltech.edu/SIA?POS=CIRCLE ra dec 0.1&COLLECTION=spherex_dr1`
    -- and parses the returned VOTable into rows (`obs_id`,
    `energy_bandpassname`, `t_min`, `s_region`, `access_url`, ...);
 2. splits the rows into **observing epochs** (gaps > 30 days) and keeps the
@@ -647,7 +647,7 @@ print(table["access_url"])          # one Level-2 FITS file per row
 (`pos=`, `collection=`, `res_format=`). TAP works too for catalogue-style
 queries across the whole mission (`https://irsa.ipac.caltech.edu/TAP`), and
 `Irsa.list_collections()` shows the live list -- currently
-`spherex_qr2`, `spherex_qr2_cal`, `spherex_qr2_deep`, `spherex_qr3`,
+`spherex_dr1`, `spherex_dr1_cal`, `spherex_dr1_deep`, `spherex_dr1_cube`, `spherex_qr3` (November 2026; QR2 retired),
 `spherex_qr3_cal`, `spherex_qr3_deep`.
 
 **d) The IRSA web UI** -- search by position or object name, use the
@@ -1187,7 +1187,7 @@ spherex-lens/
 * ZOGY needs **two epochs**: `app.py` splits the cached files in half, co-adds
   each half and subtracts the two stacks. Fewer than two files returns a clear
   500 (see Section 8.3 of the blueprint).
-* Detection threshold defaults to 5 sigma (`find_detections(..., sigma_thresh=5.0)`);
+* Detection threshold defaults to **6 sigma** (`config.DETECTION_SIGMA`, chosen on the null test; it was 5 before v2);
   the significance map is normalized by its own standard deviation.
 * Triage radius is 30 arcsec (`MATCH_RADIUS_ARCSEC`), with a 5 arcsec "tight"
   radius that promotes the verdict confidence to `high`.

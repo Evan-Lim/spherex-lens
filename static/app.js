@@ -5934,8 +5934,8 @@ function drawHistogram(hist) {
     const x = plotLeft + i * bw;
     const hgt = (plotBottom - plotTop) * (c / max);
     const centre = hist.edges[i] + (hist.edges[i + 1] - hist.edges[i]) / 2;
-    ctx.fillStyle = Math.abs(centre) > 5 ? chartTheme().red : chartTheme().blue;
-    ctx.globalAlpha = Math.abs(centre) > 5 ? 0.9 : 0.6;
+    ctx.fillStyle = Math.abs(centre) > (hist.threshold || 5) ? chartTheme().red : chartTheme().blue;
+    ctx.globalAlpha = Math.abs(centre) > (hist.threshold || 5) ? 0.9 : 0.6;
     ctx.fillRect(x + 0.5, plotBottom - hgt, Math.max(1, bw - 1), hgt);
   });
   ctx.globalAlpha = 1;
@@ -6219,10 +6219,11 @@ function renderCharts(data) {
     const total = h.counts.reduce((a, b) => a + b, 0);
     const beyond = h.counts.reduce((a, c, i) => {
       const centre = h.edges[i] + (h.edges[i + 1] - h.edges[i]) / 2;
-      return a + (Math.abs(centre) > 5 ? c : 0);
+      return a + (Math.abs(centre) > (h.threshold || 5) ? c : 0);
     }, 0);
     chartLabel('chart-hist', `Significance histogram: ${total} pixels from ${h.edges[0]} to ` +
-      `${h.edges[h.edges.length - 1]} sigma; ${beyond} pixels lie beyond 5 sigma (shown in red).`);
+      `${h.edges[h.edges.length - 1]} sigma; ${beyond} pixels lie beyond the ` +
+      `${h.threshold || 5} sigma detection threshold (shown in red).`);
   } else {
     chartLabel('chart-hist', 'Significance histogram: no data.');
   }
