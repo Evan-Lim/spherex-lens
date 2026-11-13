@@ -174,7 +174,8 @@ class DeepCloudTests(unittest.TestCase):
 
         os.environ["SPHEREX_SNAPSHOT_BUCKET"] = "fake-bucket"
         try:
-            with patch("snapshot_store.SnapshotStore", FakeStore):
+            import app as _app
+            with patch("snapshot_store.SnapshotStore", FakeStore),                     patch.object(_app, "_snapshot_store", lambda: FakeStore()):
                 deep_route._BUCKET_CACHE.clear()
                 key = deep_run.publish("NEP", {"name": "NEP", "ra": 270.0,
                                                "sources": [{"chi2": float("inf")}]})

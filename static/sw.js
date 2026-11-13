@@ -10,7 +10,7 @@
 //    the refresh trigger and status, the snapshot index -- goes to the network
 //    untouched and is never stored.
 
-const SHELL_CACHE = 'spx-shell-v17';
+const SHELL_CACHE = 'spx-shell-v18';
 const DATA_CACHE = 'spx-data-v1';
 const META_URL = '/__spx/meta';
 const SHELL_TIMEOUT_MS = 4000;

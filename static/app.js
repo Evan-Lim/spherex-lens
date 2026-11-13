@@ -4079,11 +4079,21 @@ async function fetchV2Json(name, query = '') {
   let last = { ok: false, status: 0, data: null, url: attempts[0] };
   for (const url of attempts) {
     try {
-      const resp = await fetch(url, { cache: 'no-store' });
+      // A stuck server must not leave a panel on "Loading..." forever.
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
+      let resp;
+      try {
+        resp = await fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
       if (!resp.ok) { last = { ok: false, status: resp.status, data: null, url }; continue; }
       return { ok: true, status: resp.status, data: await resp.json(), url };
     } catch (err) {
-      last = { ok: false, status: 0, data: null, url, error: err.message };
+      const timedOut = err && err.name === 'AbortError';
+      last = { ok: false, status: 0, data: null, url,
+               error: timedOut ? 'the server did not answer within 20 s' : err.message };
     }
   }
   return last;

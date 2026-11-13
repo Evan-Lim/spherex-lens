@@ -35,8 +35,10 @@ def _store():
     if not os.environ.get("SPHEREX_SNAPSHOT_BUCKET"):
         return None
     try:
-        from snapshot_store import SnapshotStore
-        return SnapshotStore()
+        # Reuse the app's long-lived store: building a new GCS client per
+        # request costs ~20 s on a laptop (credential discovery).
+        import app as portal                      # lazy: app imports the routers
+        return portal._snapshot_store()
     except Exception:
         return None
 
@@ -62,17 +64,21 @@ def _bucket_names(store):
 
 def _results():
     """{name: payload-or-loader} from the bucket (cloud) or the local dir."""
-    store = _store()
-    if store is not None:
-        names = _bucket_cached("names", lambda: _bucket_names(store))
-        return {n: (lambda n=n: _bucket_cached(
-            n, lambda: store.read_json(f"deep/{n}.json"))) for n in names}
     out = {}
-    if os.path.isdir(_dir()):
+    if os.path.isdir(_dir()):                 # results computed on this machine
         for fn in sorted(os.listdir(_dir())):
-            if fn.endswith(".json"):
+            if fn.endswith(".json") and not fn.endswith(".tmp"):
                 path = os.path.join(_dir(), fn)
                 out[fn[:-5]] = (lambda path=path: _load(path))
+    store = _store()
+    if store is not None:                     # published by the cloud job (wins)
+        try:
+            names = _bucket_cached("names", lambda: _bucket_names(store))
+        except Exception:
+            names = []
+        for n in names:
+            out[n] = (lambda n=n: _bucket_cached(
+                n, lambda: store.read_json(f"deep/{n}.json")))
     return out
 
 
