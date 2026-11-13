@@ -38,3 +38,27 @@ variable "live_service_url" {
   type        = string
   default     = ""
 }
+
+variable "alert_email" {
+  description = "Email address for uptime, refresh-failure and budget alerts. Empty = alert policies exist but notify nobody."
+  type        = string
+  default     = ""
+}
+
+variable "billing_account" {
+  description = "Billing account ID (XXXXXX-XXXXXX-XXXXXX) for the optional budget."
+  type        = string
+  default     = ""
+}
+
+variable "budget_amount" {
+  description = "Monthly budget in the billing account's currency; 0 disables the budget. Budgets alert, they do not cap spend."
+  type        = number
+  default     = 0
+}
+
+variable "votes_retention_days" {
+  description = "Delete raw vote objects older than this many days; 0 keeps them forever."
+  type        = number
+  default     = 0
+}

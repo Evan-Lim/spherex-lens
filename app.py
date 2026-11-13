@@ -2673,6 +2673,37 @@ def _thumbnail(arr, size=48):
     return np.round(blocks, 2).tolist()
 
 
+_FINGERPRINT_PATTERN = "^[0-9a-f]{0,64}$"     # step1_ingest.source_fingerprint
+_DISPLAY_NAME_UNSAFE = re.compile(r"[\x00-\x1f\x7f<>&\"'`\\]")
+
+
+def field_input_error(ra, dec, name="", size=0.2, slots=0):
+    """Why an "Open any field" request is invalid, or None (security review S1)."""
+    try:
+        ra, dec, size = float(ra), float(dec), float(size)
+    except (TypeError, ValueError):
+        return "RA, Dec and size must be numbers."
+    if (not (np.isfinite(ra) and np.isfinite(dec))
+            or not 0 <= ra <= 360 or not -90 <= dec <= 90):
+        return ("RA must be between 0 and 360 degrees and Dec between "
+                "-90 and 90 degrees.")
+    if not np.isfinite(size) or not 0.05 <= size <= config.Production.MAX_FIELD_SIZE_DEG:
+        return (f"size must be between 0.05 and "
+                f"{config.Production.MAX_FIELD_SIZE_DEG:g} degrees.")
+    if (isinstance(slots, bool) or not isinstance(slots, int)
+            or not 0 <= slots <= config.Production.MAX_LIVE_SLOTS):
+        return f"slots must be between 0 and {config.Production.MAX_LIVE_SLOTS}."
+    if not isinstance(name, str) or len(name) > config.Production.FIELD_NAME_MAX_LEN:
+        return (f"name must be at most {config.Production.FIELD_NAME_MAX_LEN} "
+                "characters.")
+    return None
+
+
+def _display_name(name):
+    """A field label safe to echo back: no control or HTML characters."""
+    return _DISPLAY_NAME_UNSAFE.sub("", str(name or "")).strip()[:80]
+
+
 @_rate_limited_route("get", "/api/field", "5/minute")
 def add_field(request: Request = None,
               ra: float = Query(...), dec: float = Query(...),
@@ -2681,12 +2712,14 @@ def add_field(request: Request = None,
               slots: int = Query(0, ge=0, le=12),
               epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
               catalogs: int = Query(1, ge=0, le=1),
-              known: str = Query("", max_length=128)):
-    if not 0 <= ra <= 360 or not -90 <= dec <= 90:
-        return JSONResponse(
-            status_code=422,
-            content={"error": "RA must be between 0 and 360 degrees and Dec between "
-                              "-90 and 90 degrees."})
+              known: str = Query("", max_length=128, pattern=_FINGERPRINT_PATTERN)):
+    error = field_input_error(ra, dec, name, size, slots)
+    if error is None and epochs not in ("firstlast", "all"):
+        error = "epochs must be 'firstlast' or 'all'."
+    if error is None and not re.fullmatch(_FINGERPRINT_PATTERN, str(known or "")):
+        error = "known must be a source fingerprint (hex)."
+    if error:
+        return JSONResponse(status_code=422, content={"error": error})
     if not FIELD_REQUEST_LIMIT.acquire(blocking=False):
         return JSONResponse(
             status_code=429,
@@ -2699,15 +2732,20 @@ def add_field(request: Request = None,
         FIELD_REQUEST_LIMIT.release()
 
 
-@app.get("/api/field/stream")
-async def stream_field(ra: float = Query(...), dec: float = Query(...),
+@_rate_limited_route("get", "/api/field/stream", "5/minute")
+async def stream_field(request: Request = None,
+                       ra: float = Query(...), dec: float = Query(...),
                        name: str = Query("", max_length=80),
                        size: float = Query(0.2, ge=0.05, le=0.5),
                        slots: int = Query(0, ge=0, le=12),
                        epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
                        catalogs: int = Query(1, ge=0, le=1),
-                       known: str = Query("", max_length=128),
+                       known: str = Query("", max_length=128,
+                                          pattern=_FINGERPRINT_PATTERN),
                        result: str = _RESULT_PARAM):
+    error = field_input_error(ra, dec, name, size, slots)
+    if error:
+        return JSONResponse(status_code=422, content={"error": error})
     return _progress_stream(
         lambda: add_field(
             ra=ra, dec=dec, name=name, size=size, slots=slots,
@@ -2768,16 +2806,29 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
     existing = load_target(safe)
     if existing is None:
         existing = _manifest_target_entry(safe)
+    safe = safe[:80]
+    existing_meta = (existing or {}).get("meta") or {}
     if (existing and
-            (float(existing["meta"]["ra"]) != ra or float(existing["meta"]["dec"]) != dec)):
+            (float(existing_meta.get("ra", float("nan"))) != ra
+             or float(existing_meta.get("dec", float("nan"))) != dec)):
         base = safe[:55]
         suffix = f"_{ra:.4f}_{dec:.4f}".replace("-", "m").replace(".", "p")
-        safe = f"{base}{suffix}"
-        while load_target(safe) is not None or _manifest_target_entry(safe) is not None:
-            safe = f"{safe[:70]}_x"
+        safe = candidate = f"{base}{suffix}"
+        # Security review S3: the old loop re-tried the same 72-character
+        # name forever once it was taken.  Numbered, bounded suffixes instead.
+        for attempt in range(1, 21):
+            if load_target(safe) is None and _manifest_target_entry(safe) is None:
+                break
+            safe = f"{candidate[:74]}_{attempt}"
+        else:
+            return JSONResponse(
+                status_code=409,
+                content={"error": "Could not find a free name for this field; "
+                                  "choose another name."})
     meta = {
         "target": safe,
-        "meta": {"ra": float(ra), "dec": float(dec), "common": name or safe,
+        "meta": {"ra": float(ra), "dec": float(dec),
+                 "common": _display_name(name) or safe,
                  "type": "Custom field"},
         "paths": [], "epochs": [], "catalogs": {},
         "collection": "spherex_dr1", "cutout_size_deg": size,
@@ -2798,9 +2849,11 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
         try:
             rows = listing_future.result()
         except Exception as e:
+            _LOGGER.warning("IRSA listing failed for a custom field: %s: %s",
+                            type(e).__name__, str(e)[:300])
             return JSONResponse(
                 status_code=502,
-                content={"error": f"IRSA listing query failed: {e}",
+                content={"error": f"IRSA listing query failed ({type(e).__name__}).",
                          "hint": "IRSA may be busy; retry in a minute."})
         fingerprint = source_fingerprint(rows, float(ra), float(dec))
         if fingerprint == known_fingerprint:
@@ -2829,9 +2882,11 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
         listing_rows = listing_future.result()
     except Exception as e:
         meta.pop("_catalogs_future", None)
+        _LOGGER.warning("IRSA listing failed for a custom field: %s: %s",
+                        type(e).__name__, str(e)[:300])
         return JSONResponse(
             status_code=502,
-            content={"error": f"IRSA listing query failed: {e}",
+            content={"error": f"IRSA listing query failed ({type(e).__name__}).",
                      "hint": "IRSA may be busy; retry in a minute."})
     meta["_listing_rows"] = listing_rows
     _emit_progress("irsa_query", f"IRSA returned {len(listing_rows)} images for this position")
