@@ -1,0 +1,85 @@
+{
+ "target": "SgrA_star",
+ "generated_utc": "2026-11-13T09:23:38Z",
+ "tables": [
+  "neowiser_p1bs_psd",
+  "allwise_p3as_mep"
+ ],
+ "detection_radius_arcsec": 8.0,
+ "positions": [
+  {
+   "label": "Sagittarius A*",
+   "kind": "target",
+   "ra": 266.416817,
+   "dec": -29.007825,
+   "n_exposures": 12,
+   "visits": [
+    {
+     "mjd": 55273.06,
+     "n": 6,
+     "ra": 266.4168443,
+     "dec": -29.0063824,
+     "source": "allwise_mep",
+     "year": 2010.208,
+     "w1": -0.437,
+     "w1_err": 0.094,
+     "w2": 1.802,
+     "w2_err": 0.3361
+    },
+    {
+     "mjd": 55452.457,
+     "n": 5,
+     "ra": 266.4168443,
+     "dec": -29.0063824,
+     "source": "allwise_mep",
+     "year": 2010.699,
+     "w1": 0.964,
+     "w1_err": 0.4862,
+     "w2": 7.445,
+     "w2_err": 2.1944
+    },
+    {
+     "mjd": 59655.068,
+     "n": 1,
+     "ra": 266.4181114,
+     "dec": -29.0066903,
+     "source": "neowise",
+     "year": 2022.206,
+     "w1": null,
+     "w1_err": null,
+     "w2": null,
+     "w2_err": null
+    }
+   ],
+   "summary": {
+    "n_visits": 2,
+    "n_visits_all": 3,
+    "w1": {
+     "n_visits": 2,
+     "mean": -0.387,
+     "saturated": true,
+     "amplitude": 1.401,
+     "rms": 0.701,
+     "chi2_red": 8.0,
+     "years": [
+      2010.21,
+      2010.7
+     ]
+    },
+    "w2": {
+     "n_visits": 2,
+     "mean": 1.931,
+     "saturated": true,
+     "amplitude": 5.643,
+     "rms": 2.821,
+     "chi2_red": 6.46,
+     "years": [
+      2010.21,
+      2010.7
+     ]
+    },
+    "variable": false
+   }
+  }
+ ]
+}
