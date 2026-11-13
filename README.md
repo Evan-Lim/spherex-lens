@@ -18,13 +18,107 @@ and a deployable dashboard.
 
 ---
 
+## What v2 adds (execution plan, November 2026)
+
+v2 turns the five-field demo into a measured, production tool. Everything
+below is on branch `exec-plan-v1`; `spherexlens/CONTRACT.md` lists every new
+JSON field and endpoint.
+
+**Data release.** IRSA retired `spherex_qr2`; the default collection is now
+**SPHEREx Data Release 1** (`spherex_dr1`, set once in `config.py`). DR1
+files carry the real PSF (`EPSF`, 21x21 detector zones) and the zodiacal-light
+model (`ZODI`), and both are now used.
+
+### Data sources and what each is used for
+
+| Source | Used for | Module |
+|---|---|---|
+| NASA/IPAC IRSA: SPHEREx DR1 (SIA2, cutouts, public S3 bucket) | images, PSF, ZODI, deep fields | `step1_ingest.py`, `spherexlens/ingest/spherex.py`, `spherexlens/deep/` |
+| IRSA: AllWISE, NEOWISE 2010-2024 | infrared catalogue, 14-year history and motion | `step1_ingest.py`, `step7_neowise.py` |
+| Gaia DR3: IRSA, then **MAST** as fallback | positions, motions, RUWE quality cut, variability | `spherexlens/ingest/gaia.py` |
+| AAVSO VSX (VizieR) | known variable stars | `step1_ingest.py` |
+| **JPL SB Identification + SBDB** | which known asteroids were in the field at each exposure time | `spherexlens/ingest/jpl.py` |
+| **CADC SSOIS** | independent asteroid position check and other images of it | `spherexlens/ingest/ssois.py` |
+| **CSA NEOSSat via CADC** | visible-light confirmation where it has frames | `spherexlens/ingest/cadc.py`, `neossat_clean.py` |
+| **WiseView** (byw.tools) | one-click WISE/NEOWISE flip-book for every detection | `spherexlens/ingest/links.py` |
+
+### The two data paths
+
+```
+ IRSA / Gaia / JPL / CADC ...
+        │
+        ├── A. website: Cloud Run Job (cloud_refresh.py, every 12 h)
+        │      ingest -> co-add -> ZOGY -> triage -> asteroid check -> ML -> evidence
+        │      -> finished dashboards published to Cloud Storage ("snapshots")
+        │      -> API on Cloud Run reads them -> Netlify site
+        │
+        └── B. science work on raw pixels (local data_cache/, or Cloud Run Jobs)
+               null test, injections, ML training, deep-field light curves
+               -> eval/metrics.json and the ML model, committed and shipped
+```
+
+`data_cache/` is only for path B. The website never reads it.
+
+### Detection quality: how it is measured
+
+```powershell
+# 1. data with >= 2 exposures per (epoch, band), so the null test can run
+python step1_ingest.py --keep-per-slot 2
+# 2. null test, strict injections, real-sky answer key, calibrated threshold
+python -m spherexlens.eval.run --cache data_cache --write-threshold
+# 3. real/bogus model (fields held out, calibrated, model card)
+python -m spherexlens.ml.train --labels ml/data/labels.parquet
+```
+
+* **Null test**: two halves of the same epoch are subtracted, so every
+  detection is a false alarm by construction. This gives the false-alarm rate,
+  and the detection threshold is set from it (`eval/threshold.json`).
+* **Strict injection test**: fake movers, brightening and fading sources with
+  the real PSF and random directions. One only counts as found within 1.5 px
+  and with the right kind.
+* **Answer key**: known high-proper-motion Gaia stars, VSX variables and known
+  asteroids in the fields.
+* **CI gate**: `python -m spherexlens.eval.gate` fails a change that lowers
+  precision, recall or PR-AUC (or loses a metric).
+
+<!-- METRICS:START -->
+Measured numbers are filled in by the final evaluation run.
+<!-- METRICS:END -->
+
+### Other v2 pieces
+
+* **Asteroid check**: categories `KNOWN_ASTEROID` and
+  `POSSIBLE_UNKNOWN_ASTEROID`. If JPL is down the card says "asteroid check
+  unavailable" and never passes silently. Web requests wait at most 25 s
+  (`ASTEROID_TIME_BOX_S`); the cloud refresh waits for every answer.
+* **Fading sources** (`monopole_negative`), real PSF, ZODI subtraction,
+  per-exposure quality score, edge/spike masks, KD-tree de-duplication.
+* **ML** (`spherexlens/ml/`): 22 features, gradient-boosted real/bogus model
+  with calibrated probabilities and per-candidate reasons. It **ranks**
+  candidates and never changes the KNOWN/CANDIDATE verdict. Public votes feed
+  back as labels (`python -m spherexlens.ml.active retrain`).
+* **Evidence score** (`spherexlens/triage/evidence.py`): ML + signal + motion
+  agreement with NEOWISE/Gaia + asteroid check + NEOSSat, each part shown.
+* **Deep fields** (`spherexlens/deep/`): light curves at the ecliptic poles,
+  where DR1 has ~20,800 visits to one spot. Each star's own spectrum is
+  divided out first, because the filter puts every visit at another
+  wavelength. Cloud job `spherex-deep`; results at `/api/deep`.
+* **Website**: vetting card, coverage chips, Accuracy page, public voting,
+  expert downloads (CSV, VOTable, IVOA cone search `/api/cone`), credits,
+  WCAG 2.1 AA pass (`docs/ACCESSIBILITY.md`).
+* **Production**: votes store, `/api/health`, job queue, alerts and uptime
+  check, signed Netlify proxy, hashed lock file, non-root containers
+  (`docs/SECURITY_REVIEW.md`, `cloud/README.md`).
+
+---
+
 ## How much data does it use?
 
 `step1_ingest.py` now ingests **every detector and every epoch** available for a
 target, not just a 2-band subset:
 
 ```bash
-python step1_ingest.py                       # QR2, all six bands, all epochs
+python step1_ingest.py                       # DR1, all six bands, all epochs
 python step1_ingest.py --epochs firstlast    # quick mode: first + last epoch only
 python step1_ingest.py --bands SPHEREx-D1 SPHEREx-D4
 ```

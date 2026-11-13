@@ -800,6 +800,72 @@ the pipeline on the actual files. Where something did not work (AllWISE, the
 
 ---
 
+## 11a. What's new in version 2, in plain words
+
+**"Could it just be an asteroid?"** Asteroids drift across the sky by
+arcminutes per hour, so in a picture taken months later one is simply gone,
+and it leaves a blob in the difference image. Version 1 called such blobs
+CANDIDATE, a false alarm. Now, for every exposure time, the site asks NASA's
+Jet Propulsion Laboratory which known asteroids were in the picture. A second,
+independent service in Canada (CADC's SSOIS) confirms where the asteroid
+should have been. A match becomes **KNOWN_ASTEROID**. If JPL cannot be reached,
+the card says **"asteroid check unavailable"** instead of pretending it passed.
+
+**Things that got fainter.** Version 1 only reported spots that got
+*brighter*. A star that faded was thrown away. Now it is reported as
+**"got fainter"**.
+
+**The real blur of the telescope.** Every SPHEREx file says exactly how a point
+of light is smeared (its *point-spread function*, about 7 arcseconds wide).
+Version 1 assumed a guessed blur; now the real one is used, so bright stars
+subtract more cleanly. The glow of sunlight scattered by dust in the solar
+system (*zodiacal light*), also stored in each file, is removed first.
+
+**How good is it, honestly?** Three tests, run on the real images:
+
+* **Null test.** Subtract two pictures taken *at the same time*. Nothing
+  real can have changed, so everything found is a false alarm. This measures
+  how often the detector cries wolf, and the detection threshold is set
+  from it.
+* **Fake objects.** Plant fake movers and fake flickering stars into the real
+  images, then check how many are found, in the right place and as the right
+  kind of thing. That is the **recall**.
+* **Known objects.** Stars that Gaia says move fast, catalogued variable
+  stars, and known asteroids: does the detector find them?
+
+The results are on the website's **Accuracy** page, with error bars.
+
+**The machine-learning score.** A model trained on those tests looks at about
+20 measurements of each detection (how strong, how round, how close to a
+bright star, how many masked pixels, ...) and gives a percentage: how likely
+this is a real change rather than an imaging artefact. It **only re-orders
+the list**. The KNOWN / CANDIDATE answer still comes from the catalogue check,
+so a scientist can always see why. Each card shows the three things that
+moved the score most, in words.
+
+**The evidence score.** One number that combines everything: the ML score, how
+strong the signal is, whether NEOWISE (2010-2024) and Gaia saw the same
+motion, the asteroid check, and (where it exists) a picture from Canada's
+NEOSSat satellite in visible light. Each part is listed with its reason,
+including the ones that could not be checked.
+
+**One click to see it yourself.** Every detection has an **Open in WiseView**
+button. It flips through 14 years of WISE infrared pictures of that exact
+spot, the same tool citizen scientists in *Backyard Worlds* use.
+
+**Help classify.** Visitors can vote *real / bogus / not sure* on uncertain
+candidates. Votes become training examples for the next model.
+
+**Deep fields.** At the two ecliptic poles SPHEREx looks at the same spot
+thousands of times a year (about 20,800 pictures of one point at the north
+pole). That makes real **light curves** (brightness over time) possible.
+There is a catch: SPHEREx's filter changes colour across the detector, so
+every visit sees a star in a *different colour*. A raw light curve would
+mix "the star changed" with "we looked in another colour". So each star's own
+average spectrum is measured first and divided out; only what is left can be
+called variability. In the first test field, exactly one of six stars came
+out variable, and Gaia independently lists that same star as variable.
+
 ## 12. Credits
 
 * SPHEREx data: NASA/JPL-Caltech, hosted by IRSA/IPAC. Required acknowledgement:
