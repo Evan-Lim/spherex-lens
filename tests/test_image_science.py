@@ -324,3 +324,15 @@ def test_dedup_equals_old_loop_on_random_detections():
 def test_fwhm_helper_on_gaussian():
     k = gaussian_kernel(21, 2.0)
     assert abs(fwhm_from_array(k, 3.0) - 2.3548 * 2.0 * 3.0) / (2.3548 * 6.0) < 0.03
+
+
+def test_robust_s_scaling_survives_a_bright_residual():
+    import numpy as np
+    import config
+    from step3_zogy import s_noise_scale
+    rng = np.random.default_rng(0)
+    s = rng.normal(0, 1, (180, 180))
+    s[90, 90] = 2000.0                         # one bright-star residual
+    assert s_noise_scale(s, "std") > 10        # std blown up by one pixel
+    assert abs(s_noise_scale(s, "robust") - 1.0) < 0.05
+    assert config.ZOGY_S_NORMALISATION in ("std", "robust")

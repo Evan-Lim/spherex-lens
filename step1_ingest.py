@@ -481,9 +481,15 @@ def describe_sources(paths, epochs, rows, collection, size_deg):
 
 def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection=config.SPHEREX_COLLECTION,
                              size_deg=0.2, bands=DEFAULT_BANDS,
-                             epoch_mode="all", overwrite=False, rows=None):
+                             epoch_mode="all", overwrite=False, rows=None,
+                             keep_per_slot=1):
     """
     Query SIA2 for SPHEREx Level-2 images and download validated cutouts.
+
+    keep_per_slot: how many validated exposures to keep per (epoch, band).
+    1 (default, what the dashboards and the cloud refresh use) keeps the best
+    one; 2+ is what the null test needs -- it splits one epoch's exposures in
+    two halves and subtracts them (Phase 4.1).
 
     For every (epoch, band) slot the candidate images are tried in order of
     footprint-centre distance until one yields a cutout that contains the target
@@ -495,7 +501,8 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection=config.SPHEREX_
     if rows is None:
         rows = query_sia2(ra, dec, radius_deg=radius_deg, collection=collection)
     slots, n_epochs = select_exposures(rows, ra, dec, bands=bands,
-                                       epoch_mode=epoch_mode)
+                                       epoch_mode=epoch_mode,
+                                       per_slot=max(2, 3 * keep_per_slot))
     print(f"  {n_epochs} epoch(s), {len(slots)} (epoch, band) slot(s).")
 
     paths = []
@@ -506,6 +513,7 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection=config.SPHEREX_
             key=lambda r: _separation_deg(ra, dec,
                                           float(r.get("s_ra", ra)),
                                           float(r.get("s_dec", dec))))
+        kept = 0
         for row in ordered:
             fname = download_cutout(row, ra, dec, size_deg=size_deg,
                                     overwrite=overwrite)
@@ -518,7 +526,10 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection=config.SPHEREX_
                       f"({os.path.basename(fname)})")
                 paths.append(fname)
                 epochs.append(epoch)
-                break
+                kept += 1
+                if kept >= keep_per_slot:
+                    break
+                continue
             print(f"    rejected epoch {epoch} {band}: {reason}")
         time.sleep(1)
     return paths, epochs, len(rows), n_epochs
@@ -865,7 +876,7 @@ def download_catalogs(ra, dec, radius_arcmin=15, strict=False):
 def ingest_target(name, collection=config.SPHEREX_COLLECTION, radius_deg=0.1,
                   size_deg=0.2, bands=DEFAULT_BANDS, epoch_mode="all",
                   overwrite=False, skip_catalogs=False, rows=None,
-                  catalogs=None, strict_catalogs=False):
+                  catalogs=None, strict_catalogs=False, keep_per_slot=1):
     """Ingest one registered target, optionally using an already-fresh SIA2 listing."""
     meta = dict(TARGETS[name])
     if meta.get("pm_ra") or meta.get("pm_dec"):
@@ -887,6 +898,7 @@ def ingest_target(name, collection=config.SPHEREX_COLLECTION, radius_deg=0.1,
         epoch_mode=epoch_mode,
         overwrite=overwrite,
         rows=rows,
+        keep_per_slot=keep_per_slot,
     )
     if catalogs is not None:
         cats = catalogs
@@ -945,6 +957,9 @@ def main():
     parser.add_argument("--targets", nargs="*", default=None)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--skip-catalogs", action="store_true")
+    parser.add_argument("--keep-per-slot", type=int, default=1,
+                        help="validated exposures kept per (epoch, band); 2+ "
+                             "enables the null test (spherexlens.eval)")
     args = parser.parse_args()
 
     names = args.targets or list(TARGETS)
@@ -953,7 +968,8 @@ def main():
             name, collection=args.collection, radius_deg=args.radius,
             size_deg=args.size, bands=tuple(args.bands),
             epoch_mode=args.epochs, overwrite=args.overwrite,
-            skip_catalogs=args.skip_catalogs)
+            skip_catalogs=args.skip_catalogs,
+            keep_per_slot=args.keep_per_slot)
         if record is None:
             print("  nothing downloaded -- skipping this target.")
             continue

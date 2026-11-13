@@ -34,6 +34,10 @@ PSF_SIGMA_PX_FALLBACK = 1.4         # Gaussian used only when a file has no PSF
 DETECTION_SIGMA = _env("DETECTION_SIGMA", 5.0)
 TARGET_FALSE_ALARMS_PER_FIELD = _env("TARGET_FALSE_ALARMS_PER_FIELD", 0.1)
 MERGE_RADIUS_PX = 2
+# How step3 scales the ZOGY significance map: "std" (original) or "robust"
+# (MAD).  See step3_zogy.s_noise_scale; flipped to "robust" together with a
+# null-test-calibrated threshold (execution plan, decision A, 2026-11-13).
+ZOGY_S_NORMALISATION = os.environ.get("SPHEREX_ZOGY_S_NORMALISATION", "std")
 MAX_TRIAGED_DETECTIONS = int(_env("MAX_TRIAGED_DETECTIONS", 10, int))
 
 # ---- solar-system objects --------------------------------------------------

@@ -62,8 +62,33 @@ def zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4,
     s_hat = f_d * d_hat * np.conj(p_d_hat)
     s_img = np.real(ifft2(s_hat))
 
-    s_img = s_img / (s_img.std() + 1e-12)
+    s_img = s_img / (s_noise_scale(s_img) + 1e-12)
     return d_img, s_img
+
+
+def s_noise_scale(s_img, mode=None):
+    """
+    The number S is divided by so that noise-only pixels have unit spread.
+
+    "std" (original): the plain standard deviation.  One bright-star residual
+    (thousands of sigma) inflates it, which scales every real detection in the
+    map down -- the Phase 4 strict injection test recovered 0.2 % of planted
+    sources this way.
+    "robust": 1.4826 x the median absolute deviation, which ignores a few
+    extreme pixels and gives unit noise in a noise-limited map.
+
+    config.ZOGY_S_NORMALISATION selects it; switch to "robust" only together
+    with a detection threshold calibrated on the null test (eval/threshold.json).
+    """
+    import config
+    mode = mode or getattr(config, "ZOGY_S_NORMALISATION", "std")
+    if mode == "robust":
+        v = s_img[np.isfinite(s_img)]
+        if v.size >= 10:
+            mad = 1.4826 * float(np.median(np.abs(v - np.median(v))))
+            if mad > 0:
+                return mad
+    return float(np.nanstd(s_img))
 
 
 def find_detections(S, pix_scale_arcsec, dt_years, sigma_thresh=5.0,
