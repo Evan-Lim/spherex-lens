@@ -42,8 +42,8 @@ SOURCES = [
             "operated by the California Institute of Technology."),
         "licence": "NASA data: no copyright restrictions; acknowledgement requested",
         "url": "https://irsa.ipac.caltech.edu/",
-        "wording_source": "https://irsa.ipac.caltech.edu/ (acknowledgement page; URL moved)",
-        "wording_verified": False,
+        "wording_source": "https://irsa.ipac.caltech.edu/ack.html (identical, checked 2026-11-13)",
+        "wording_verified": True,
     },
     {
         "id": "irsa_wise",
@@ -99,14 +99,16 @@ SOURCES = [
         "name": "STScI Mikulski Archive for Space Telescopes (MAST)",
         "used_for": "Gaia/MAST portal links for each detection",
         "acknowledgement": (
-            "This research has made use of the Mikulski Archive for Space Telescopes "
-            "(MAST) at the Space Telescope Science Institute, which is operated by the "
-            "Association of Universities for Research in Astronomy, Inc., under NASA "
-            "contract NAS5-26555."),
+            "This research has made use of data obtained from the Mikulski Archive for "
+            "Space Telescopes (MAST) at the Space Telescope Science Institute, which is "
+            "operated by the Association of Universities for Research in Astronomy, "
+            "Inc., under NASA contract NAS5–26555."),
         "licence": "Public archive; see MAST data attribution guidance",
         "url": "https://archive.stsci.edu/publishing/mission-acknowledgements",
         "wording_source": "https://archive.stsci.edu/publishing/mission-acknowledgements "
-                          "(adapted from the legacy-mission template; links only, no MAST data used)",
+                          "(MAST publishes per-mission templates only, no generic sentence; "
+                          "adapted from them, checked 2026-11-13). MAST also asks papers to "
+                          "cite a dataset DOI: https://archive.stsci.edu/doi/search/",
         "wording_verified": False,
     },
     {
@@ -126,15 +128,16 @@ SOURCES = [
         "name": "CADC Solar System Object Image Search (SSOIS)",
         "used_for": "Independent asteroid ephemeris check and image search links",
         "acknowledgement": (
-            "This research used the facilities of the Canadian Astronomy Data Centre "
-            "operated by the National Research Council of Canada with the support of "
-            "the Canadian Space Agency."),
-        "citation": "Gwyn, Hill & Kavelaars 2012, PASP, 124, 579 (requested on the SSOIS page)",
+            "Asteroid image search by the Solar System Object Image Search (SSOIS) of "
+            "the Canadian Astronomy Data Centre (Gwyn, Hill & Kavelaars 2012)."),
+        "citation": "Gwyn, Hill & Kavelaars 2012, PASP, 124, 579 (2012PASP..124..579G), "
+                    "requested on the SSOIS page",
         "licence": "CADC terms of use",
         "url": "https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/ssois/",
-        "wording_source": "SSOIS page (citation verified); CADC acknowledgement page "
-                          "not reachable on the check date",
-        "wording_verified": False,
+        "wording_source": "https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/ssois/ "
+                          "(asks for the Gwyn et al. 2012 citation; CADC publishes no "
+                          "acknowledgement sentence, checked 2026-11-13)",
+        "wording_verified": True,
     },
     {
         "id": "neossat",
@@ -147,9 +150,11 @@ SOURCES = [
         "licence": "Open Government Licence – Canada",
         "licence_url": "https://open.canada.ca/en/open-government-licence-canada",
         "url": "https://data.asc-csa.gc.ca/dataset/neossat",
-        "wording_source": "https://data.asc-csa.gc.ca/dataset/neossat (licence verified; "
-                          "attribution sentence follows the OGL-Canada template)",
-        "wording_verified": False,
+        "wording_source": "https://open.canada.ca/en/open-government-licence-canada "
+                          "(first sentence is the OGL default attribution, verbatim; CSA "
+                          "states no credit line, so the second sentence is ours; checked "
+                          "2026-11-13)",
+        "wording_verified": True,
     },
     {
         "id": "vsx",
@@ -185,10 +190,13 @@ SOURCES = [
             "This research has made use of WiseView (Caselden et al. 2018), a tool "
             "developed for the Backyard Worlds: Planet 9 citizen-science project "
             "(Kuchner et al. 2017)."),
-        "citation": "Caselden et al. 2018, ASCL 1806.004; Kuchner et al. 2017, ApJL, 841, L19",
+        "citation": "Caselden et al. 2018, ascl:1806.004 (2018ascl.soft06004C, the ASCL's "
+                    "preferred citation); Kuchner et al. 2017, ApJL, 841, L19",
         "licence": "Linked tool; no data redistributed",
         "url": "http://byw.tools/wiseview",
-        "wording_source": "no official wording published; sentence written for this app",
+        "wording_source": "https://ascl.net/1806.004 (no acknowledgement sentence published; "
+                          "ours. Citation bibcode verified 2026-11-13; byw.tools refused "
+                          "the connection)",
         "wording_verified": False,
     },
 ]

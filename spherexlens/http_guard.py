@@ -18,6 +18,67 @@ from collections import deque
 from fastapi import HTTPException
 
 
+def netlify_signature_ok(headers, secret=None, now=None):
+    """Security review S8: is this request really from our Netlify proxy?
+
+    netlify.toml marks the /live-api and /data-live-api proxies as *signed*
+    with the Netlify environment variable SPHEREX_PROXY_SECRET.  Netlify then
+    sends ``X-Nf-Sign``: an HS256 JWT signed with that secret (claims include
+    ``iss: "netlify"``).  Only when it verifies do we trust Netlify's
+    ``x-nf-client-connection-ip`` header -- otherwise anyone calling Cloud Run
+    directly could forge it to dodge rate limits or stuff votes.
+
+    Returns None when no secret is configured on this service (old behaviour),
+    else True / False.
+    """
+    import base64
+    import hashlib
+    import hmac
+    import json
+    import os
+
+    secret = secret if secret is not None else os.environ.get("SPHEREX_PROXY_SECRET", "")
+    if not secret:
+        return None
+    token = (headers.get("x-nf-sign") or "").strip()
+    parts = token.split(".")
+    if len(parts) != 3:
+        return False
+
+    def b64(s):
+        return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+    try:
+        header = json.loads(b64(parts[0]))
+        claims = json.loads(b64(parts[1]))
+        sig = b64(parts[2])
+    except Exception:
+        return False
+    if header.get("alg") != "HS256":
+        return False
+    expected = hmac.new(secret.encode(), f"{parts[0]}.{parts[1]}".encode(),
+                        hashlib.sha256).digest()
+    if not hmac.compare_digest(sig, expected):
+        return False
+    if claims.get("iss") != "netlify":
+        return False
+    exp = claims.get("exp")
+    if exp is not None and float(exp) < (now if now is not None else time.time()):
+        return False
+    return True
+
+
+def trusted_client_ip(headers, fallback):
+    """Visitor address: Netlify's header only when the request is trusted."""
+    netlify_ip = (headers.get("x-nf-client-connection-ip") or "").strip()
+    if netlify_ip and netlify_signature_ok(headers) is not False:
+        return netlify_ip
+    hops = [h.strip() for h in (headers.get("x-forwarded-for") or "").split(",") if h.strip()]
+    if hops:
+        return hops[-1]          # appended by Cloud Run's front end: not forgeable
+    return fallback
+
+
 def client_key(request):
     """The visitor's address as app._client_key derives it (Netlify / Cloud Run aware)."""
     try:
@@ -26,14 +87,8 @@ def client_key(request):
     except Exception:
         pass
     headers = getattr(request, "headers", {}) or {}
-    netlify_ip = headers.get("x-nf-client-connection-ip", "").strip()
-    if netlify_ip:
-        return netlify_ip
-    hops = [h.strip() for h in headers.get("x-forwarded-for", "").split(",") if h.strip()]
-    if hops:
-        return hops[-1]
     client = getattr(request, "client", None)
-    return getattr(client, "host", None) or "unknown"
+    return trusted_client_ip(headers, getattr(client, "host", None) or "unknown")
 
 
 def hashed_client(request_or_key, salt=None):

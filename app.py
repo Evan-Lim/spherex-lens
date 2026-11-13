@@ -80,14 +80,10 @@ def _client_key(request):
     The limiter only damps abuse -- the expensive paths also have hard
     concurrency guards -- so a forged header can at worst evade the limit.
     """
-    netlify_ip = request.headers.get("x-nf-client-connection-ip", "").strip()
-    if netlify_ip:
-        return netlify_ip
-    forwarded = request.headers.get("x-forwarded-for", "")
-    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
-    if hops:
-        return hops[-1]
-    return get_remote_address(request)
+    # S8: with SPHEREX_PROXY_SECRET set, the Netlify header is trusted only
+    # on requests carrying a valid Netlify signature (X-Nf-Sign).
+    from spherexlens.http_guard import trusted_client_ip
+    return trusted_client_ip(request.headers, get_remote_address(request))
 
 
 # N6: per-visitor rate limiting (in-memory, per instance).

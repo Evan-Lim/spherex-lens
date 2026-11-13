@@ -487,3 +487,28 @@ def test_register_field_sanitises_label_and_hides_exception_text(portal, monkeyp
     assert seen["meta"]["common"] == "bHi/b"
     portal.FIELD_REGISTRY.pop(result["target"], None)
     portal.FIELD_DASH_CACHE.pop(result["target"], None)
+
+
+def test_s8_netlify_signature_gates_the_visitor_header(monkeypatch):
+    import base64, hashlib, hmac, json, time
+    from spherexlens import http_guard as g
+
+    def tok(secret, claims, alg="HS256"):
+        enc = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
+        head = enc({"alg": alg, "typ": "JWT"}) + "." + enc(claims)
+        sig = hmac.new(secret.encode(), head.encode(), hashlib.sha256).digest()
+        return head + "." + base64.urlsafe_b64encode(sig).rstrip(b"=").decode()
+
+    base = {"x-nf-client-connection-ip": "203.0.113.9", "x-forwarded-for": "198.51.100.7"}
+    monkeypatch.delenv("SPHEREX_PROXY_SECRET", raising=False)
+    assert g.trusted_client_ip(base, "x") == "203.0.113.9"          # no secret: old behaviour
+    monkeypatch.setenv("SPHEREX_PROXY_SECRET", "s3cret")
+    assert g.trusted_client_ip(base, "x") == "198.51.100.7"         # unsigned: forged header ignored
+    good = dict(base, **{"x-nf-sign": tok("s3cret", {"iss": "netlify", "exp": time.time() + 60})})
+    assert g.trusted_client_ip(good, "x") == "203.0.113.9"
+    bad = dict(base, **{"x-nf-sign": tok("wrong", {"iss": "netlify"})})
+    assert g.trusted_client_ip(bad, "x") == "198.51.100.7"
+    old = dict(base, **{"x-nf-sign": tok("s3cret", {"iss": "netlify", "exp": time.time() - 5})})
+    assert g.trusted_client_ip(old, "x") == "198.51.100.7"
+    none_alg = dict(base, **{"x-nf-sign": tok("s3cret", {"iss": "netlify"}, alg="none")})
+    assert g.trusted_client_ip(none_alg, "x") == "198.51.100.7"
