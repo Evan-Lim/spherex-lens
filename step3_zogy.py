@@ -3,12 +3,14 @@ step3_zogy.py
 
 Implements the Zackay, Ofek, & Gal-Yam (2016) proper image subtraction
 algorithm and detects positive/negative dipoles (moving sources) versus
-stationary monopoles (variable sources) in the significance map.
+stationary monopoles (variable sources: brighter = ``monopole``, fainter =
+``monopole_negative``) in the significance map.
 """
 
 import numpy as np
 from numpy.fft import fft2, ifft2, fftshift
 from scipy.ndimage import maximum_filter, minimum_filter
+from scipy.spatial import cKDTree
 
 
 def gaussian_psf(shape, sigma_px):
@@ -22,18 +24,29 @@ def gaussian_psf(shape, sigma_px):
     return fftshift(psf)
 
 
-def zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4):
+def _psf_hat(psf, shape, psf_sigma):
+    """FFT of the PSF: a measured array if given, else the Gaussian fallback."""
+    if psf is not None:
+        from spherexlens.imaging import psf_fft_kernel
+        return fft2(psf_fft_kernel(psf, shape))
+    return fft2(gaussian_psf(shape, psf_sigma))
+
+
+def zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4,
+         psf1=None, psf2=None):
     """
     Compute the ZOGY proper difference image D and the unit-variance
     significance map S.
+
+    psf1/psf2 -- measured PSFs (small, centred, odd-sized arrays on the image
+        grid, e.g. step2_coadd.coadd_matched(..., return_psf=True)).  When
+        omitted, a Gaussian of psf_sigma1/psf_sigma2 pixels is used.
     """
-    p1 = gaussian_psf(img1.shape, psf_sigma1)
-    p2 = gaussian_psf(img2.shape, psf_sigma2)
+    p1_hat = _psf_hat(psf1, img1.shape, psf_sigma1)
+    p2_hat = _psf_hat(psf2, img2.shape, psf_sigma2)
 
     i1_hat = fft2(img1)
     i2_hat = fft2(img2)
-    p1_hat = fft2(p1)
-    p2_hat = fft2(p2)
 
     denominator = np.sqrt(
         sigma1 ** 2 * np.abs(p2_hat) ** 2 +
@@ -54,9 +67,16 @@ def zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4):
 
 
 def find_detections(S, pix_scale_arcsec, dt_years, sigma_thresh=5.0,
-                    min_sep_px=0.5, max_sep_px=25.0):
+                    min_sep_px=0.5, max_sep_px=25.0, report_fading=True):
     """
     Detect significant peaks and troughs in the ZOGY significance map.
+
+    Each peak (in raster order) is paired with the nearest still-unused trough
+    at min_sep_px < d < max_sep_px (ties: the first trough in raster order) ->
+    ``dipole``.  A peak without a trough is a ``monopole`` (got brighter,
+    ``sign: +1``); a trough without a peak is a ``monopole_negative`` (got
+    fainter, ``sign: -1``, ``snr`` = |trough|).  Pairing uses a KD-tree on the
+    troughs; the result is identical to the old all-pairs loop.
     """
     peaks = (S == maximum_filter(S, size=5)) & (S > sigma_thresh)
     troughs = (S == minimum_filter(S, size=5)) & (S < -sigma_thresh)
@@ -67,21 +87,24 @@ def find_detections(S, pix_scale_arcsec, dt_years, sigma_thresh=5.0,
     tv = S[ty, tx]
 
     detections = []
-    used_troughs = set()
+    used = np.zeros(len(ty), dtype=bool)
+    tree = cKDTree(np.column_stack([tx, ty]).astype(float)) if len(ty) else None
 
     for i in range(len(py)):
         best_j = None
-        best_d = 1e9
-        for j in range(len(ty)):
-            if j in used_troughs:
-                continue
-            d = np.hypot(px[i] - tx[j], py[i] - ty[j])
-            if min_sep_px < d < max_sep_px and d < best_d:
-                best_d = d
-                best_j = j
+        best_d = None
+        if tree is not None:
+            cand = tree.query_ball_point([float(px[i]), float(py[i])], r=max_sep_px)
+            for j in sorted(cand):                  # raster order breaks ties
+                if used[j]:
+                    continue
+                d = np.hypot(px[i] - tx[j], py[i] - ty[j])
+                if min_sep_px < d < max_sep_px and (best_d is None or d < best_d):
+                    best_d = d
+                    best_j = j
 
         if best_j is not None:
-            used_troughs.add(best_j)
+            used[best_j] = True
             mu = pix_scale_arcsec * best_d / dt_years
             flux_consistency = abs(pv[i] + tv[best_j]) / (pv[i] - tv[best_j] + 1e-9)
             detections.append({
@@ -97,6 +120,16 @@ def find_detections(S, pix_scale_arcsec, dt_years, sigma_thresh=5.0,
                 "kind": "monopole",
                 "pos": (int(py[i]), int(px[i])),
                 "snr": float(pv[i]),
+                "sign": +1,
+            })
+
+    if report_fading:
+        for j in np.flatnonzero(~used):
+            detections.append({
+                "kind": "monopole_negative",
+                "pos": (int(ty[j]), int(tx[j])),
+                "snr": float(abs(tv[j])),
+                "sign": -1,
             })
 
     return detections
