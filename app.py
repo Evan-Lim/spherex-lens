@@ -224,6 +224,14 @@ def _check_irsa_listing(store, entry, target):
 _LOGGER = logging.getLogger(__name__)
 
 
+def _public_error(prefix, error):
+    """Security review S7: log the real exception server-side and return a
+    message that names the step and error type only -- no paths, URLs or
+    library internals reach the browser."""
+    _LOGGER.warning("%s: %s: %s", prefix, type(error).__name__, error)
+    return f"{prefix} ({type(error).__name__}); details are in the server log."
+
+
 @asynccontextmanager
 async def _lifespan(application):
     # Check the snapshot connection once so a missing Google login shows up
@@ -2060,7 +2068,7 @@ def get_dashboard(request: Request = None,
         except Exception as e:
             return JSONResponse(
                 status_code=502,
-                content={"error": f"IRSA listing query failed: {e}",
+                content={"error": _public_error("IRSA listing query failed", e),
                          "hint": "IRSA may be busy; retry in a minute."})
         if unchanged is not None:
             return unchanged
@@ -2078,7 +2086,7 @@ def get_dashboard(request: Request = None,
             return JSONResponse(
                 status_code=422 if isinstance(e, CoverageError) else 502,
                 content={"error": (str(e) if isinstance(e, CoverageError)
-                                   else f"Live fetch from IRSA failed: {e}"),
+                                   else _public_error("Live fetch from IRSA failed", e)),
                          "hint": "retry, or call without ?source=live to use data_cache/"}
             )
         paths = []
@@ -2174,7 +2182,7 @@ def get_dashboard(request: Request = None,
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"error": f"Co-addition failed: {str(e)}"}
+            content={"error": _public_error("Co-addition failed", e)}
         )
 
     epoch1_files = files_by_epoch[order[0]]
@@ -2190,7 +2198,7 @@ def get_dashboard(request: Request = None,
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"error": f"ZOGY failed: {str(e)}"}
+            content={"error": _public_error("ZOGY subtraction failed", e)}
         )
 
     # consecutive pairs (E1->E2, E2->E3, ...) plus the deep pair E1->En
@@ -2614,7 +2622,7 @@ def get_recovery(request: Request = None,
             return JSONResponse(
                 status_code=422 if isinstance(e, CoverageError) else 502,
                 content={"error": (str(e) if isinstance(e, CoverageError)
-                                   else f"Live fetch from IRSA failed: {e}")})
+                                   else _public_error("Live fetch from IRSA failed", e))})
         sources = [c["data"] for c in cutouts]
         epochs = [c["epoch"] for c in cutouts]
         bands = exposure_bands(meta, sources, cutouts)
@@ -2662,7 +2670,7 @@ def get_recovery(request: Request = None,
         except Exception as e:
             return JSONResponse(status_code=422 if isinstance(e, CoverageError) else 502,
                                 content={"error": (str(e) if isinstance(e, CoverageError)
-                                                   else f"Live fetch from IRSA failed: {e}")})
+                                                   else _public_error("Live fetch from IRSA failed", e))})
         sources = [c["data"] for c in cutouts]
         epochs = [c["epoch"] for c in cutouts]
         bands = exposure_bands(meta, sources, cutouts)

@@ -35,6 +35,10 @@ COPY ml ./ml
 COPY eval ./eval
 COPY static ./static
 
+# Security review S14: run as an unprivileged user (writes go to /tmp only).
+RUN useradd --create-home --uid 10001 spherex
+USER spherex
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

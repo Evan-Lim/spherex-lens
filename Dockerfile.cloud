@@ -21,6 +21,10 @@ COPY ml ./ml
 COPY eval ./eval
 COPY static ./static
 
+# Security review S14: run as an unprivileged user (writes go to /tmp only).
+RUN useradd --create-home --uid 10001 spherex
+USER spherex
+
 EXPOSE 8080
 
 CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]
