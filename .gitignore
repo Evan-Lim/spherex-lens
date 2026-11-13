@@ -42,3 +42,7 @@ paper/*.fdb_latexmk
 paper/*.synctex.gz
 logs/
 /deep/
+# v2: local raw-pixel caches (never committed)
+data_cache/deep/
+data_cache/archive_cache/
+data_cache/votes/
