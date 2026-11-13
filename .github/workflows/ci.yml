@@ -17,7 +17,10 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest httpx
+          pip install --require-hashes -r requirements.lock
+          pip install pytest httpx pip-audit
+      - name: Dependency audit (S13)
+        run: pip-audit -r requirements.lock --disable-pip --no-deps
       - name: Tests (offline)
         env:
           SPHEREX_ARCHIVE_CACHE: "false"

@@ -23,9 +23,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY requirements.txt requirements.lock ./
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt
+ && pip install --no-cache-dir --require-hashes -r requirements.lock
 
 COPY app.py step1_ingest.py step2_coadd.py step3_zogy.py step4_triage.py \
      step5_spectrum.py step6_injection.py step7_neowise.py live_ingest.py \
