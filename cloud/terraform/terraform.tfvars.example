@@ -7,3 +7,8 @@ alert_email          = ""   # e.g. "you@example.com"; empty = no notifications
 billing_account      = ""   # e.g. "012345-6789AB-CDEF01"; needed for the budget
 budget_amount        = 0    # monthly amount in the account currency; 0 = no budget
 votes_retention_days = 0    # 0 = keep raw votes forever
+
+# Snapshot playback history (must match on the API and refresh job; the
+# Terraform variables set both). 336 h = 14 days = 28 versions at 12 h cadence.
+# snapshot_history_hours = 336
+# snapshot_history_limit = 48

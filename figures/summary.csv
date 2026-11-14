@@ -1,0 +1,6 @@
+target,common,ra,dec,n_epoch1,n_epoch2,sigma1,sigma2,detections,known,candidates,dipoles,monopoles,max_snr,ch4,h2o,nir_slope,spectral_label
+Barnards_Star,Barnard's Star,269.452083,4.693333,2,2,1000000.0,1000000.0,2,1,1,1,1,12.53,1.05,0.89,-0.56,M-dwarf / Mira red giant
+Epsilon_Indi_B,Epsilon Indi B,331.04375,-56.782778,2,2,1000000.0,1000000.0,2,1,1,1,1,13.2,1.83,0.64,0.42,T-type brown dwarf
+RW_Aurigae,RW Aurigae,76.95625,30.401389,2,2,1000000.0,1000000.0,2,0,2,1,1,12.99,0.83,0.54,0.32,Dusty T Tauri / variable star
+R_Draconis,R Draconis,248.1675,66.754722,2,2,1000000.0,1000000.0,3,0,3,1,2,12.95,1.06,0.92,-0.57,M-dwarf / Mira red giant
+WISE_0855,WISE 0855,133.795129,-7.245147,2,2,1000000.0,1000000.0,2,0,2,1,1,12.96,2.74,0.85,1.01,Ultracool Y-dwarf

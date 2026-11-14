@@ -178,14 +178,34 @@ MAX_MASK_ARCSEC = 600.0
 
 
 def source_mag(cat, src):
-    """The magnitude used for radii and sorting: Gaia G, else W1, else VSX max."""
+    """The magnitude used for radii and sorting: Gaia G, else W1, else VSX max.
+
+    A catalogue added to the metadata (2MASS, Pan-STARRS, ...) may use its own
+    column name, so the fallback accepts the common ones instead of treating
+    every extra-catalogue source as if it were faint.
+    """
     if cat == "gaia":
         m = src.get("gmag")
     elif cat == "wise":
         m = src.get("w1")
         m = None if m is None else m + 1.5      # rough W1 -> G for a K/M star
-    else:
+    elif cat == "vsx":
         m = src.get("max")
+    else:
+        m = None
+        for key in ("gmag", "w1", "w2", "mag", "rmag", "imag", "zmag",
+                    "jmag", "hmag", "kmag", "max", "w1mpro",
+                    "phot_g_mean_mag"):
+            value = src.get(key)
+            if value is None:
+                continue
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                continue
+            if value < 90:
+                m = value
+                break
     return None if m is None or m >= 90 else float(m)
 
 

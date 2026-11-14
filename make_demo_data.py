@@ -321,10 +321,18 @@ def make_target(name, meta, npix=400, overwrite=False):
     var_flux = {1: 45.0, 2: 95.0}
 
     paths = []
+    sources = []
     for i in range(2 * EXPOSURES_PER_EPOCH):
         epoch = 1 if i < EXPOSURES_PER_EPOCH else 2
         fname = os.path.join(CACHE, f"demo_{name}_{i:02d}.fits")
         paths.append(fname)
+        sources.append({
+            "path": fname,
+            "band": f"SPHEREx-{EXPOSURE_DETECTORS[i]}",
+            "epoch": epoch,
+            "mjd": (60500.0 if epoch == 1 else 60680.0)
+                   + 0.02 * (i % EXPOSURES_PER_EPOCH),
+        })
         if os.path.exists(fname) and not overwrite:
             print(f"  keeping existing {fname}")
             continue
@@ -351,6 +359,11 @@ def make_target(name, meta, npix=400, overwrite=False):
         "target": name,
         "meta": meta,
         "paths": paths,
+        "epochs": [1 if i < EXPOSURES_PER_EPOCH else 2
+                   for i in range(2 * EXPOSURES_PER_EPOCH)],
+        "sources": sources,
+        "n_epochs": 2,
+        "collection": "demo",
         "catalogs": build_catalogs(ra_c, dec_c, stars, variable, name),
         "note": "SYNTHETIC demo data written by make_demo_data.py",
     }

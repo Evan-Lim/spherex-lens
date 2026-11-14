@@ -30,7 +30,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from step2_coadd import coadd_detector, coadd_matched, make_target_wcs
+from step2_coadd import coadd_matched, make_target_wcs
 from step3_zogy import zogy, find_detections
 from step4_triage import triage, PSF_FWHM_ARCSEC
 from step5_spectrum import extract_spectrum_from_cutout, three_index_classifier
@@ -42,7 +42,7 @@ from catalog_tools import (propagate_catalogs, harmonise_motions, target_positio
                            propagate, sep_arcsec, mjd_to_year, decode_vsx_type,
                            aavso_url, gaia_distance, wise_colour_class,
                            wise_reliable, mag_to_mjy, surface_sum_to_mjy,
-                           robust_std, CATALOG_EPOCH_MJD, GAIA_DR3_EPOCH_MJD,
+                           CATALOG_EPOCH_MJD, GAIA_DR3_EPOCH_MJD,
                            ALLWISE_EPOCH_MJD)
 from snapshot_store import SnapshotStore
 import config
@@ -116,19 +116,21 @@ FIELD_DASH_CACHE = {}    # name -> dashboard payload for those fields
 FIELD_REQUEST_LIMIT = threading.BoundedSemaphore(
     int(os.environ.get("SPHEREX_FIELD_REQUEST_CONCURRENCY", "2")))
 MAX_CUSTOM_FIELDS = int(os.environ.get("SPHEREX_MAX_CUSTOM_FIELDS", "8"))
-# There is no local data cache: every registered field is read from the
-# published Cloud snapshot.  The defaults point at the production bucket so a
-# plain `uvicorn app:app` works; Cloud Run and tests override them via env.
+# Snapshot reads default to the published Cloud snapshot.  When neither the
+# bucket nor the snapshot API is reachable, the target list and mosaic fall
+# back to the local data_cache so `uvicorn app:app` still works offline.
 from snapshot_store import DEFAULT_GCP_PROJECT
 SNAPSHOT_BUCKET = (os.environ.get("SPHEREX_SNAPSHOT_BUCKET")
                    or f"{DEFAULT_GCP_PROJECT}-spherex-snapshots")
 # How far the previous_manifest chain is offered to the snapshot-history
 # control.  Keep the same retention the scheduled refresh uses for garbage
 # collection, so every listed manifest still has its dashboard object.
+# 336 h = 14 days, i.e. 28 published versions at the 12-hour refresh cadence.
+# Raise this together with the refresh job's env var to keep more history.
 SNAPSHOT_RETENTION_HOURS = int(
-    os.environ.get("SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS", "48"))
+    os.environ.get("SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS", "336"))
 SNAPSHOT_HISTORY_LIMIT = int(
-    os.environ.get("SPHEREX_SNAPSHOT_HISTORY_LIMIT", "24"))
+    os.environ.get("SPHEREX_SNAPSHOT_HISTORY_LIMIT", "48"))
 _SNAPSHOT_STORE = None
 # Where snapshot reads come from:
 #   bucket -- read the private GCS bucket directly (needs a Google login with
@@ -139,6 +141,20 @@ _SNAPSHOT_STORE = None
 SNAPSHOT_SOURCE = os.environ.get("SPHEREX_SNAPSHOT_SOURCE", "auto").strip().lower()
 SNAPSHOT_API = (os.environ.get("SPHEREX_SNAPSHOT_API")
                 or "https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api").rstrip("/")
+
+
+def _snapshot_api_is_self():
+    """True when SPHEREX_SNAPSHOT_API points at this same Cloud Run service.
+
+    Forwarding a snapshot read to ourselves recurses until Cloud Run's request
+    timeout (the visitor sees 504 and the site says "history unavailable").
+    This happens when auto mode sees a transient bucket-credential error on the
+    snapshot API service and switches to "api" while its API URL is its own.
+    """
+    host = (urlsplit(SNAPSHOT_API).hostname or "").lower()
+    service = (os.environ.get("K_SERVICE") or "").strip().lower()
+    return bool(host and service) and (host == service or host.startswith(service + "-"))
+
 _SNAPSHOT_MODE = {"value": None}
 _SNAPSHOT_MODE_LOCK = threading.Lock()
 _ACCESS_HINT = (
@@ -308,7 +324,14 @@ _MANIFEST_CACHE: dict = {"t": 0.0, "pointer": None, "manifest": None}
 # and cutout downloads of the same request (they only meet at triage).
 from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
 _CATALOG_POOL = _ThreadPoolExecutor(max_workers=4, thread_name_prefix="catalogs")
-_CATALOG_LABELS = {"gaia": "Gaia DR3", "wise": "AllWISE", "vsx": "VSX"}
+_CATALOG_LABELS = {"gaia": "Gaia DR3", "wise": "AllWISE", "allwise": "AllWISE",
+                   "vsx": "VSX", "twomass": "2MASS", "2mass": "2MASS",
+                   "panstarrs": "Pan-STARRS", "ps1": "Pan-STARRS",
+                   "unwise": "unWISE", "simbad": "SIMBAD", "skymapper": "SkyMapper"}
+
+
+def _catalog_label(key):
+    return _CATALOG_LABELS.get(key) or str(key).replace("_", " ").title()
 
 
 def _start_catalog_lookup(ra, dec):
@@ -319,7 +342,7 @@ def _start_catalog_lookup(ra, dec):
     def report(key, count, state):
         if not callback:
             return
-        label = _CATALOG_LABELS.get(key, key)
+        label = _catalog_label(key)
         text = {"ok": f"{count} sources", "none": "no sources in this field",
                 "unavailable": "unavailable (archive did not answer)"}[state]
         callback({"stage": "catalogs", "message": f"Catalogue {label}: {text}",
@@ -487,6 +510,17 @@ def _use_snapshot_api(reason):
 def _snapshot_mode():
     """'bucket', 'api' or 'off' (snapshot reads disabled, as in the tests)."""
     global _SNAPSHOT_STORE
+    # Never forward to ourselves: a self-loop is a guaranteed 504.  An explicit
+    # api/auto setting on the snapshot service itself must read its own bucket.
+    if _snapshot_api_is_self():
+        with _SNAPSHOT_MODE_LOCK:
+            if _SNAPSHOT_MODE["value"] != "bucket":
+                _LOGGER.warning(
+                    "SPHEREX_SNAPSHOT_API points at this Cloud Run service (%s); "
+                    "reading the bucket directly instead of forwarding to itself.",
+                    os.environ.get("K_SERVICE"))
+            _SNAPSHOT_MODE["value"] = "bucket"
+        return "bucket"
     if not _snapshot_reads_enabled():
         return "off"
     if SNAPSHOT_SOURCE == "api":
@@ -1016,12 +1050,33 @@ def exposure_provenance(meta, target_wcs, npix=180):
     return rows
 
 
+def source_magnitude(src):
+    """Best available magnitude for a catalogue row, whatever catalogue it is.
+
+    The three built-in catalogues use gmag/w1, but a field may also carry an
+    extra catalogue (2MASS, Pan-STARRS, ...) with other column names.  Without
+    this fallback those rows would have no magnitude and would be cut from the
+    map overlay before the brighter built-in entries.
+    """
+    for key in ("gmag", "w1", "w2", "mag", "rmag", "imag", "zmag",
+                "jmag", "hmag", "kmag", "w1mpro", "phot_g_mean_mag"):
+        value = (src or {}).get(key)
+        if value is None:
+            continue
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(value) and value < 90:
+            return value
+    return None
+
+
 def catalog_overlay(meta, target_wcs, npix=180):
     """
     Catalog positions inside the field, converted to target-plane pixels so the
     frontend can draw them on top of the map.
     """
-    ra, dec = meta["meta"]["ra"], meta["meta"]["dec"]
     out = []
     cats = meta.get("catalogs", {})
     for cat_name, sources in cats.items():
@@ -1042,19 +1097,20 @@ def catalog_overlay(meta, target_wcs, npix=180):
                 "y": round(y, 1),
                 "ra": s_ra,
                 "dec": s_dec,
-                "mag": src.get("gmag", src.get("w1", src.get("mag"))),
+                "mag": source_magnitude(src),
                 "label": src.get("name") or src.get("type"),
             })
     # Cap the drawn markers, but per catalogue: a plain sort-by-name-then-cut
     # let ~600 in-field Gaia stars ("g" < "v" < "w") crowd out every VSX
     # variable and AllWISE source. VSX is small and the most interesting, so
-    # it is never cut; the rest keep their brightest entries.
+    # it is never cut; the rest keep their brightest entries. Catalogues that
+    # are not built in get a generous default so an added catalogue is drawn.
     caps = {"vsx": None, "gaia": 500, "wise": 300}
     out.sort(key=lambda r: (r["cat"], r["mag"] if r["mag"] is not None else 99))
     kept, seen = [], {}
     for r in out:
         n = seen.get(r["cat"], 0)
-        cap = caps.get(r["cat"], 300)
+        cap = caps.get(r["cat"], 1000)
         if cap is None or n < cap:
             kept.append(r)
             seen[r["cat"]] = n + 1
@@ -1078,7 +1134,6 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
     a VSX variable) are merged into one row whose ``catalogs`` list names all of
     them.
     """
-    ra0, dec0 = meta["meta"]["ra"], meta["meta"]["dec"]
     objects = []
 
     def to_pixels(ra, dec, require_inside=False):
@@ -1140,7 +1195,7 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
                 if cat_name == "vsx" and src.get("type"):
                     twin["type"] = src.get("type")
                 if twin.get("mag") is None:
-                    twin["mag"] = src.get("gmag", src.get("w1", src.get("mag")))
+                    twin["mag"] = source_magnitude(src)
                 if src.get("name"):
                     twin["name"] = twin.get("name") or src.get("name")
                 continue
@@ -1150,7 +1205,7 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
                 "dec": s_dec,
                 "x": round(x, 1),
                 "y": round(y, 1),
-                "mag": src.get("gmag", src.get("w1", src.get("mag"))),
+                "mag": source_magnitude(src),
                 "in_field": in_field,
                 "catalogs": [cat_name],
                 "name": src.get("name"),
@@ -1172,7 +1227,6 @@ def build_field_objects(meta, detections, target_wcs, npix=180,
         return float(np.hypot((a_ra - b_ra) * cosd, a_dec - b_dec) * 3600.0)
 
     for det in detections:
-        pos = det.get("position") or [0, 0]
         d_ra, d_dec = det.get("ra"), det.get("dec")
         if d_ra is None or d_dec is None:
             continue
@@ -1286,9 +1340,31 @@ def exposure_bands(meta, sources, live_cutouts_list=None):
         band = by_path.get(p)
         if not band:
             m = re.search(r"D(\d)_spx", os.path.basename(str(p)))
-            band = f"SPHEREx-D{m.group(1)}" if m else f"exp{i}"
-        out.append(band)
+            band = f"SPHEREx-D{m.group(1)}" if m else _detector_band_from_fits(p)
+        out.append(band or f"exp{i}")
     return out
+
+
+def _detector_band_from_fits(path):
+    """Read DETECTOR from a cutout when the metadata/filename does not say.
+
+    Synthetic demo cutouts (make_demo_data.py) are named demo_<target>_00.fits,
+    so the filename carries no detector.  Their IMAGE header does, and without
+    this the shared-band check saw four invented bands (exp0..exp3) and
+    refused to subtract two epochs that really do share D3/D4.
+    """
+    try:
+        from astropy.io import fits
+        with fits.open(path, memmap=False) as hdul:
+            for hdu in hdul:
+                detector = hdu.header.get("DETECTOR") or hdu.header.get("DETECT")
+                if detector in (None, ""):
+                    continue
+                detector = str(detector).strip()
+                return f"SPHEREx-D{detector}" if detector.isdigit() else detector
+    except Exception:
+        return None
+    return None
 
 
 def exposure_mjds(meta, paths, live_cutouts_list=None):
@@ -1452,7 +1528,7 @@ def expected_movers(catalogs, mjd_a, mjd_b, wcs, detections, npix=180,
             "pm_masyr": round(float(np.hypot(*pm)), 1),
             "displacement_arcsec": round(disp, 2),
             "resolvable": disp >= PSF_FWHM_ARCSEC,
-            "mag": src.get("gmag", src.get("w1")) if src else None,
+            "mag": source_magnitude(src) if src else None,
             "detected": hit is not None,
             "det_kind": hit.get("kind") if hit else None,
             "det_snr": round(float(hit["snr"]), 1) if hit else None})
@@ -1461,8 +1537,8 @@ def expected_movers(catalogs, mjd_a, mjd_b, wcs, detections, npix=180,
         consider("target", {}, (block.get("pm_ra") or 0, block.get("pm_dec") or 0),
                  name=block.get("common"), is_target=True)
     pm_floor = min_arcsec / dt * 1e3
-    for cat in ("gaia", "wise"):
-        for s in (catalogs or {}).get(cat) or []:
+    for cat, sources in (catalogs or {}).items():
+        for s in sources or []:
             if cat == "gaia" and (s.get("gmag") or 99) > 19:
                 continue
             if cat == "wise" and ((s.get("w1") or 99) > 15.5 or s.get("pm_from") == "gaia"):
@@ -1637,21 +1713,56 @@ def target_statistics(meta, detections, sigma1, sigma2, npix=180,
 
 @_rate_limited_route("get", "/api/targets", "60/minute")
 def list_targets(request: Request = None):
-    """Return the list of target presets that are available in the cache."""
+    """Return the target presets: the published snapshot, else the local cache."""
     store = _snapshot_store()
     if store is not None:
-        manifest = _published_manifest(store)
-        return _published_object_response(
-            store, manifest.get("targets_object"), "target list")
+        try:
+            manifest = _published_manifest(store)
+        except HTTPException:
+            manifest = None            # no published snapshot yet: try the cache
+        if manifest and manifest.get("targets_object"):
+            return _published_object_response(
+                store, manifest.get("targets_object"), "target list")
 
-    # N3: in cloud-only mode the bucket is mandatory; reaching this branch
-    # means SPHEREX_SNAPSHOT_READS was explicitly disabled or the store is
-    # misconfigured.  Return a clear error rather than scanning local files.
+    # Local development: `python step1_ingest.py` writes data_cache/*_meta.json
+    # and `uvicorn app:app` must be able to list them without a GCS bucket.
+    local = _local_target_entries()
+    if local:
+        return {"targets": local}
+
+    # Cloud-only mode with neither a snapshot nor a local cache.
     raise HTTPException(
         status_code=503,
-        detail="Snapshot store is not available. "
-               "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name."
+        detail="No published snapshot and no local data cache is available. "
+               "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name, or run "
+               "`python step1_ingest.py` to fill data_cache/."
     )
+
+
+def _local_target_entries():
+    """Targets described by *_meta.json in SPHEREX_CACHE, for local runs."""
+    try:
+        names = sorted(name[:-len("_meta.json")]
+                       for name in os.listdir(CACHE)
+                       if name.endswith("_meta.json"))
+    except OSError:
+        return []
+    entries = []
+    for name in names:
+        meta = load_target(name)
+        if not meta:
+            continue
+        block = meta.get("meta") or {}
+        entries.append({
+            "name": name,
+            "common": block.get("common") or name,
+            "ra": block.get("ra"),
+            "dec": block.get("dec"),
+            "type": block.get("type"),
+            "n_epochs": meta.get("n_epochs"),
+            "n_exposures": len(meta.get("paths") or []),
+        })
+    return entries
 
 
 @app.get("/api/status")
@@ -3099,13 +3210,15 @@ def get_mosaic(request: Request = None,
     the detection split and the headline statistics -- enough to draw an
     all-sky chart and to decide which field is worth opening.
     """
-    import time as _time
-
     store = _snapshot_store()
     if store is not None and str(source).lower() != "live":
-        manifest = _published_manifest(store)
-        return _published_object_response(
-            store, manifest.get("mosaic"), "all-sky mosaic")
+        try:
+            manifest = _published_manifest(store)
+        except HTTPException:
+            manifest = None            # no published snapshot yet: try the cache
+        if manifest and manifest.get("mosaic"):
+            return _published_object_response(
+                store, manifest.get("mosaic"), "all-sky mosaic")
 
     if source.lower() == "live":
         return JSONResponse(
@@ -3118,11 +3231,22 @@ def get_mosaic(request: Request = None,
                         "within 200 ms."
             })
 
-    # N3: no local-file fallback — the snapshot store is required.
+    # N3: no snapshot store.  Local development still gets one locatable tile
+    # per cached field (no thumbnail: rendering 18 pipelines in one request
+    # would be slower than opening the field), so All-sky is usable and every
+    # tile can be clicked.
+    local = _local_target_entries()
+    if local:
+        reason = ("All-sky thumbnails come from the published Cloud snapshot; "
+                  "click to open this field from the local cache.")
+        return mosaic_payload([unavailable_mosaic_tile(entry, reason)
+                               for entry in local])
+
     raise HTTPException(
         status_code=503,
-        detail="Snapshot store is not available. "
-               "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name."
+        detail="No published snapshot and no local data cache is available. "
+               "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name, or run "
+               "`python step1_ingest.py` to fill data_cache/."
     )
 
 

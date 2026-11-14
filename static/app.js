@@ -1385,19 +1385,17 @@ function warmLivePipeline() {
 }
 
 function catalogSummary(dashboard) {
-  const counts = dashboard?.catalog_counts || {};
   const status = dashboard?.catalog_status || {};
-  const labels = { gaia: 'Gaia', wise: 'AllWISE', vsx: 'VSX' };
-  const parts = Object.keys(labels).filter((k) => k in counts || k in status)
-    .map((k) => (status[k] === 'unavailable'
-      ? `${labels[k]} unavailable` : `${labels[k]} ${counts[k] ?? 0}`));
+  const parts = catalogCountEntries(dashboard).map(([key, count]) => (status[key] === 'unavailable'
+    ? `${catalogLabel(key)} unavailable` : `${catalogLabel(key)} ${count ?? 0}`));
   return parts.length ? `catalogues: ${parts.join(' · ')}` : '';
 }
 
 function unavailableCatalogs(dashboard) {
   const status = dashboard?.catalog_status || {};
-  const labels = { gaia: 'Gaia', wise: 'AllWISE', vsx: 'VSX' };
-  return Object.keys(labels).filter((k) => status[k] === 'unavailable').map((k) => labels[k]);
+  return catalogCountEntries(dashboard)
+    .filter(([key]) => status[key] === 'unavailable')
+    .map(([key]) => catalogLabel(key));
 }
 
 async function unpackStreamResult(result) {
@@ -1769,7 +1767,49 @@ function valueAt(x, y) {
 // ------------------------------------------------------------------ drawing
 
 const DET_COLORS = { dipole: '#22c55e', monopole: '#f59e0b', monopole_negative: '#38bdf8' };
-const CAT_COLORS = { gaia: '#4d94ff', wise: '#3fb950', vsx: '#d29922' };
+const CAT_COLORS = {
+  gaia: '#4d94ff', wise: '#3fb950', allwise: '#3fb950', vsx: '#d29922',
+  neowise: '#f0883e', unwise: '#a371f7', twomass: '#ff7b72', '2mass': '#ff7b72',
+  panstarrs: '#79c0ff', ps1: '#79c0ff', skymapper: '#56d364',
+  simbad: '#e3b341', ssois: '#8b949e', jpl: '#ffa657', neossat: '#ffa657',
+};
+const CAT_FALLBACK_COLORS = ['#4d94ff', '#3fb950', '#d29922', '#a371f7',
+  '#f0883e', '#ff7b72', '#56d364', '#79c0ff', '#e3b341', '#ffa657'];
+const CATALOG_LABELS = {
+  gaia: 'Gaia DR3', wise: 'AllWISE', allwise: 'AllWISE', vsx: 'VSX',
+  neowise: 'NEOWISE', unwise: 'unWISE', twomass: '2MASS', '2mass': '2MASS',
+  panstarrs: 'Pan-STARRS', ps1: 'Pan-STARRS', skymapper: 'SkyMapper',
+  simbad: 'SIMBAD', jpl: 'JPL', ssois: 'SSOIS', neossat: 'NEOSSat',
+};
+// The catalogue swatches that already exist in index.html; any other catalogue
+// present in the data gets one appended at render time.
+const LEGEND_CATALOGS = new Set(['gaia', 'wise', 'allwise', 'vsx']);
+
+function catalogLabel(key) {
+  return CATALOG_LABELS[String(key).toLowerCase()] || String(key);
+}
+
+function catalogColor(key) {
+  const name = String(key || '');
+  if (CAT_COLORS[name.toLowerCase()]) return CAT_COLORS[name.toLowerCase()];
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return CAT_FALLBACK_COLORS[hash % CAT_FALLBACK_COLORS.length];
+}
+
+// Catalogues the payload actually carries, without the non-catalogue status
+// bookkeeping entries (e.g. catalog_status.gaia_mirror).
+function catalogCountEntries(dashboard) {
+  const counts = dashboard?.catalog_counts || {};
+  const status = dashboard?.catalog_status || {};
+  const keys = new Set(Object.keys(counts));
+  Object.keys(status).forEach((key) => {
+    if (['ok', 'none', 'unavailable'].includes(status[key])) keys.add(key);
+  });
+  return [...keys].filter((key) => key && key !== 'gaia_mirror').sort()
+    .map((key) => [key, counts[key]]);
+}
+
 // Asteroid verdicts are drawn as diamonds in their own colour, whatever the kind.
 const ASTEROID_COLORS = { KNOWN_ASTEROID: '#2dd4bf', POSSIBLE_UNKNOWN_ASTEROID: '#f472b6' };
 const KIND_LABEL = { dipole: 'dipole', monopole: 'monopole', monopole_negative: 'got fainter' };
@@ -1944,8 +1984,8 @@ function drawCatalogs(ctx) {
   ctx.lineWidth = 1;
   for (const p of pts) {
     const { cx, cy } = toCanvas(p.x, p.y);
-    ctx.strokeStyle = CAT_COLORS[p.cat] || '#64748b';
-    ctx.globalAlpha = p.cat === 'vsx' ? 0.95 : 0.55;
+    ctx.strokeStyle = catalogColor(p.cat);
+    ctx.globalAlpha = String(p.cat).toLowerCase() === 'vsx' ? 0.95 : 0.55;
     ctx.beginPath();
     ctx.moveTo(cx - 3.2, cy); ctx.lineTo(cx + 3.2, cy);
     ctx.moveTo(cx, cy - 3.2); ctx.lineTo(cx, cy + 3.2);
@@ -2515,18 +2555,19 @@ function renderPairs(data) {
 
 function renderObjects(data) {
   state.objects = data.field_objects || [];
-  const counts = data.catalog_counts || {};
   const known = state.objects.filter((o) => o.verdict === 'KNOWN').length;
   const cand = state.objects.filter((o) => o.verdict === 'CANDIDATE').length;
   const det = state.objects.filter((o) => o.detected).length;
 
   const offMap = state.objects.filter((o) => o.in_field === false).length;
+  const catalogText = catalogCountEntries(data)
+    .filter(([, count]) => count)
+    .map(([key, count]) => ` - ${catalogLabel(key)} ${count}`).join('');
   setText('objects-hint',
     `${state.objects.length} objects (${state.objects.length - offMap} on the map` +
-    (offMap ? `, ${offMap} outside)` : ')') +
-    (counts.gaia ? ` - Gaia ${counts.gaia}` : '') +
-    (counts.vsx ? ` - VSX ${counts.vsx}` : '') +
-    (counts.wise ? ` - AllWISE ${counts.wise}` : ''));
+    (offMap ? `, ${offMap} outside)` : ')') + catalogText);
+
+  syncCatalogLegend(data);
 
   const label = { all: 'all', known: 'known', candidate: 'candidate', detected: 'detected' };
   document.querySelectorAll('#object-filter .seg').forEach((b) => {
@@ -2534,6 +2575,28 @@ function renderObjects(data) {
     b.textContent = `${b.textContent.split(' (')[0]} (${b.dataset.count})`;
   });
   drawObjectTable();
+}
+
+// Add a legend swatch for every catalogue in the payload that is not one of
+// the three permanent entries (Gaia DR3 / VSX / AllWISE).  This is what makes
+// extra catalogues visible on the map instead of silently drawing grey crosses.
+function syncCatalogLegend(data) {
+  const legend = $('map-legend');
+  if (!legend) return;
+  legend.querySelectorAll('[data-cat-legend]').forEach((el) => el.remove());
+  const keys = new Set(Object.keys(data?.catalog_counts || {}));
+  (data?.catalog_overlay || []).forEach((p) => { if (p && p.cat) keys.add(p.cat); });
+  [...keys]
+    .filter((key) => key && !LEGEND_CATALOGS.has(String(key).toLowerCase()))
+    .sort()
+    .forEach((key) => {
+      const item = document.createElement('span');
+      item.className = 'legend-item';
+      item.dataset.catLegend = key;
+      item.innerHTML = `<i class="sw" aria-hidden="true" style="background:${catalogColor(key)}"></i> ` +
+        fmt.escape(catalogLabel(key));
+      legend.appendChild(item);
+    });
 }
 
 function drawObjectTable() {
@@ -2611,11 +2674,17 @@ function renderProvenance(data) {
   const tbody = $('sources-body');
   const s = data.stats || {};
 
+  const catalogBits = catalogCountEntries(data)
+    .map(([key, count]) => `${catalogLabel(key)} ${fmt.int(count)}`);
+  const catalogText = catalogBits.length
+    ? `${catalogBits.join(' / ')} entries cross-matched`
+    : `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`;
+
   const archiveText =
     `IRSA SIA2 \u00b7 collection ${(rows[0] && rows[0].collection) || 'spherex_dr1'} \u00b7 ` +
     `${rows.length} cutout${rows.length === 1 ? '' : 's'} \u00b7 ` +
     `${s.depth_5sigma ? s.depth_5sigma.toFixed(3) : '--'} MJy/sr 5\u03c3 depth \u00b7 ` +
-    `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`;
+    catalogText;
   // P11 s6: chip colour by what the part is, matched on stable words (class only)
   const chipKind = (part) => (/\bSIA/.test(part) ? 'archive'
     : /^collection\b/.test(part) ? 'collection'
@@ -2728,7 +2797,12 @@ function renderSnapshotControls() {
   const icon = play.querySelector('.snapshot-play-icon');
   if (icon) icon.innerHTML = hist.playing ? '&#9632;' : '&#9654;';
 
-  const retention = hist.retentionHours ? `, ${hist.retentionHours} h retained` : '';
+  const hours = hist.retentionHours;
+  const retention = hours
+    ? (hours >= 48 && hours % 24 === 0
+      ? `, ${hours / 24} days retained`
+      : `, ${hours} h retained`)
+    : '';
   group.title = hist.error
     ? `Snapshot history: ${hist.error}`
     : (hist.playing
@@ -2738,6 +2812,15 @@ function renderSnapshotControls() {
 
 async function loadSnapshotHistory(target, { keepSelection = false } = {}) {
   const hist = state.snapshotHistory;
+  if (!target) {
+    // Never ask the API for "whatever is default": that fallback is WISE 0855.
+    hist.loading = false;
+    hist.snapshots = [];
+    hist.selected = '';
+    hist.error = 'choose a field first';
+    renderSnapshotControls();
+    return;
+  }
   if (hist.target !== target) {
     stopSnapshotPlayback({ resetScale: false });
     hist.target = target;
@@ -2771,8 +2854,11 @@ async function loadSnapshotHistory(target, { keepSelection = false } = {}) {
     const response = await fetchApi('snapshot-history', target);
     if (!response.ok) {
       const problem = await response.json().catch(() => ({}));
+      const code = response.status;
       throw new Error([problem.error, problem.detail].filter(Boolean).join(' ')
-        || `HTTP ${response.status}`);
+        || (code === 504
+          ? 'the snapshot API timed out (HTTP 504) — redeploy or restart the Cloud Run API'
+          : `HTTP ${code}`));
     }
     const data = await response.json();
     if (hist.target !== target) return;
@@ -2787,6 +2873,7 @@ async function loadSnapshotHistory(target, { keepSelection = false } = {}) {
     hist.snapshots = [];
     hist.selected = '';
     hist.error = error.message;
+    setText('footer-status', `snapshot history unavailable: ${error.message}`);
   } finally {
     if (hist.target === target) {
       hist.loading = false;
@@ -2968,9 +3055,16 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null,
   if (state.pipelineRunning) return false;
   const snapshotMeta = options.snapshotMeta || null;
   const preserveView = !!options.preserveView;
+  const target = $('target-select').value;
+  if (!target) {
+    // No registered target and no custom field: never guess a field (the old
+    // API default made this silently load WISE 0855).
+    setStatus('STANDBY \u00b7 NO FIELD SELECTED', 'error');
+    setText('map-hint', 'choose a target or load a field from coordinates');
+    return false;
+  }
   state.pipelineRunning = true;
   $('btn-run').disabled = true;
-  const target = $('target-select').value;
   const pipelineStarted = performance.now();
   const progress = startActionProgress(snapshotMeta
     ? `Loading snapshot from ${formatSnapshotTime(snapshotMeta.published_at)}`
@@ -4103,8 +4197,43 @@ async function fetchV2Json(name, query = '') {
 
 const ARCHIVE_NAMES = {
   spherex: 'SPHEREx', neowise: 'NEOWISE', allwise: 'AllWISE', wise: 'WISE', gaia: 'Gaia',
-  neossat: 'NEOSSat', jpl_sb_ident: 'JPL', jpl: 'JPL', ssois: 'SSOIS', vsx: 'VSX', simbad: 'SIMBAD',
+  neossat: 'NEOSSat', jpl_sb_ident: 'JPL', jpl: 'JPL', ssois: 'SSOIS', vsx: 'VSX',
+  simbad: 'SIMBAD', unwise: 'unWISE', twomass: '2MASS', '2mass': '2MASS',
+  panstarrs: 'Pan-STARRS', ps1: 'Pan-STARRS', skymapper: 'SkyMapper', ztf: 'ZTF',
 };
+// Archives that are queried per detection/designation, so a field-level count
+// of 0 means "not checked here yet", not "no data".
+const COVERAGE_ON_DEMAND = new Set(['jpl', 'jpl_sb_ident', 'ssois', 'simbad']);
+
+function coverageState(c) {
+  if (!c) return 'unknown';
+  const available = c.available;
+  const count = c.count;
+  const numeric = Number.isFinite(count);
+  if (c.pending) return 'unknown';          // still being checked
+  if (available === false && c.error) return 'unknown';   // archive failed, not "empty"
+  if (available !== true && available !== false) return 'unknown';
+  if (COVERAGE_ON_DEMAND.has(String(c.archive || '')) && (!numeric || count === 0)) {
+    return 'unknown';
+  }
+  // available=true means the archive answered, not that this field has rows.
+  return available && (!numeric || count > 0) ? 'yes' : 'no';
+}
+
+function coverageReason(c) {
+  if (!c) return 'not checked for this field';
+  if (c.pending) return 'still checking this archive';
+  if (c.available === false && c.error) return 'check unavailable';
+  if (COVERAGE_ON_DEMAND.has(String(c.archive || '')) && !(Number.isFinite(c.count) && c.count > 0)) {
+    return 'queried per detection/designation';
+  }
+  const state = coverageState(c);
+  if (state === 'yes') return 'has data for this field';
+  if (state === 'no' && c.archive === 'neowise') {
+    return 'no NEOWISE visits within 10″ of the field centre';
+  }
+  return state === 'no' ? 'no data for this field' : 'not checked for this field';
+}
 
 function renderCoverage(data) {
   const row = $('coverage-row');
@@ -4115,12 +4244,14 @@ function renderCoverage(data) {
   if (!cov.length) { list.innerHTML = ''; return; }
   list.innerHTML = cov.map((c) => {
     const name = ARCHIVE_NAMES[c.archive] || String(c.archive || '?').toUpperCase();
-    const ok = c.available === true;
-    const unknown = c.available !== true && c.available !== false;
+    const state = coverageState(c);
+    const ok = state === 'yes';
+    const unknown = state === 'unknown';
     const detail = c.detail || (Number.isFinite(c.count) && ok ? String(c.count) : '');
-    const tip = `${name}: ${unknown ? 'not checked' : ok ? 'has data for this field' : 'no data for this field'}` +
+    const tip = `${name}: ${coverageReason(c)}` +
+      (c.error ? ` — ${c.error}` : '') +
       (c.detail ? ` — ${c.detail}` : '') + (Number.isFinite(c.count) ? ` (${c.count})` : '');
-    return `<li class="cov-chip" data-state="${unknown ? 'unknown' : ok ? 'yes' : 'no'}" title="${fmt.escape(tip)}">` +
+    return `<li class="cov-chip" data-state="${state}" title="${fmt.escape(tip)}">` +
       `<span class="cov-name">${fmt.escape(name)}</span>` +
       `<span class="cov-mark" aria-hidden="true">${unknown ? '?' : ok ? '✓' : '✗'}</span>` +
       `<span class="sr-only">${unknown ? 'not checked' : ok ? 'available' : 'not available'}</span>` +
@@ -5664,9 +5795,12 @@ function attachUiEvents() {
   const snapshotSelect = $('snapshot-select');
   if (snapshotSelect) {
     snapshotSelect.addEventListener('change', async (event) => {
+      // Read the chosen manifest before stopping playback: stopSnapshotPlayback
+      // re-renders the control (and therefore rewrites select.value) when a
+      // replay is running.
+      const manifest = event.target.value;
       stopSnapshotPlayback();
       await waitForPipeline();
-      const manifest = event.target.value;
       if (!manifest) {
         await runPipeline();
         return;
@@ -5944,8 +6078,8 @@ function drawHistogram(hist) {
     const x = plotLeft + i * bw;
     const hgt = (plotBottom - plotTop) * (c / max);
     const centre = hist.edges[i] + (hist.edges[i + 1] - hist.edges[i]) / 2;
-    ctx.fillStyle = Math.abs(centre) > (hist.threshold || 5) ? chartTheme().red : chartTheme().blue;
-    ctx.globalAlpha = Math.abs(centre) > (hist.threshold || 5) ? 0.9 : 0.6;
+    ctx.fillStyle = Math.abs(centre) > (hist.threshold || 6) ? chartTheme().red : chartTheme().blue;
+    ctx.globalAlpha = Math.abs(centre) > (hist.threshold || 6) ? 0.9 : 0.6;
     ctx.fillRect(x + 0.5, plotBottom - hgt, Math.max(1, bw - 1), hgt);
   });
   ctx.globalAlpha = 1;
@@ -6229,11 +6363,11 @@ function renderCharts(data) {
     const total = h.counts.reduce((a, b) => a + b, 0);
     const beyond = h.counts.reduce((a, c, i) => {
       const centre = h.edges[i] + (h.edges[i + 1] - h.edges[i]) / 2;
-      return a + (Math.abs(centre) > (h.threshold || 5) ? c : 0);
+      return a + (Math.abs(centre) > (h.threshold || 6) ? c : 0);
     }, 0);
     chartLabel('chart-hist', `Significance histogram: ${total} pixels from ${h.edges[0]} to ` +
       `${h.edges[h.edges.length - 1]} sigma; ${beyond} pixels lie beyond the ` +
-      `${h.threshold || 5} sigma detection threshold (shown in red).`);
+      `${h.threshold || 6} sigma detection threshold (shown in red).`);
   } else {
     chartLabel('chart-hist', 'Significance histogram: no data.');
   }

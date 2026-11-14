@@ -27,6 +27,7 @@ import argparse
 
 import numpy as np
 import matplotlib
+import config
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -270,7 +271,7 @@ def fig_detections(res, outdir):
     ax.legend(handles=handles, frameon=False, fontsize=7.5, loc="upper center",
               bbox_to_anchor=(0.5, -0.11), ncol=3)
     ax.set_title(f"{res['common']}: {len(res['detections'])} detections at "
-                 f">5σ (3\"/pix, dt = {DT_YEARS} yr)")
+                 f">{config.DETECTION_SIGMA:g}σ (3\"/pix, dt = {DT_YEARS} yr)")
     path = os.path.join(outdir, "fig03_detections.png")
     fig.savefig(path)
     plt.close(fig)
@@ -385,7 +386,7 @@ def fig_recovery(res, outdir, n_trials=10):
                 label=f"mu = {mu}\"/yr")
     ax.axhline(50, color="#94a3b8", ls="--", lw=0.8)
     ax.set_xlabel("Injected SNR")
-    ax.set_ylabel("Recovered at >5 sigma (%)")
+    ax.set_ylabel(f"Recovered at >{config.DETECTION_SIGMA:g} sigma (%)")
     ax.set_xticks(snrs, [str(s) for s in snrs])
     ax.set_ylim(-3, 103)
     ax.grid(alpha=0.25)
@@ -487,7 +488,7 @@ def fig_targets_summary(results, outdir):
     ax.bar(x, known, color=GREEN, label="KNOWN (catalog match)")
     ax.bar(x, cand, bottom=known, color=RED, label="CANDIDATE (follow-up)")
     ax.set_xticks(x, names, rotation=18, ha="right", fontsize=8)
-    ax.set_ylabel("Detections at >5 sigma")
+    ax.set_ylabel(f"Detections at >{config.DETECTION_SIGMA:g} sigma")
     ax.set_title("Triage verdicts per target")
     ax.legend(frameon=False, fontsize=7.5)
     ax.grid(axis="y", alpha=0.25)

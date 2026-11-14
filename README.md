@@ -21,7 +21,7 @@ and a deployable dashboard.
 ## What v2 adds (execution plan, November 2026)
 
 v2 turns the five-field demo into a measured, production tool. Everything
-below is on branch `exec-plan-v1`; `spherexlens/CONTRACT.md` lists every new
+below is merged into `main`; `spherexlens/CONTRACT.md` lists every new
 JSON field and endpoint.
 
 **Data release.** IRSA retired `spherex_qr2`; the default collection is now
@@ -156,9 +156,9 @@ five-target ingest is a ~1 hour job that resumes from cache if it is interrupted
 (`Ctrl-C` is safe; re-running skips finished files).
 
 The thirteen bonus fields described further down add more cutouts. Cache size
-depends on the ingest options; this workspace currently has 264 FITS cutouts
-(about 1.39 GB). The FITS files are gitignored -- a clean clone has the catalogue
-metadata but not the image pixels.
+depends on the ingest options (a full five-target, six-band ingest is a few
+hundred FITS files and hundreds of MB). The FITS files are gitignored -- a
+clean clone has the catalogue metadata but not the image pixels.
 
 
 **Every epoch is used.** `app.py` co-adds each epoch separately and runs ZOGY on
@@ -302,7 +302,10 @@ shapes (live FastAPI or pre-rendered static files):
   second click on a map marker) with sky / difference / significance cutouts,
   Gaia motion arrow, asteroid check, NEOSSat, ML and evidence scores, archive
   links (WiseView, IRSA Finder, SIMBAD, Gaia at MAST) and an *Is this real?*
-  vote; **coverage chips** under the metric cards; **Accuracy** page
+  vote; **coverage chips** under the metric cards (&#10003; = answered with
+  rows, &#10007; = answered but empty here, ? = per-detection archive, still
+  checking, or unreachable; hover for the count, detail and error);
+  **Accuracy** page
   (`/api/metrics`, `/api/model`); **Deep fields** light curves (`/api/deep`);
   **Help classify** (`/api/votes/queue`); **Credits & licences** in the footer;
   a **Public / Expert** switch (expert adds ML / evidence columns, provenance and
@@ -340,9 +343,14 @@ shapes (live FastAPI or pre-rendered static files):
   monopole's brightening/fading is directly comparable. Historical dashboards
   are immutable objects served by `/api/snapshot-history` and
   `/api/dashboard?snapshot=<manifest>`; viewed frames are kept in the browser
-  Cache API like the latest-snapshot copies, and playback stays under the
-  API's 30 dashboard reads per minute. The control is disabled in Fresh IRSA
-  mode, offline, and on a static deployment with no snapshot backend.
+  Cache API per field and manifest like the latest-snapshot copies, and playback
+  stays under the API's 30 dashboard reads per minute. The control is disabled
+  in Fresh IRSA mode, offline, and on a static deployment with no snapshot
+  backend. History depth is **14 days** by default (28 versions at the 12-hour
+  cadence); set `SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS` on both the API
+  service and the refresh job (or Terraform's `snapshot_history_hours`) to keep
+  more. A Fresh IRSA run is a new computation, not a published version, so it
+  never appears in this history.
 * **Hover popups** -- hovering any detection or catalogue object opens a card
   with its verdict, SNR, RA/Dec, magnitude and which catalogues know it; hovering
   an all-sky tile shows that field's statistics.
@@ -356,13 +364,15 @@ shapes (live FastAPI or pre-rendered static files):
 * **Diagnostics charts** -- four charts: the significance histogram (noise
   peak vs real sources), noise per epoch, detections per epoch pair, and the
   injection-recovery curve.
-* **Interactive map** (`static/app.js`, ~1.1k lines of vanilla canvas code)
+* **Interactive map** (`static/app.js`, ~6k lines of vanilla canvas code)
   * drag to pan, wheel to zoom (0.35x-12x), double-click / `Fit` / `0` to reset,
     `+`/`-` keys, click a marker to select a detection;
   * three layers: **Co-add**, **Difference D**, **Significance S**;
-  * overlays: survey grid with arcminute labels, **Gaia DR3** and **VSX**
-    catalogue crosses, dipole/monopole markers, a crosshair that reads out
-    RA/Dec/pixel/value under the cursor, and a scale bar.
+  * overlays: survey grid with arcminute labels, **Gaia DR3**, **VSX** and
+    **AllWISE** catalogue crosses (plus any other catalogue present in the
+    snapshot, with a colour and legend entry derived from the data),
+    dipole/monopole markers, a crosshair that reads out RA/Dec/pixel/value
+    under the cursor, and a scale bar.
 * **Provenance** -- every cutout is listed with epoch, detector, central
   wavelength (from the real `WCS-WAVE` table), observation id, UTC date, pixel
   size, file size and a **clickable link to the parent Level-2 file at IRSA**, so
@@ -378,7 +388,7 @@ system-stack fallbacks, so an offline copy still looks deliberate.
 
 | # | Stage | Module | What it does |
 |---|-------|--------|--------------|
-| 1 | Ingest | `step1_ingest.py` | IRSA SIA2 query for the five mandatory targets + VizieR catalogs (Gaia DR3, AllWISE, VSX), cached to `data_cache/` |
+| 1 | Ingest | `step1_ingest.py` | IRSA SIA2 query for the five mandatory targets + catalogues (Gaia DR3 and AllWISE via IRSA TAP, VSX via VizieR), cached to `data_cache/` |
 | 2 | Co-add | `step2_coadd.py` | FLAGS bitmask rejection, WCS reprojection to a common TAN plane, inverse-variance co-addition |
 | 3 | Detect | `step3_zogy.py` | Zackay–Ofek–Gal-Yam proper image subtraction, dipole (mover) vs monopole (variable) detection |
 | 4 | Triage | `step4_triage.py` | Nearest-neighbour cross-match, `KNOWN` / `CANDIDATE` verdict + confidence |
@@ -516,8 +526,8 @@ explicitly, set `SPHEREX_SNAPSHOT_SOURCE=bucket` or `api` (the default is
 Offline / rehearsal mode (synthetic cache + all charts):
 
 ```bash
-python make_demo_data.py     # writes a SPHEREx-shaped cache into data_cache_demo/
-python make_figures.py       # writes figures/*.png + figures/summary.{csv,json}
+SPHEREX_CACHE=data_cache_demo python make_demo_data.py   # synthetic cache
+SPHEREX_CACHE=data_cache_demo python make_figures.py     # figures/*.png + summary
 SPHEREX_CACHE=data_cache_demo uvicorn app:app --port 8000
 ```
 
@@ -529,6 +539,18 @@ docker build -t spherex-lens . && docker run -p 8000:8000 spherex-lens   # Rende
 ```
 
 See [Deployment](#deployment) for the full matrix of hosts.
+
+### Tests
+
+```bash
+python -m pytest -q tests test_cloud_snapshots.py test_pipeline_coverage.py
+node --test tests/test_service_worker.mjs tests/test_catalog_helpers.mjs
+```
+
+The Python suite covers the pipeline, ingest, ML/eval, API and snapshot store.
+The Node tests execute the real service worker against a fake Cache API (so a
+historical frame can never be served for the wrong field again) and the
+catalogue label/colour helpers used by the map legend.
 
 ---
 
@@ -638,7 +660,7 @@ from pyvo.dal import sia2
 
 results = sia2.search("https://irsa.ipac.caltech.edu/SIA",
                       pos=(133.795129, -7.245147, 0.1),   # ra, dec, radius deg
-                      collection="spherex_qr2")
+                      collection="spherex_dr1")
 table = results.to_table()
 print(table["access_url"])          # one Level-2 FITS file per row
 ```
@@ -750,7 +772,7 @@ uvicorn app:app --port 8000                                 # real cutouts
     "wise": [{"ra": 133.79, "dec": -7.25, "w1": 18.6, "w2": 18.7}],
     "vsx":  [{"ra": 133.79, "dec": -7.25, "name": "WISE 0855", "type": "VAR"}]
   },
-  "collection": "spherex_qr2",
+  "collection": "spherex_dr1",
   "cutout_size_deg": 0.2,
   "sia2_rows": 298,
   "n_epochs": 3
@@ -813,12 +835,12 @@ Running the pipeline on all five real caches (two bands per epoch, D1 + D4):
 20 real cutouts (160 MB) spanning roughly 8 months of baseline per target.
 Catalog columns: 300 Gaia DR3 sources per target (IRSA TAP) plus VSX (47 / 8 / 0
 / 10 / 12) where VizieR answered. **AllWISE is empty in this run** -- the
-IRSA TAP copy of `allwise_p3as_psr` is not queryable and the VizieR mirrors were
+IRSA TAP copy of `allwise_p3as_psd` was not queryable and the VizieR mirrors were
 unreachable, so KNOWN verdicts come from Gaia DR3 + VSX only.
 
-![Real co-add and ZOGY](figures_real/fig02_coadd_panels.png)
+![Real co-add and ZOGY](site/figures/fig02_coadd_panels.png)
 
-![Real detections](figures_real/fig03_detections.png)
+![Real detections](site/figures/fig03_detections.png)
 
 The bright star at the top of the Barnard's Star frame is a real saturated
 source: its core is flagged (`MP_OVERFLOW`) and masked, which is why it appears
@@ -865,8 +887,6 @@ Two honest caveats, both visible in the figures:
 
 The `/api/dashboard` response carries 180 x 180 nested arrays for `image`,
 `zogy_image` and `zogy_snr` (~1.2 MB uncompressed, a few hundred KB gzipped).
-
----
 
 ---
 
@@ -936,8 +956,9 @@ python make_figures.py --outdir figures_real --detail-target Barnards_Star
 ```
 
 It re-runs stages 2-6 on whatever is cached (real or synthetic) and writes
-PNGs plus machine-readable numbers into the output directory (`figures/` holds
-the synthetic-cache charts, `figures_real/` the real-cutout ones):
+PNGs plus machine-readable numbers into the output directory. `figures/` holds
+the committed charts generated from the synthetic demo cache; `figures_real/`
+is an optional output for a populated real-cutout cache:
 
 | Figure | What it shows |
 |---|---|
@@ -1064,6 +1085,10 @@ site/
 └── figures/                        # the pipeline charts
 ```
 
+The committed `site/` is the hybrid shell used by the live cloud snapshot API;
+the `api/*.json` files appear only after `export_static.py` runs. Run it for a
+fully offline deployment.
+
 Deploy it:
 
 ```bash
@@ -1110,6 +1135,17 @@ python export_static.py --api-base /live-api `
 netlify deploy --prod --dir site
 ```
 
+If only `static/` (HTML/CSS/JS or `sw.js`) changed, refresh the deployed shell
+without re-running the pipeline for every field:
+
+```bash
+python scripts/sync_site_shell.py    # keeps the deployed data-api-base values
+netlify deploy --prod --dir site
+```
+
+`export_static.py` copies the same files, but it also rewrites `site/api/*.json`
+for every target.
+
 With the cloud backend configured, the deployed site uses the published
 snapshot API for registered fields, targets, recovery grids and the mosaic.
 `Open any field` and the explicit live toggle fetch on demand from IRSA:
@@ -1134,9 +1170,12 @@ to its timeout. This cloud deployment is not guaranteed free; see
 The static page can detect an available `/live-api` rewrite, but a deploy with
 the direct pipeline base configured is required for long-running live progress.
 
-Command to rebuild image
-cd C:\Users\User\spherex-lens\cloud\terraform
+Rebuild the Cloud Run image (from `cloud/terraform/`):
+
+```bash
 terraform apply -var-file=terraform.tfvars -var=deploy_runtime=true
+```
+
 ---
 
 ## Repository layout
@@ -1144,14 +1183,17 @@ terraform apply -var-file=terraform.tfvars -var=deploy_runtime=true
 ```
 spherex-lens/
 ├── data_cache/              # FITS cutouts + *_meta.json (arrays are git-ignored)
-├── figures/                 # generated charts + summary.csv/json (demo cache)
-├── figures_real/            # the same charts for the real cutouts
+├── figures/                 # generated charts + summary.csv/json (synthetic demo cache)
 ├── notebooks/               # exploration notebooks (optional)
 ├── static/
 │   ├── index.html           # dashboard markup
 │   ├── style.css            # RefractID light theme
-│   └── app.js               # canvas ZOGY map, verdict panel, detections table
-├── step1_ingest.py          # IRSA SIA2 + VizieR ingest
+│   ├── app.js               # canvas ZOGY map, verdict panel, detections table
+│   └── sw.js                # offline snapshot copy service worker
+├── site/                    # deployed static shell + committed figures
+├── scripts/
+│   └── sync_site_shell.py   # copy static/ -> site/ without re-rendering
+├── step1_ingest.py          # IRSA SIA2 + catalogue ingest
 ├── step2_coadd.py           # FLAGS masking + inverse-variance co-add
 ├── step3_zogy.py            # ZOGY subtraction + dipole/monopole detection
 ├── step4_triage.py          # catalog cross-match and verdict
@@ -1161,9 +1203,8 @@ spherex-lens/
 ├── make_demo_data.py        # optional: synthetic offline demo cache
 ├── make_figures.py          # optional: renders figures/ from the cache
 ├── EXPLAINER.md             # plain-language guide to the whole project
-├── live_ingest.py          # optional: stream cutouts from IRSA into RAM (no disk)
+├── live_ingest.py           # optional: stream cutouts from IRSA into RAM (no disk)
 ├── export_static.py         # optional: pre-renders site/ for Netlify
-├── site/                    # static build output (index.html + api/*.json)
 ├── Dockerfile               # full app container (Render/Railway/Fly/Cloud Run)
 ├── docker-compose.yml       # local container run
 ├── Procfile / render.yaml / fly.toml / netlify.toml
@@ -1174,8 +1215,13 @@ spherex-lens/
 ## Data products used
 
 * **IMAGE** — calibrated surface brightness (MJy/sr) + WCS.
-* **FLAGS** — 32-bit bitmask; bits used here: `1` dead, `2` saturated,
-  `4` cosmic ray, `32` hot pixel, `256` stray light.
+* **FLAGS** — 32-bit bitmask (the `MP_*` bits in the FLAGS header). The
+  pipeline masks: `0` transient, `1` overflow, `2` onboard processing error,
+  `4` phantom pixel, `5` reference/edge, `6` permanently unusable, `7` dichroic
+  inefficiency, `9` onboard data lost, `10` hot pixel, `11` cold pixel,
+  `14` phantom correction missing, `15` nonlinearity unreliable, `17` persistent
+  charge and `19` outlier. Bits `12` (full sample history) and `21` (mapped to a
+  known source) are informational and are never masked. See `step2_coadd.py`.
 * **VARIANCE** — per-pixel variance sigma^2.
 * **CWAVE / CBAND** — central wavelength and bandwidth lookup tables.
 * **ePSF** — 101 x 101 x 121 cube (101 x 101 x 151 for detector 3). QR2/QR3 PSF
@@ -1184,9 +1230,12 @@ spherex-lens/
 
 ## Implementation notes
 
-* ZOGY needs **two epochs**: `app.py` splits the cached files in half, co-adds
-  each half and subtracts the two stacks. Fewer than two files returns a clear
-  500 (see Section 8.3 of the blueprint).
+* ZOGY needs **two epochs with a shared detector band**. `app.py` groups
+  exposures by the `epochs` list in `<Target>_meta.json` (falling back to
+  splitting `paths` in half) and runs ZOGY on each consecutive pair plus the
+  deep pair. A field whose epochs share no detector band is refused with a
+  clear 422 explaining why (subtracting D1 from D4 would measure colour, not
+  change); fewer than two exposures returns a clear 500.
 * Detection threshold defaults to **6 sigma** (`config.DETECTION_SIGMA`, chosen on the null test; it was 5 before v2);
   the significance map is normalized by its own standard deviation.
 * Triage radius is 30 arcsec (`MATCH_RADIUS_ARCSEC`), with a 5 arcsec "tight"
