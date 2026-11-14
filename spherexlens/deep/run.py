@@ -130,6 +130,11 @@ def publish(name, payload):
     from snapshot_store import SnapshotStore
     store = SnapshotStore(bucket)
     store.write_json(f"{DEEP_PREFIX}{name}.json", _finite(payload))
+    # deep/index.json lists the results, so the API can find them with a plain
+    # object read (its role may read objects but not list the bucket).
+    index = store.read_json(f"{DEEP_PREFIX}index.json") or {"names": []}
+    names = sorted(set(index.get("names") or []) | {name})
+    store.write_json(f"{DEEP_PREFIX}index.json", {"names": names})
     print(f"{name}: published gs://{bucket}/{DEEP_PREFIX}{name}.json")
     return f"{DEEP_PREFIX}{name}.json"
 

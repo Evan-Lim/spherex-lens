@@ -274,6 +274,12 @@ app.router.lifespan_context = _lifespan
 
 
 async def _snapshot_access_error(request, error):
+    if _running_on_cloud_run():
+        _LOGGER.error("Bucket access error on %s: %s", request.url.path,
+                      type(error).__name__)
+        return JSONResponse(status_code=503, content={
+            "error": "The server could not read this part of the Cloud snapshot.",
+            "hint": "Other pages still work; this is reported to the operators."})
     if SNAPSHOT_SOURCE == "auto":
         _use_snapshot_api(type(error).__name__)
         hint = "Switched to reading through the deployed snapshot API; reload the page."
@@ -473,7 +479,32 @@ def _snapshot_reads_enabled():
         "SPHEREX_SNAPSHOT_READS", "true").lower() not in {"0", "false", "no"}
 
 
+def _running_on_cloud_run():
+    """Cloud Run sets K_SERVICE.  There the service account *is* the bucket
+    reader and SNAPSHOT_API is this very service, so switching to "api" mode
+    would make the server forward every request to itself (an infinite loop
+    that took the site down on 2026-11-14).  A permission error must then
+    fail that one request, never change the mode."""
+    return bool(os.environ.get("K_SERVICE"))
+
+
+def _snapshot_api_is_self():
+    try:
+        from urllib.parse import urlparse
+        target = urlparse(SNAPSHOT_API).hostname or ""
+    except Exception:
+        return False
+    own = os.environ.get("SPHEREX_SELF_HOST", "")
+    return bool(own) and target == own
+
+
 def _use_snapshot_api(reason):
+    if _running_on_cloud_run() or _snapshot_api_is_self():
+        _LOGGER.error(
+            "Bucket access error (%s) on the server itself; NOT switching to "
+            "the snapshot API (it would forward to this service). Check the "
+            "service account's role on gs://%s.", reason, SNAPSHOT_BUCKET)
+        return
     with _SNAPSHOT_MODE_LOCK:
         if _SNAPSHOT_MODE["value"] == "api":
             return
@@ -500,7 +531,7 @@ def _snapshot_mode():
         store = SnapshotStore(SNAPSHOT_BUCKET)
         store.read_current()
     except Exception as error:
-        if _is_access_error(error):
+        if _is_access_error(error) and not _running_on_cloud_run():
             _use_snapshot_api(type(error).__name__)
             return "api"
         return "bucket"           # e.g. no network: decide on a later request

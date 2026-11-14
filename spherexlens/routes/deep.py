@@ -57,9 +57,15 @@ def _bucket_cached(key, fetch):
 
 
 def _bucket_names(store):
-    return sorted(b.name[len("deep/"):-len(".json")]
-                  for b in store.bucket.list_blobs(prefix="deep/")
-                  if b.name.endswith(".json"))
+    """Names from deep/index.json (written by the deep job).  Never lists the
+    bucket: the API's role may only read objects, and a Forbidden listing once
+    took the whole site down (2026-11-14)."""
+    try:
+        index = store.read_json("deep/index.json") or {}
+    except Exception:
+        return []
+    return sorted(n for n in (index.get("names") or [])
+                  if isinstance(n, str) and _NAME.fullmatch(n))
 
 
 def _results():

@@ -161,7 +161,7 @@ class DeepCloudTests(unittest.TestCase):
         class Bucket:
             def __init__(self): self.objects = {}
             def list_blobs(self, prefix=""):
-                return [Blob(k) for k in self.objects if k.startswith(prefix)]
+                raise AssertionError("the API must never list the bucket")
 
         class FakeStore:
             bucket = Bucket()
