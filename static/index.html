@@ -136,7 +136,7 @@
       <div class="card card-blue">
         <div class="card-meta">
           <span class="card-label">Detections</span>
-          <span class="card-hint">&gt;5<span class="keep-case">&sigma;</span></span>
+          <span class="card-hint">above threshold</span>
         </div>
         <div class="card-value" id="card-total">0</div>
       </div>
@@ -248,7 +248,7 @@
         </div>
         <p id="map-summary" class="sr-only">The map is a picture. Every detection on it is listed in the Detections table, where each row has a Vet button.</p>
 
-        <div class="legend" aria-label="Map legend">
+        <div class="legend" id="map-legend" aria-label="Map legend">
           <span class="legend-item"><i class="sw sw-gaia" aria-hidden="true"></i> Gaia DR3</span>
           <span class="legend-item"><i class="sw sw-vsx" aria-hidden="true"></i> VSX</span>
           <span class="legend-item"><i class="sw sw-wise" aria-hidden="true"></i> AllWISE</span>
@@ -601,7 +601,7 @@
           <li><b>Ingest:</b> Fetch SPHEREx Level-2 cutouts from NASA/IPAC IRSA and the star catalogues for the field (Gaia DR3, AllWISE, VSX).</li>
           <li><b>Co-add:</b> Throw away bad pixels and stack the exposures of each visit into one sharper picture.</li>
           <li><b>Subtract:</b> Subtract one visit from the next (ZOGY). What is left is what changed.</li>
-          <li><b>Triage:</b> For every change above 5&sigma;, ask the catalogues &ldquo;do you know this star?&rdquo;, check whether it moves the way Gaia says it should, look at its NEOWISE history, and give it a verdict.</li>
+          <li><b>Triage:</b> For every change above the detection threshold, ask the catalogues &ldquo;do you know this star?&rdquo;, check whether it moves the way Gaia says it should, look at its NEOWISE history, and give it a verdict.</li>
           <li><b>Asteroid check:</b> Ask NASA JPL (SB Identification) and the Canadian SSOIS service which known asteroids were at that spot at that time. A match gives the verdict <i>Known asteroid</i>; a moving-object signal with no match becomes <i>Possible new asteroid</i>. If the services cannot be reached the card says <i>asteroid check unavailable</i> &mdash; treat such a detection with caution.</li>
           <li><b>Scores:</b> A machine-learning model gives each detection an <b>ML score</b> (how likely it is real). It only <i>ranks</i> detections so the best are looked at first &mdash; it never decides. The <b>evidence score</b> adds up every check (ML, motion, asteroid check, NEOSSat) into one number from 0 to 100.</li>
           <li><b>Validate:</b> Plant fake sources in real images and count how many come back (injection-recovery); run the same pipeline on sky with nothing in it to count false alarms. The results are on the <b>Accuracy</b> page.</li>
@@ -628,7 +628,7 @@
                id="gpanel-use" aria-labelledby="gtab-use" tabindex="0" hidden>
         <ol class="guide-steps guide-steps-tall">
           <li><b>Select Field:</b> Pick a registered target from the toolbar dropdown or enter custom RA / Dec in degrees and click <i>Load field from IRSA</i>.</li>
-          <li><b>Coverage chips:</b> The row under the four numbers says which archives cover this field &mdash; for example <i>SPHEREx &#10003; 3 epochs &middot; NEOWISE &#10003; 23 visits &middot; NEOSSat &#10007;</i>. A &#10007; means that archive has nothing here, so its check could not help.</li>
+          <li><b>Coverage chips:</b> The row under the four numbers says which archives cover this field &mdash; for example <i>SPHEREx &#10003; 3 epochs &middot; NEOWISE &#10003; 23 visits &middot; NEOSSat &#10007;</i>. <b>&#10003;</b> = the archive answered and has rows here; <b>&#10007;</b> = it answered but this field has no rows (NEOWISE, for instance, is counted within 10&Prime; of the field centre, so fields it never scanned show &#10007;); <b>?</b> = not checked at field level (JPL SB Identification and SSOIS are queried per detection/designation), still checking, or the archive could not answer. Hover a chip to see the exact count, detail and error.</li>
           <li><b>Inspect Sky Viewer:</b> Scroll to zoom, drag to pan, click a marker to fill the Triage Verdict panel. Click the same marker again (or press <i>Vet</i> in the Detections table) to open its <b>vetting card</b>.</li>
           <li><b>Vetting card:</b> Before / difference pictures cut out around the detection, the asteroid check, NEOSSat, the ML and evidence scores with their reasons, and buttons to open the spot in WiseView, the IRSA Finder Chart, SIMBAD and Gaia at MAST.</li>
           <li><b>Vote:</b> Under <i>Is this real?</i> choose <i>Real</i>, <i>Bogus</i> or <i>Not sure</i>. <i>Help classify</i> in the toolbar lists the detections the computer is least sure about. Votes need the live backend; on the pre-rendered site the buttons say so.</li>
@@ -648,7 +648,7 @@
           <div><dt>Epoch</dt><dd>Grouped SPHEREx visits at a distinct observation date.</dd></div>
           <div><dt>&sigma; (sigma)</dt><dd>Significance in background noise units (&sigma;<sub>1</sub>).</dd></div>
           <div><dt>KNOWN</dt><dd>Detection matched to Gaia DR3, AllWISE, or VSX.</dd></div>
-          <div><dt>CANDIDATE</dt><dd>Unmatched detection &gt;5&sigma;.</dd></div>
+          <div><dt>CANDIDATE</dt><dd>Unmatched detection above the detection threshold.</dd></div>
           <div><dt>Known asteroid</dt><dd>JPL (and usually SSOIS) says a catalogued asteroid was right there. Expected, not a discovery.</dd></div>
           <div><dt>Possible new asteroid</dt><dd>Seen in one visit only, moving-object-like, and no known asteroid there. Needs follow-up.</dd></div>
           <div><dt>Got fainter</dt><dd>A monopole with a negative sign: the source was brighter in the first visit than in the second.</dd></div>

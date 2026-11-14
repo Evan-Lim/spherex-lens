@@ -63,6 +63,18 @@ variable "votes_retention_days" {
   default     = 0
 }
 
+variable "snapshot_history_hours" {
+  description = "How many hours of published snapshots the refresh job keeps and /api/snapshot-history lists. 336 = 14 days (28 versions at 12 h cadence). API and refresh job must share this value."
+  type        = number
+  default     = 336
+}
+
+variable "snapshot_history_limit" {
+  description = "Maximum number of retained manifests listed by /api/snapshot-history."
+  type        = number
+  default     = 48
+}
+
 variable "proxy_signing" {
   description = "S8: give both Cloud Run services SPHEREX_PROXY_SECRET so only Netlify-signed requests may set the visitor IP. Turn on only after adding a version to the spherex-proxy-secret secret."
   type        = bool

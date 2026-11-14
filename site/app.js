@@ -125,8 +125,18 @@ function remoteUrl(kind, target, extra = {}) {
   return `${base}/${kind}${query}`;
 }
 
+// Dev switch: ?mock=v2 renders static/dev/mock_v2.json (every CONTRACT.md v2
+// field filled) and the dev/mock_*.json files for the new endpoints, so the v2
+// interface can be built and checked before the backend produces those fields.
+const MOCK_MODE = new URLSearchParams(window.location.search).get('mock') || '';
+const MOCK_V2 = MOCK_MODE === 'v2';
+
 // When configured, the backend is authoritative for registered-field snapshots.
 async function fetchApi(kind, target, extra = {}) {
+  if (MOCK_V2 && kind === 'dashboard') return fetch('dev/mock_v2.json', { cache: 'no-store' });
+  if (MOCK_V2 && kind === 'status') {
+    return new Response('{}', { status: 404, headers: { 'Content-Type': 'application/json' } });
+  }
   const options = state.live ? { cache: 'no-store' } : {};
   if (STATIC_MODE && (LIVE_API || (state.live && LIVE_PIPELINE_API))) {
     return fetch(remoteUrl(kind, target, extra), options);
@@ -1375,19 +1385,17 @@ function warmLivePipeline() {
 }
 
 function catalogSummary(dashboard) {
-  const counts = dashboard?.catalog_counts || {};
   const status = dashboard?.catalog_status || {};
-  const labels = { gaia: 'Gaia', wise: 'AllWISE', vsx: 'VSX' };
-  const parts = Object.keys(labels).filter((k) => k in counts || k in status)
-    .map((k) => (status[k] === 'unavailable'
-      ? `${labels[k]} unavailable` : `${labels[k]} ${counts[k] ?? 0}`));
+  const parts = catalogCountEntries(dashboard).map(([key, count]) => (status[key] === 'unavailable'
+    ? `${catalogLabel(key)} unavailable` : `${catalogLabel(key)} ${count ?? 0}`));
   return parts.length ? `catalogues: ${parts.join(' · ')}` : '';
 }
 
 function unavailableCatalogs(dashboard) {
   const status = dashboard?.catalog_status || {};
-  const labels = { gaia: 'Gaia', wise: 'AllWISE', vsx: 'VSX' };
-  return Object.keys(labels).filter((k) => status[k] === 'unavailable').map((k) => labels[k]);
+  return catalogCountEntries(dashboard)
+    .filter(([key]) => status[key] === 'unavailable')
+    .map(([key]) => catalogLabel(key));
 }
 
 async function unpackStreamResult(result) {
@@ -1737,7 +1745,8 @@ function skyToPixel(ra, dec, map = state.data && state.data.map) {
   if (!map) return null;
   const cosd = Math.cos((map.dec * Math.PI) / 180) || 1e-6;
   const dra = ((ra - map.ra + 540) % 360) - 180;
-  const x = map.npix / 2 + ((dra * 3600 * cosd) / map.pixscale_arcsec);
+  // RA grows to the left (east), as in pixelToSky above.
+  const x = map.npix / 2 - ((dra * 3600 * cosd) / map.pixscale_arcsec);
   const y = map.npix / 2 + (((dec - map.dec) * 3600) / map.pixscale_arcsec);
   return { x, y };
 }
@@ -1757,8 +1766,53 @@ function valueAt(x, y) {
 
 // ------------------------------------------------------------------ drawing
 
-const DET_COLORS = { dipole: '#22c55e', monopole: '#f59e0b' };
-const CAT_COLORS = { gaia: '#4d94ff', wise: '#3fb950', vsx: '#d29922' };
+const DET_COLORS = { dipole: '#22c55e', monopole: '#f59e0b', monopole_negative: '#38bdf8' };
+const CAT_COLORS = {
+  gaia: '#4d94ff', wise: '#3fb950', allwise: '#3fb950', vsx: '#d29922',
+  neowise: '#f0883e', unwise: '#a371f7', twomass: '#ff7b72', '2mass': '#ff7b72',
+  panstarrs: '#79c0ff', ps1: '#79c0ff', skymapper: '#56d364',
+  simbad: '#e3b341', ssois: '#8b949e', jpl: '#ffa657', neossat: '#ffa657',
+};
+const CAT_FALLBACK_COLORS = ['#4d94ff', '#3fb950', '#d29922', '#a371f7',
+  '#f0883e', '#ff7b72', '#56d364', '#79c0ff', '#e3b341', '#ffa657'];
+const CATALOG_LABELS = {
+  gaia: 'Gaia DR3', wise: 'AllWISE', allwise: 'AllWISE', vsx: 'VSX',
+  neowise: 'NEOWISE', unwise: 'unWISE', twomass: '2MASS', '2mass': '2MASS',
+  panstarrs: 'Pan-STARRS', ps1: 'Pan-STARRS', skymapper: 'SkyMapper',
+  simbad: 'SIMBAD', jpl: 'JPL', ssois: 'SSOIS', neossat: 'NEOSSat',
+};
+// The catalogue swatches that already exist in index.html; any other catalogue
+// present in the data gets one appended at render time.
+const LEGEND_CATALOGS = new Set(['gaia', 'wise', 'allwise', 'vsx']);
+
+function catalogLabel(key) {
+  return CATALOG_LABELS[String(key).toLowerCase()] || String(key);
+}
+
+function catalogColor(key) {
+  const name = String(key || '');
+  if (CAT_COLORS[name.toLowerCase()]) return CAT_COLORS[name.toLowerCase()];
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return CAT_FALLBACK_COLORS[hash % CAT_FALLBACK_COLORS.length];
+}
+
+// Catalogues the payload actually carries, without the non-catalogue status
+// bookkeeping entries (e.g. catalog_status.gaia_mirror).
+function catalogCountEntries(dashboard) {
+  const counts = dashboard?.catalog_counts || {};
+  const status = dashboard?.catalog_status || {};
+  const keys = new Set(Object.keys(counts));
+  Object.keys(status).forEach((key) => {
+    if (['ok', 'none', 'unavailable'].includes(status[key])) keys.add(key);
+  });
+  return [...keys].filter((key) => key && key !== 'gaia_mirror').sort()
+    .map((key) => [key, counts[key]]);
+}
+
+// Asteroid verdicts are drawn as diamonds in their own colour, whatever the kind.
+const ASTEROID_COLORS = { KNOWN_ASTEROID: '#2dd4bf', POSSIBLE_UNKNOWN_ASTEROID: '#f472b6' };
+const KIND_LABEL = { dipole: 'dipole', monopole: 'monopole', monopole_negative: 'got fainter' };
 
 // Triage categories (step4_triage.py). Priority 1-2 = worth a human look.
 const CATEGORY_INFO = {
@@ -1766,9 +1820,34 @@ const CATEGORY_INFO = {
   KNOWN_STATIC_CHANGED: { label: 'STATIC CHANGED', cls: 'badge-static',    hint: 'catalogued as constant, yet it changed' },
   KNOWN_VARIABLE:       { label: 'KNOWN VARIABLE', cls: 'badge-variable',  hint: 'change expected: catalogued variable' },
   KNOWN_MOVER:          { label: 'KNOWN MOVER',    cls: 'badge-mover',     hint: 'change expected: catalogued motion' },
+  KNOWN_ASTEROID:       { label: 'KNOWN ASTEROID', cls: 'badge-asteroid',  hint: 'a catalogued asteroid was here at that time' },
+  POSSIBLE_UNKNOWN_ASTEROID: { label: 'NEW ASTEROID?', cls: 'badge-newast', hint: 'moves like an asteroid, but no known asteroid is here' },
   BRIGHT_STAR_ARTEFACT: { label: 'BRIGHT-STAR ART.', cls: 'badge-artefact', hint: 'inside a saturating star’s mask' },
   MASK_ARTEFACT:        { label: 'MASK ARTEFACT',  cls: 'badge-artefact',  hint: 'no band is unmasked in every epoch here' },
 };
+
+// Public mode: one plain sentence per verdict.
+const PLAIN_VERDICT = {
+  CANDIDATE: 'Something changed here and no catalogue knows it. Worth a closer look.',
+  KNOWN_STATIC_CHANGED: 'A star that catalogues call steady changed. Unusual, worth a look.',
+  KNOWN_VARIABLE: 'A star already known to change brightness. Expected.',
+  KNOWN_MOVER: 'A known star that moves across the sky. Expected.',
+  KNOWN_ASTEROID: 'A known asteroid passing through. Expected, not a discovery.',
+  POSSIBLE_UNKNOWN_ASTEROID: 'Moves like an asteroid, but no known asteroid was here. Could be new.',
+  BRIGHT_STAR_ARTEFACT: 'Probably glare from a very bright star, not a real change.',
+  MASK_ARTEFACT: 'Probably a camera artefact: the pixels here were masked.',
+};
+
+function plainVerdict(d) {
+  const cat = categoryOf(d);
+  if (cat && PLAIN_VERDICT[cat]) return PLAIN_VERDICT[cat];
+  return d && d.verdict === 'CANDIDATE'
+    ? PLAIN_VERDICT.CANDIDATE : 'Matches a catalogued object.';
+}
+
+function kindLabel(kind) {
+  return KIND_LABEL[kind] || String(kind || 'detection');
+}
 
 function categoryOf(d) {
   if (d && d.category && CATEGORY_INFO[d.category]) return d.category;
@@ -1905,8 +1984,8 @@ function drawCatalogs(ctx) {
   ctx.lineWidth = 1;
   for (const p of pts) {
     const { cx, cy } = toCanvas(p.x, p.y);
-    ctx.strokeStyle = CAT_COLORS[p.cat] || '#64748b';
-    ctx.globalAlpha = p.cat === 'vsx' ? 0.95 : 0.55;
+    ctx.strokeStyle = catalogColor(p.cat);
+    ctx.globalAlpha = String(p.cat).toLowerCase() === 'vsx' ? 0.95 : 0.55;
     ctx.beginPath();
     ctx.moveTo(cx - 3.2, cy); ctx.lineTo(cx + 3.2, cy);
     ctx.moveTo(cx, cy - 3.2); ctx.lineTo(cx, cy + 3.2);
@@ -1934,15 +2013,25 @@ function drawDetections(ctx) {
       ctx.beginPath(); ctx.arc(m2.cx, m2.cy, 2.4, 0, Math.PI * 2); ctx.stroke();
     }
 
-    ctx.strokeStyle = color;
+    const astColor = ASTEROID_COLORS[d.category];
+    ctx.strokeStyle = astColor || color;
     ctx.lineWidth = big ? 2.2 : 1.4;
-    if (d.kind === 'dipole') {
+    if (astColor) {
+      const q = r + 2;                       // diamond: asteroid verdicts
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - q); ctx.lineTo(cx + q, cy);
+      ctx.lineTo(cx, cy + q); ctx.lineTo(cx - q, cy);
+      ctx.closePath(); ctx.stroke();
+    } else if (d.kind === 'dipole') {
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
     } else {
       ctx.strokeRect(cx - r, cy - r, 2 * r, 2 * r);
+      if (d.kind === 'monopole_negative') {  // minus sign: got fainter
+        ctx.beginPath(); ctx.moveTo(cx - r + 2.5, cy); ctx.lineTo(cx + r - 2.5, cy); ctx.stroke();
+      }
     }
     if (big) {
-      ctx.fillStyle = color;
+      ctx.fillStyle = astColor || color;
       ctx.font = '10px ui-monospace, Menlo, monospace';
       ctx.fillText(`${d.snr.toFixed(1)}σ`, cx + r + 4, cy - r + 2);
     }
@@ -2147,7 +2236,10 @@ function pickDetection(mx, my) {
     const dist = Math.hypot(cx - mx, cy - my);
     if (dist < bestD) { bestD = dist; best = i; }
   });
-  if (best >= 0) selectDetection(best);
+  if (best < 0) return;
+  // A second click on the selected marker opens its vetting card.
+  if (best === state.selected) openVetCard(best, document.querySelector(`[data-vet="${best}"]`) || $('canvas-map'));
+  else selectDetection(best);
 }
 
 function selectDetection(index) {
@@ -2166,6 +2258,12 @@ function selectDetection(index) {
 // ----------------------------------------------------------- data + panels
 
 async function loadTargets() {
+  if (MOCK_V2) {
+    const sel = $('target-select');
+    sel.innerHTML = '<option value="Barnards_Star">Barnard’s Star (v2 mock)</option>';
+    sel.disabled = false;
+    return;
+  }
   try {
     const url = STATIC_MODE && LIVE_API
       ? remoteUrl('targets') : apiUrl('targets');
@@ -2202,10 +2300,15 @@ async function loadTargets() {
 
 function showGuideTab(name) {
   document.querySelectorAll('.guide-tab').forEach((t) => {
-    t.classList.toggle('active', t.dataset.tab === name);
+    const on = t.dataset.tab === name;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', String(on));
+    t.tabIndex = on ? 0 : -1;
   });
   document.querySelectorAll('.guide-body').forEach((b) => {
-    b.classList.toggle('active', b.dataset.panel === name);
+    const on = b.dataset.panel === name;
+    b.classList.toggle('active', on);
+    b.hidden = !on;
   });
 }
 
@@ -2214,6 +2317,8 @@ function setStatus(text, kind) {
   pill.classList.remove('busy', 'error');
   if (kind) pill.classList.add(kind);
   setText('status-text', text);
+  // The pill is a button; announce the status through a separate live region.
+  setText('sr-status', `Status: ${String(text).replace(/·/g, ',').toLowerCase()}`);
 }
 
 function renderTargetMeta(data) {
@@ -2290,7 +2395,10 @@ function renderVerdict(det) {
   const info = cat ? CATEGORY_INFO[cat] : null;
   const hasReasons = Boolean((det.reasons || []).length);
   let html = `<div class="verdict-head">${categoryBadge(det)}` +
-    (!hasReasons && info ? `<span class="verdict-hint">${fmt.escape(info.hint)}</span>` : '') + '</div>';
+    (!hasReasons && info ? `<span class="verdict-hint">${fmt.escape(info.hint)}</span>` : '') +
+    '<button type="button" class="btn btn-secondary vet-open" data-vet-open>Open vetting card</button></div>';
+  html += `<p class="plain-verdict public-only">${fmt.escape(plainVerdict(det))}</p>`;
+  html += verdictScoreStrip(det);
   let rows = '';
   const line = (label, detail, num = '') => {
     rows += `<tr><th><span class="v-pill">${label}</span></th>` +
@@ -2364,23 +2472,36 @@ function renderVerdict(det) {
     line('Mask', 'Unmasked epoch check', `${det.mask.bands_excluded}/${det.mask.n_bands} excl`);
   }
   line('Position', 'ICRS (RA, Dec)', `${fmt.num(det.ra, 5)}, ${fmt.num(det.dec, 5)}`);
-  line('Detection', `${fmt.escape(det.kind)} \u00b7 conf ${fmt.escape(det.confidence || '--')}`, `${fmt.num(det.snr, 1)}\u03c3`);
+  line('Detection', `${fmt.escape(kindLabel(det.kind))} \u00b7 conf ${fmt.escape(det.confidence || '--')}`, `${fmt.num(det.snr, 1)}\u03c3`);
   html += `<table class="kv-table verdict-table"><tbody>${rows}</tbody></table>`;
   box.innerHTML = html;
+  const openBtn = box.querySelector('[data-vet-open]');
+  if (openBtn) {
+    openBtn.addEventListener('click', () => {
+      const i = state.data ? state.data.detections.indexOf(det) : -1;
+      if (i >= 0) openVetCard(i, openBtn);
+    });
+  }
 }
 
 function renderTable(dets) {
   const tbody = $('detections-body');
   if (!dets || !dets.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">No detections</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No detections</td></tr>';
     return;
   }
   tbody.innerHTML = dets.map((d, i) => {
     const vBadge = categoryBadge(d);
-    const kBadge = `<span class="badge badge-${fmt.escape(d.kind)}">${fmt.escape(d.kind)}</span>`;
-    const match = Object.keys(d.matches || {}).length
-      ? Object.keys(d.matches).join(', ') : '\u2014';
+    const kBadge = `<span class="badge badge-${fmt.escape(d.kind)}">${fmt.escape(kindLabel(d.kind))}</span>`;
+    const match = d.asteroid && d.asteroid.status === 'match' && d.asteroid.match
+      ? d.asteroid.match.designation
+      : (Object.keys(d.matches || {}).length ? Object.keys(d.matches).join(', ') : '\u2014');
     const mu = d.proper_motion_arcsec_yr ? d.proper_motion_arcsec_yr.toFixed(1) : '\u2014';
+    const ml = d.ml && Number.isFinite(d.ml.real_bogus)
+      ? `${Math.round(d.ml.real_bogus * 100)}%${d.ml.uncertain ? ' <span class="obj-note" title="the model is unsure">?</span>' : ''}`
+      : '\u2014';
+    const ev = d.evidence && Number.isFinite(d.evidence.score)
+      ? String(Math.round(d.evidence.score * 100)) : '\u2014';
     return `<tr data-index="${i}">
       <td>${fmt.num(d.ra, 4)}</td>
       <td>${fmt.num(d.dec, 4)}</td>
@@ -2389,10 +2510,24 @@ function renderTable(dets) {
       <td>${vBadge}</td>
       <td>${fmt.escape(match)}</td>
       <td>${mu}</td>
+      <td class="expert-only">${ml}</td>
+      <td class="expert-only">${ev}</td>
+      <td><button type="button" class="row-btn" data-vet="${i}"
+        aria-label="Vet detection ${i + 1}: ${fmt.escape(kindLabel(d.kind))} at ${fmt.num(d.snr, 1)} sigma">Vet</button></td>
     </tr>`;
   }).join('');
   tbody.querySelectorAll('tr').forEach((tr) => {
-    tr.addEventListener('click', () => selectDetection(parseInt(tr.dataset.index, 10)));
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('[data-vet]')) return;
+      selectDetection(parseInt(tr.dataset.index, 10));
+    });
+  });
+  tbody.querySelectorAll('[data-vet]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.vet, 10);
+      selectDetection(i);
+      openVetCard(i, btn);
+    });
   });
 }
 
@@ -2420,18 +2555,19 @@ function renderPairs(data) {
 
 function renderObjects(data) {
   state.objects = data.field_objects || [];
-  const counts = data.catalog_counts || {};
   const known = state.objects.filter((o) => o.verdict === 'KNOWN').length;
   const cand = state.objects.filter((o) => o.verdict === 'CANDIDATE').length;
   const det = state.objects.filter((o) => o.detected).length;
 
   const offMap = state.objects.filter((o) => o.in_field === false).length;
+  const catalogText = catalogCountEntries(data)
+    .filter(([, count]) => count)
+    .map(([key, count]) => ` - ${catalogLabel(key)} ${count}`).join('');
   setText('objects-hint',
     `${state.objects.length} objects (${state.objects.length - offMap} on the map` +
-    (offMap ? `, ${offMap} outside)` : ')') +
-    (counts.gaia ? ` - Gaia ${counts.gaia}` : '') +
-    (counts.vsx ? ` - VSX ${counts.vsx}` : '') +
-    (counts.wise ? ` - AllWISE ${counts.wise}` : ''));
+    (offMap ? `, ${offMap} outside)` : ')') + catalogText);
+
+  syncCatalogLegend(data);
 
   const label = { all: 'all', known: 'known', candidate: 'candidate', detected: 'detected' };
   document.querySelectorAll('#object-filter .seg').forEach((b) => {
@@ -2439,6 +2575,28 @@ function renderObjects(data) {
     b.textContent = `${b.textContent.split(' (')[0]} (${b.dataset.count})`;
   });
   drawObjectTable();
+}
+
+// Add a legend swatch for every catalogue in the payload that is not one of
+// the three permanent entries (Gaia DR3 / VSX / AllWISE).  This is what makes
+// extra catalogues visible on the map instead of silently drawing grey crosses.
+function syncCatalogLegend(data) {
+  const legend = $('map-legend');
+  if (!legend) return;
+  legend.querySelectorAll('[data-cat-legend]').forEach((el) => el.remove());
+  const keys = new Set(Object.keys(data?.catalog_counts || {}));
+  (data?.catalog_overlay || []).forEach((p) => { if (p && p.cat) keys.add(p.cat); });
+  [...keys]
+    .filter((key) => key && !LEGEND_CATALOGS.has(String(key).toLowerCase()))
+    .sort()
+    .forEach((key) => {
+      const item = document.createElement('span');
+      item.className = 'legend-item';
+      item.dataset.catLegend = key;
+      item.innerHTML = `<i class="sw" aria-hidden="true" style="background:${catalogColor(key)}"></i> ` +
+        fmt.escape(catalogLabel(key));
+      legend.appendChild(item);
+    });
 }
 
 function drawObjectTable() {
@@ -2491,6 +2649,11 @@ function drawObjectTable() {
   }).join('');
 
   tbody.querySelectorAll('tr').forEach((tr) => {
+    // Keyboard: rows are focusable and Enter / Space select them like a click.
+    tr.tabIndex = 0;
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tr.click(); }
+    });
     tr.addEventListener('click', () => {
       const obj = state.objects[parseInt(tr.dataset.i, 10)];
       state.highlight = (obj && obj.in_field !== false) ? { x: obj.x, y: obj.y } : null;
@@ -2511,11 +2674,17 @@ function renderProvenance(data) {
   const tbody = $('sources-body');
   const s = data.stats || {};
 
+  const catalogBits = catalogCountEntries(data)
+    .map(([key, count]) => `${catalogLabel(key)} ${fmt.int(count)}`);
+  const catalogText = catalogBits.length
+    ? `${catalogBits.join(' / ')} entries cross-matched`
+    : `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`;
+
   const archiveText =
-    `IRSA SIA2 \u00b7 collection ${(rows[0] && rows[0].collection) || 'spherex_qr2'} \u00b7 ` +
+    `IRSA SIA2 \u00b7 collection ${(rows[0] && rows[0].collection) || 'spherex_dr1'} \u00b7 ` +
     `${rows.length} cutout${rows.length === 1 ? '' : 's'} \u00b7 ` +
     `${s.depth_5sigma ? s.depth_5sigma.toFixed(3) : '--'} MJy/sr 5\u03c3 depth \u00b7 ` +
-    `Gaia DR3 ${fmt.int(s.n_gaia)} / AllWISE ${fmt.int(s.n_wise)} / VSX ${fmt.int(s.n_vsx)} entries cross-matched`;
+    catalogText;
   // P11 s6: chip colour by what the part is, matched on stable words (class only)
   const chipKind = (part) => (/\bSIA/.test(part) ? 'archive'
     : /^collection\b/.test(part) ? 'collection'
@@ -2628,7 +2797,12 @@ function renderSnapshotControls() {
   const icon = play.querySelector('.snapshot-play-icon');
   if (icon) icon.innerHTML = hist.playing ? '&#9632;' : '&#9654;';
 
-  const retention = hist.retentionHours ? `, ${hist.retentionHours} h retained` : '';
+  const hours = hist.retentionHours;
+  const retention = hours
+    ? (hours >= 48 && hours % 24 === 0
+      ? `, ${hours / 24} days retained`
+      : `, ${hours} h retained`)
+    : '';
   group.title = hist.error
     ? `Snapshot history: ${hist.error}`
     : (hist.playing
@@ -2638,6 +2812,15 @@ function renderSnapshotControls() {
 
 async function loadSnapshotHistory(target, { keepSelection = false } = {}) {
   const hist = state.snapshotHistory;
+  if (!target) {
+    // Never ask the API for "whatever is default": that fallback is WISE 0855.
+    hist.loading = false;
+    hist.snapshots = [];
+    hist.selected = '';
+    hist.error = 'choose a field first';
+    renderSnapshotControls();
+    return;
+  }
   if (hist.target !== target) {
     stopSnapshotPlayback({ resetScale: false });
     hist.target = target;
@@ -2671,8 +2854,11 @@ async function loadSnapshotHistory(target, { keepSelection = false } = {}) {
     const response = await fetchApi('snapshot-history', target);
     if (!response.ok) {
       const problem = await response.json().catch(() => ({}));
+      const code = response.status;
       throw new Error([problem.error, problem.detail].filter(Boolean).join(' ')
-        || `HTTP ${response.status}`);
+        || (code === 504
+          ? 'the snapshot API timed out (HTTP 504) — redeploy or restart the Cloud Run API'
+          : `HTTP ${code}`));
     }
     const data = await response.json();
     if (hist.target !== target) return;
@@ -2687,6 +2873,7 @@ async function loadSnapshotHistory(target, { keepSelection = false } = {}) {
     hist.snapshots = [];
     hist.selected = '';
     hist.error = error.message;
+    setText('footer-status', `snapshot history unavailable: ${error.message}`);
   } finally {
     if (hist.target === target) {
       hist.loading = false;
@@ -2868,9 +3055,16 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null,
   if (state.pipelineRunning) return false;
   const snapshotMeta = options.snapshotMeta || null;
   const preserveView = !!options.preserveView;
+  const target = $('target-select').value;
+  if (!target) {
+    // No registered target and no custom field: never guess a field (the old
+    // API default made this silently load WISE 0855).
+    setStatus('STANDBY \u00b7 NO FIELD SELECTED', 'error');
+    setText('map-hint', 'choose a target or load a field from coordinates');
+    return false;
+  }
   state.pipelineRunning = true;
   $('btn-run').disabled = true;
-  const target = $('target-select').value;
   const pipelineStarted = performance.now();
   const progress = startActionProgress(snapshotMeta
     ? `Loading snapshot from ${formatSnapshotTime(snapshotMeta.published_at)}`
@@ -3026,6 +3220,10 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null,
     safe('mosaic', () => updateMosaicTile(data));
     safe('verdict', () => renderVerdict(data.detections[0] || null));
     safe('focus', () => focusForSnapshot(data));
+    safe('coverage', () => renderCoverage(data));
+    safe('expert-access', () => renderExpertAccess(data));
+    safe('map-summary', () => describeMap(data));
+    safe('vet-card', () => refreshOpenVetCard());
     if (failures.length) {
       console.error('panels that failed to render:', failures.join(', '));
     }
@@ -3135,7 +3333,7 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null,
     document.title = `${data.common} -- SPHERExLens`;
     // Refresh the history list after a normal latest-snapshot load.  Historical
     // frames and saved research results keep the list they already have.
-    if (!snapshotMeta && !savedEntry && !state.live
+    if (!snapshotMeta && !savedEntry && !state.live && !MOCK_V2
         && !state.customFields[target] && !options.suppressHistory) {
       loadSnapshotHistory(target);
     }
@@ -3819,6 +4017,1366 @@ function allSkyHint() {
   return `${counts} \u00b7 coverage tiles use ${source} \u00b7 click a tile to open that field`;
 }
 
+// ===================================================================== v2 UI
+//
+// Everything below reads the optional fields of spherexlens/CONTRACT.md. Each
+// one may be missing (older snapshots, a subsystem that failed, the static
+// build), so every renderer checks before it draws and hides what it lacks.
+
+function prefersReducedMotion() {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch { return false; }
+}
+
+// localStorage can throw (private windows, blocked storage): never let it break the page.
+function lsGet(key, fallback = null) {
+  try {
+    const v = window.localStorage.getItem(key);
+    return v === null ? fallback : v;
+  } catch { return fallback; }
+}
+function lsSet(key, value) {
+  try { window.localStorage.setItem(key, value); } catch { /* storage unavailable */ }
+}
+
+function chartLabel(id, text) {
+  const c = $(id);
+  if (!c) return;
+  c.setAttribute('role', 'img');
+  c.setAttribute('aria-label', text);
+}
+
+function sedSummary(sed) {
+  const cat = (sed && sed.points) || [];
+  const sph = ((sed && sed.spherex) || []).filter((p) => p.mjy > 0);
+  const lam = cat.concat(sph).map((p) => p.lam_um).filter((v) => v > 0);
+  return `Spectral energy distribution: ${cat.length} catalogue points (Gaia, AllWISE) and ` +
+    `${sph.length} SPHEREx points` +
+    (lam.length ? ` between ${Math.min(...lam).toFixed(2)} and ${Math.max(...lam).toFixed(2)} microns.` : '.');
+}
+
+const pct = (v, d = 0) => (Number.isFinite(v) ? `${(v * 100).toFixed(d)}%` : '—');
+
+// ------------------------------------------------------------- modal sheets
+// The vetting card, Accuracy page and Credits are modal: focus moves in, Tab
+// stays inside, Esc / the close button / the backdrop close it, and focus
+// returns to whatever opened it.
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), '
+  + 'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusables(el) {
+  return [...el.querySelectorAll(FOCUSABLE)]
+    .filter((n) => n.offsetParent !== null || n === document.activeElement);
+}
+
+function trapFocus(el, e) {
+  if (e.key !== 'Tab') return;
+  const items = focusables(el);
+  if (!items.length) { e.preventDefault(); return; }
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && (document.activeElement === first || !el.contains(document.activeElement))) {
+    e.preventDefault(); last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault(); first.focus();
+  }
+}
+
+function openSheet(id, opener) {
+  const el = $(id);
+  if (!el) return;
+  if (el.classList.contains('hidden')) {
+    el._opener = opener || document.activeElement;
+    el.classList.remove('hidden');
+  }
+  document.body.classList.add('sheet-open');
+  const heading = el.querySelector('h2');
+  if (heading) {
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
+}
+
+function closeSheet(id) {
+  const el = $(id);
+  if (!el || el.classList.contains('hidden')) return;
+  el.classList.add('hidden');
+  if (!document.querySelector('.sheet:not(.hidden)')) document.body.classList.remove('sheet-open');
+  if (id === 'vet') state.vetIndex = -1;
+  const opener = el._opener;
+  el._opener = null;
+  if (opener && opener.isConnected && opener.focus) opener.focus();
+}
+
+function attachSheets() {
+  document.querySelectorAll('.sheet').forEach((el) => {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeSheet(el.id);
+        return;
+      }
+      trapFocus(el, e);
+    });
+    el.addEventListener('click', (e) => { if (e.target === el) closeSheet(el.id); });
+    el.querySelectorAll('[data-sheet-close]').forEach((btn) =>
+      btn.addEventListener('click', () => closeSheet(el.id)));
+  });
+}
+
+// ------------------------------------------------------- public / expert mode
+
+const MODE_KEY = 'spx-ui-mode';
+
+function applyMode(mode) {
+  const m = mode === 'expert' ? 'expert' : 'public';
+  document.body.dataset.uimode = m;
+  document.querySelectorAll('#mode-switch .seg').forEach((b) => {
+    const on = b.dataset.mode === m;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  lsSet(MODE_KEY, m);
+  if (m === 'expert') {
+    const win = $('win-classify');
+    if (win) closeToolWindow(win);
+  }
+  if (state.vetIndex >= 0) renderVetCard(state.vetIndex);
+}
+
+// ------------------------------------------------------------ API endpoints
+
+// Live-only endpoints (votes, queue, cone, candidate tables): the server, or a
+// static build with a live API behind it. null = "needs the live backend".
+function liveBackendBase() {
+  if (!STATIC_MODE) return `${API_BASE}/api`;
+  return LIVE_API || null;
+}
+
+const MOCK_FILES = {
+  metrics: 'dev/mock_metrics.json',
+  model: 'dev/mock_model.json',
+  'votes/queue': 'dev/mock_queue.json',
+};
+
+// GET a v2 JSON endpoint. Static builds read the exported api/<name>.json
+// (after trying a live API when one is configured). Returns {ok, status, data, url}.
+async function fetchV2Json(name, query = '') {
+  const attempts = [];
+  if (MOCK_V2 && MOCK_FILES[name]) attempts.push(MOCK_FILES[name]);
+  else if (!STATIC_MODE) attempts.push(`${API_BASE}/api/${name}${query}`);
+  else {
+    if (LIVE_API) attempts.push(`${LIVE_API}/${name}${query}`);
+    attempts.push(`${document.body.dataset.apiDir || 'api'}/${name.replace(/\//g, '-')}.json`);
+  }
+  let last = { ok: false, status: 0, data: null, url: attempts[0] };
+  for (const url of attempts) {
+    try {
+      // A stuck server must not leave a panel on "Loading..." forever.
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
+      let resp;
+      try {
+        resp = await fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+      if (!resp.ok) { last = { ok: false, status: resp.status, data: null, url }; continue; }
+      return { ok: true, status: resp.status, data: await resp.json(), url };
+    } catch (err) {
+      const timedOut = err && err.name === 'AbortError';
+      last = { ok: false, status: 0, data: null, url,
+               error: timedOut ? 'the server did not answer within 20 s' : err.message };
+    }
+  }
+  return last;
+}
+
+// --------------------------------------------------------------- coverage
+
+const ARCHIVE_NAMES = {
+  spherex: 'SPHEREx', neowise: 'NEOWISE', allwise: 'AllWISE', wise: 'WISE', gaia: 'Gaia',
+  neossat: 'NEOSSat', jpl_sb_ident: 'JPL', jpl: 'JPL', ssois: 'SSOIS', vsx: 'VSX',
+  simbad: 'SIMBAD', unwise: 'unWISE', twomass: '2MASS', '2mass': '2MASS',
+  panstarrs: 'Pan-STARRS', ps1: 'Pan-STARRS', skymapper: 'SkyMapper', ztf: 'ZTF',
+};
+// Archives that are queried per detection/designation, so a field-level count
+// of 0 means "not checked here yet", not "no data".
+const COVERAGE_ON_DEMAND = new Set(['jpl', 'jpl_sb_ident', 'ssois', 'simbad']);
+
+function coverageState(c) {
+  if (!c) return 'unknown';
+  const available = c.available;
+  const count = c.count;
+  const numeric = Number.isFinite(count);
+  if (c.pending) return 'unknown';          // still being checked
+  if (available === false && c.error) return 'unknown';   // archive failed, not "empty"
+  if (available !== true && available !== false) return 'unknown';
+  if (COVERAGE_ON_DEMAND.has(String(c.archive || '')) && (!numeric || count === 0)) {
+    return 'unknown';
+  }
+  // available=true means the archive answered, not that this field has rows.
+  return available && (!numeric || count > 0) ? 'yes' : 'no';
+}
+
+function coverageReason(c) {
+  if (!c) return 'not checked for this field';
+  if (c.pending) return 'still checking this archive';
+  if (c.available === false && c.error) return 'check unavailable';
+  if (COVERAGE_ON_DEMAND.has(String(c.archive || '')) && !(Number.isFinite(c.count) && c.count > 0)) {
+    return 'queried per detection/designation';
+  }
+  const state = coverageState(c);
+  if (state === 'yes') return 'has data for this field';
+  if (state === 'no' && c.archive === 'neowise') {
+    return 'no NEOWISE visits within 10″ of the field centre';
+  }
+  return state === 'no' ? 'no data for this field' : 'not checked for this field';
+}
+
+function renderCoverage(data) {
+  const row = $('coverage-row');
+  const list = $('coverage-chips');
+  if (!row || !list) return;
+  const cov = Array.isArray(data && data.coverage) ? data.coverage : [];
+  row.hidden = !cov.length;
+  if (!cov.length) { list.innerHTML = ''; return; }
+  list.innerHTML = cov.map((c) => {
+    const name = ARCHIVE_NAMES[c.archive] || String(c.archive || '?').toUpperCase();
+    const state = coverageState(c);
+    const ok = state === 'yes';
+    const unknown = state === 'unknown';
+    const detail = c.detail || (Number.isFinite(c.count) && ok ? String(c.count) : '');
+    const tip = `${name}: ${coverageReason(c)}` +
+      (c.error ? ` — ${c.error}` : '') +
+      (c.detail ? ` — ${c.detail}` : '') + (Number.isFinite(c.count) ? ` (${c.count})` : '');
+    return `<li class="cov-chip" data-state="${state}" title="${fmt.escape(tip)}">` +
+      `<span class="cov-name">${fmt.escape(name)}</span>` +
+      `<span class="cov-mark" aria-hidden="true">${unknown ? '?' : ok ? '✓' : '✗'}</span>` +
+      `<span class="sr-only">${unknown ? 'not checked' : ok ? 'available' : 'not available'}</span>` +
+      (detail && ok ? `<span class="cov-detail">${fmt.escape(detail)}</span>` : '') +
+      (c.detail && !ok ? `<span class="sr-only">${fmt.escape(c.detail)}</span>` : '') +
+      '</li>';
+  }).join('');
+}
+
+// ---------------------------------------------------- expert data access
+
+function renderExpertAccess(data) {
+  const dl = $('prov-pipeline');
+  const list = $('download-list');
+  const note = $('cone-note');
+  if (!dl || !list) return;
+  const p = data.pipeline || {};
+  const rows = [];
+  const add = (k, v) => { if (v !== null && v !== undefined && v !== '') rows.push([k, v]); };
+  add('Pipeline version', p.pipeline_version);
+  add('Config hash', p.config_hash);
+  add('Model version', p.model_version || (p.pipeline_version ? 'no ML model in this run' : null));
+  add('Generated', data.generated_at ? formatTimestamp(data.generated_at) : null);
+  const enr = data.enrichment && typeof data.enrichment === 'object' ? Object.entries(data.enrichment) : [];
+  if (enr.length) {
+    add('Enrichment', enr.map(([name, e]) => `${name} ${e && e.status ? e.status : '?'}` +
+      (e && Number.isFinite(e.seconds) ? ` (${e.seconds.toFixed(1)} s)` : '') +
+      (e && e.error ? ` — ${e.error}` : '')).join(' · '));
+  }
+  const eq = Array.isArray(data.exposure_quality) ? data.exposure_quality : [];
+  if (eq.length) {
+    const dropped = eq.filter((x) => x.kept === false);
+    add('Exposure quality', `${eq.length - dropped.length} of ${eq.length} exposures kept` +
+      (dropped.length ? `; dropped: ${dropped.map((x) => `${x.obs_id} (${(x.reasons || []).join(', ')})`).join('; ')}` : ''));
+  }
+  const psfs = (data.epochs || []).filter((e) => e.psf && Number.isFinite(e.psf.fwhm_arcsec));
+  if (psfs.length) {
+    add('PSF per epoch', psfs.map((e) => `E${e.epoch} ${fmt.num(e.psf.fwhm_arcsec, 2)}″ (${e.psf.source || '?'})`).join(' · '));
+  }
+  dl.innerHTML = rows.length
+    ? rows.map(([k, v]) => `<div><dt>${fmt.escape(k)}</dt><dd class="mono">${fmt.escape(v)}</dd></div>`).join('')
+    : '<div><dt>Provenance</dt><dd>This snapshot predates pipeline version stamps.</dd></div>';
+  if (eq.length && eq.some((x) => x.epoch != null || x.psf_fwhm_arcsec != null || x.band)) {
+    const yes = (v) => (v === true ? 'yes' : v === false ? 'no' : '—');
+    dl.insertAdjacentHTML('beforeend', '<div class="eq-wrap"><dt>Exposures</dt><dd><div class="table-wrap">' +
+      '<table class="sources-table eq-table"><caption class="sr-only">Exposure quality</caption><thead><tr>' +
+      ['Observation', 'Epoch', 'Band', 'Score', 'Kept', 'PSF', 'Zodi sub.', 'Reasons']
+        .map((h) => `<th scope="col">${h}</th>`).join('') + '</tr></thead><tbody>' +
+      eq.map((x) => `<tr><td>${fmt.escape(x.obs_id || '--')}</td><td>${fmt.escape(x.epoch ?? '--')}</td>` +
+        `<td>${fmt.escape(x.band || '--')}</td><td>${Number.isFinite(x.score) ? fmt.num(x.score, 2) : '--'}</td>` +
+        `<td>${yes(x.kept)}</td><td>${Number.isFinite(x.psf_fwhm_arcsec) ? `${fmt.num(x.psf_fwhm_arcsec, 2)}″${x.psf_source ? ` (${fmt.escape(x.psf_source)})` : ''}` : '--'}</td>` +
+        `<td>${yes(x.zodi_subtracted)}</td><td>${fmt.escape((x.reasons || []).join(', '))}</td></tr>`).join('') +
+      '</tbody></table></div></dd></div>');
+  }
+
+  const base = liveBackendBase();
+  const target = data.target || state.target || '';
+  const needs = '<span class="needs-backend">needs the live backend</span>';
+  const item = (label, href, desc, live = true) => {
+    if (live && !base) return `<li><span class="dl-off">${label}</span> ${needs}<span class="dl-desc">${desc}</span></li>`;
+    return `<li><a href="${fmt.escape(href)}" download>${label}</a><span class="dl-desc">${desc}</span></li>`;
+  };
+  const fieldJson = MOCK_V2 ? 'dev/mock_v2.json' : apiUrl('dashboard', target);
+  list.innerHTML = [
+    item('All candidates (CSV)', `${base}/candidates.csv`, 'every triaged detection, one row each', true),
+    item('All candidates (VOTable)', `${base}/candidates.votable`, 'for TOPCAT / Aladin / astropy', true),
+    item(`This field (JSON)`, fieldJson, `the full dashboard payload for ${fmt.escape(data.common || target)}`, false),
+  ].join('');
+  if (note) {
+    const sr = 0.1;
+    const cone = base ? `${base}/cone?RA=${fmt.num(data.ra, 4)}&DEC=${fmt.num(data.dec, 4)}&SR=${sr}` : null;
+    note.innerHTML = 'IVOA Simple Cone Search: ' + (cone
+      ? `<a href="${fmt.escape(cone)}">${fmt.escape(cone)}</a> — give TOPCAT (VO → Cone Search) or Aladin the base URL <code>${fmt.escape(base)}/cone?</code>; RA, DEC and SR are in degrees.`
+      : `<code>/api/cone?RA=&amp;DEC=&amp;SR=</code> ${needs}.`);
+  }
+}
+
+function describeMap(data) {
+  const canvas = $('canvas-map');
+  if (!canvas || !data) return;
+  const dets = data.detections || [];
+  const counts = {};
+  dets.forEach((d) => {
+    const cat = categoryOf(d);
+    const label = cat ? CATEGORY_INFO[cat].label.toLowerCase() : String(d.verdict || 'detection').toLowerCase();
+    counts[label] = (counts[label] || 0) + 1;
+  });
+  const parts = Object.entries(counts).map(([k, n]) => `${n} ${k}`);
+  canvas.setAttribute('aria-label',
+    `Field map of ${data.common || data.target}, ${data.map ? data.map.fov_arcmin : 9} arcminutes across, ` +
+    `${dets.length} detection${dets.length === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}.`);
+}
+
+// Two small score chips under the verdict badge (expert) -- ML + evidence.
+function verdictScoreStrip(det) {
+  const bits = [];
+  if (det.ml && Number.isFinite(det.ml.real_bogus)) {
+    bits.push(`<span class="score-chip" title="ML real/bogus score (${fmt.escape(det.ml.model_version || 'model')})">ML ${pct(det.ml.real_bogus)}${det.ml.uncertain ? ' · unsure' : ''}</span>`);
+  }
+  if (det.evidence && Number.isFinite(det.evidence.score)) {
+    bits.push(`<span class="score-chip" title="Evidence score: all checks combined">Evidence ${Math.round(det.evidence.score * 100)}</span>`);
+  }
+  const a = det.asteroid;
+  if (a && a.status === 'unavailable') bits.push('<span class="score-chip score-warn">asteroid check unavailable</span>');
+  if (a && a.status === 'match' && a.match) bits.push(`<span class="score-chip score-ast">${fmt.escape(a.match.designation)}</span>`);
+  return bits.length ? `<div class="score-strip expert-only">${bits.join('')}</div>` : '';
+}
+
+// ------------------------------------------------------------ vetting card
+
+state.vetIndex = -1;
+
+function openVetCard(index, opener) {
+  if (!state.data || !state.data.detections[index]) return;
+  state.vetIndex = index;
+  renderVetCard(index);
+  openSheet('vet', opener);
+}
+
+function refreshOpenVetCard() {
+  if (state.vetIndex < 0) return;
+  const dets = (state.data && state.data.detections) || [];
+  if (!dets.length) { closeSheet('vet'); return; }
+  state.vetIndex = Math.min(state.vetIndex, dets.length - 1);
+  renderVetCard(state.vetIndex);
+}
+
+function cutoutRange(values, symmetric) {
+  if (!values.length) return [0, 1];
+  if (symmetric) {
+    const amp = Math.max(Math.abs(percentile([values], 1)), Math.abs(percentile([values], 99.5)), 1e-9);
+    return [-amp, amp];
+  }
+  const lo = percentile([values], 1), hi = percentile([values], 99.5);
+  return [lo, hi > lo ? hi : lo + 1e-9];
+}
+
+// Draw a (2*half+1)^2 crop of `arr` centred on image pixel (row, col).
+// arrows: [{dx, dy, colour}] in image pixels with y pointing north (up).
+function drawCutout(canvas, arr, row, col, half, lutName, symmetric, arrows = []) {
+  const n = 2 * half + 1;
+  const cell = 6;
+  canvas.width = n * cell;
+  canvas.height = n * cell;
+  const ctx = canvas.getContext('2d');
+  const at = (y, x) => {
+    const r = arr && arr[y];
+    const v = r ? r[x] : null;
+    return Number.isFinite(v) ? v : null;
+  };
+  const values = [];
+  for (let y = row - half; y <= row + half; y++) {
+    for (let x = col - half; x <= col + half; x++) {
+      const v = at(y, x);
+      if (v !== null) values.push(v);
+    }
+  }
+  const [lo, hi] = cutoutRange(values, symmetric);
+  const lut = RAMPS[lutName] || RAMPS.gray;
+  for (let j = 0; j < n; j++) {
+    const y = row + half - j;                    // north up, like the map
+    for (let i = 0; i < n; i++) {
+      const v = at(y, col - half + i);
+      if (v === null) {
+        ctx.fillStyle = '#2a2f37';
+      } else {
+        const t = Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
+        const k = Math.round(t * 255) * 3;
+        ctx.fillStyle = `rgb(${lut[k]},${lut[k + 1]},${lut[k + 2]})`;
+      }
+      ctx.fillRect(i * cell, j * cell, cell, cell);
+    }
+  }
+  const c = (half + 0.5) * cell;
+  ctx.lineWidth = 2;
+  [['rgba(0,0,0,.75)', 3], ['#ffffff', 1.4]].forEach(([colour, w]) => {
+    ctx.strokeStyle = colour; ctx.lineWidth = w;
+    [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([ax, ay]) => {
+      ctx.beginPath();
+      ctx.moveTo(c + ax * 9, c + ay * 9);
+      ctx.lineTo(c + ax * 18, c + ay * 18);
+      ctx.stroke();
+    });
+  });
+  arrows.forEach((a) => {
+    const x0 = c + (a.fromX || 0) * cell, y0 = c - (a.fromY || 0) * cell;
+    const x1 = x0 + a.dx * cell, y1 = y0 - a.dy * cell;
+    const ang = Math.atan2(y1 - y0, x1 - x0);
+    [['rgba(0,0,0,.8)', 4], [a.colour, 2]].forEach(([colour, w]) => {
+      ctx.strokeStyle = colour; ctx.fillStyle = colour; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - 9 * Math.cos(ang - 0.45), y1 - 9 * Math.sin(ang - 0.45));
+      ctx.lineTo(x1 - 9 * Math.cos(ang + 0.45), y1 - 9 * Math.sin(ang + 0.45));
+      ctx.closePath(); ctx.fill();
+    });
+  });
+  ctx.fillStyle = 'rgba(0,0,0,.6)';
+  ctx.fillRect(0, canvas.height - 15, 36, 15);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '10px ui-monospace, Menlo, monospace';
+  ctx.fillText('N↑ E←', 3, canvas.height - 4);
+}
+
+function compass(paDeg) {
+  const names = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+  return names[Math.round((((paDeg % 360) + 360) % 360) / 45) % 8];
+}
+
+// Gaia proper motion of the matched star, if any: {mu (″/yr), dirX, dirY, pa}.
+function gaiaMotion(det) {
+  const g = det.matches && det.matches.gaia && det.matches.gaia.source;
+  if (!g || !Number.isFinite(g.pm_ra) || !Number.isFinite(g.pm_de)) return null;
+  const mu = Math.hypot(g.pm_ra, g.pm_de) / 1000;
+  if (!(mu > 0)) return null;
+  // pm_ra is toward the east (+RA), which is -x on the map; pm_de is +y.
+  const norm = Math.hypot(g.pm_ra, g.pm_de);
+  return {
+    mu, dirX: -g.pm_ra / norm, dirY: g.pm_de / norm,
+    pa: (Math.atan2(g.pm_ra, g.pm_de) * 180) / Math.PI,
+  };
+}
+
+function nearTarget(det) {
+  const tp = state.data && state.data.target_position;
+  const pos = det.position;
+  if (!tp || !Array.isArray(pos) || !Number.isFinite(tp.x)) return false;
+  return Math.hypot(tp.x - pos[1], tp.y - pos[0]) <= 4;
+}
+
+const NEOSSAT_TEXT = {
+  none: ['No NEOSSat pictures of this spot near these dates.', 'muted'],
+  frames: ['NEOSSat has pictures of this spot; they have not been checked yet.', 'info'],
+  confirmed: ['Seen in NEOSSat too ✓ — an independent telescope confirms it.', 'ok'],
+  not_seen: ['NEOSSat looked but did not see it (it may be too faint for NEOSSat).', 'warn'],
+  unavailable: ['The NEOSSat archive could not be reached for this run.', 'warn'],
+};
+
+const EVIDENCE_NAMES = {
+  ml: 'ML score', motion_consistency: 'Motion agrees', asteroid_check: 'Asteroid check',
+  neossat: 'NEOSSat', neowise: 'NEOWISE history', catalogue: 'Catalogue match',
+};
+
+function vetSection(title, body, extraClass = '') {
+  return `<section class="vet-sec ${extraClass}"><h3>${title}</h3>${body}</section>`;
+}
+
+function meter(value, label) {
+  const v = Math.max(0, Math.min(1, value));
+  return `<div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" ` +
+    `aria-valuenow="${Math.round(v * 100)}" aria-label="${fmt.escape(label)}">` +
+    `<span class="meter-fill" style="width:${(v * 100).toFixed(1)}%"></span></div>`;
+}
+
+function extLink(href, label, cls = 'ext-link') {
+  return `<a class="${cls}" href="${fmt.escape(href)}" target="_blank" rel="noopener noreferrer">` +
+    `${label}<span class="sr-only"> (opens in a new tab)</span> <span aria-hidden="true">↗</span></a>`;
+}
+
+function asteroidBlock(det) {
+  const a = det.asteroid;
+  if (!a) {
+    return '<p class="vet-muted">The asteroid check was not run for this snapshot.</p>';
+  }
+  if (a.status === 'unavailable') {
+    return '<div class="vet-caution" role="note"><b>⚠ Asteroid check unavailable.</b> ' +
+      'We could not ask the asteroid services whether a known asteroid was here, so this could ' +
+      'still be a known asteroid. Treat it with caution.' +
+      (a.error ? `<span class="vet-muted"> (${fmt.escape(a.error)})</span>` : '') + '</div>';
+  }
+  const checked = (a.checked || []).map((c) => ({ jpl_sb_ident: 'JPL SB Identification', ssois: 'CADC SSOIS' }[c] || c));
+  const via = checked.length ? `<p class="vet-muted">Checked with ${fmt.escape(checked.join(' and '))}` +
+    (Number.isFinite(a.n_in_field) ? `; ${a.n_in_field} known asteroid${a.n_in_field === 1 ? '' : 's'} in the field at the time.` : '.') + '</p>' : '';
+  if (a.status === 'no_match') {
+    return '<p><span class="vf-tag vf-ok">NO MATCH</span> No known asteroid was at this spot at that time.</p>' + via;
+  }
+  const m = a.match || {};
+  const neo = m.neo ? ' <span class="badge badge-neo" title="Near-Earth object">NEO</span>' : '';
+  const ssois = m.ssois_agrees === true ? '<span class="vf-tag vf-ok">SSOIS agrees</span>'
+    : m.ssois_agrees === false ? '<span class="vf-tag vf-warn">SSOIS disagrees</span>'
+      : '<span class="vf-tag vf-mute">SSOIS not checked</span>';
+  const facts = [];
+  if (m.orbit_class) facts.push(`orbit class ${fmt.escape(m.orbit_class)}`);
+  if (Number.isFinite(m.sep_arcsec)) facts.push(`${fmt.num(m.sep_arcsec, 1)}″ away`);
+  if (m.epoch) facts.push(`in epoch ${fmt.escape(m.epoch)}`);
+  if (Number.isFinite(m.v_mag)) facts.push(`V ${fmt.num(m.v_mag, 1)}`);
+  if (Number.isFinite(m.h_mag)) facts.push(`H ${fmt.num(m.h_mag, 1)}`);
+  if (Number.isFinite(m.pos_unc_arcsec)) facts.push(`position ±${fmt.num(m.pos_unc_arcsec, 1)}″`);
+  const links = [];
+  if (m.sbdb_url) links.push(extLink(m.sbdb_url, 'JPL Small-Body Database'));
+  if (m.ssois_url) links.push(extLink(m.ssois_url, 'CADC SSOIS'));
+  return `<p class="ast-match"><span class="vf-tag vf-info">MATCH</span> <b>${fmt.escape(m.designation || 'known asteroid')}</b>${neo} ${ssois}</p>` +
+    (facts.length ? `<p class="vet-muted">${facts.join(' · ')}</p>` : '') +
+    (links.length ? `<p class="vet-links">${links.join(' ')}</p>` : '') + via;
+}
+
+function neossatBlock(det) {
+  const n = det.neossat;
+  if (!n) return '<p class="vet-muted">No NEOSSat check in this snapshot.</p>';
+  const [text, tone] = NEOSSAT_TEXT[n.status] || [`NEOSSat: ${fmt.escape(n.status)}`, 'muted'];
+  const frames = (n.frames || []).slice(0, 6).map((f) =>
+    `<li>${f.url ? extLink(f.url, fmt.escape(f.obs_id || 'frame')) : fmt.escape(f.obs_id || 'frame')}` +
+    `${Number.isFinite(f.mjd) ? ` <span class="vet-muted">MJD ${fmt.num(f.mjd, 2)}</span>` : ''}</li>`).join('');
+  return `<p class="tone-${tone}">${text}</p>` +
+    (Number.isFinite(n.n_frames) && n.n_frames ? `<p class="vet-muted">${n.n_frames} frame${n.n_frames === 1 ? '' : 's'}</p>` : '') +
+    (frames ? `<ul class="vet-frames">${frames}</ul>` : '');
+}
+
+function mlBlock(det) {
+  const ml = det.ml;
+  if (!ml || !Number.isFinite(ml.real_bogus)) {
+    return '<p class="vet-muted">No ML score for this snapshot.</p>';
+  }
+  const reasons = (ml.reasons || []).slice(0, 5).map((r) => {
+    const up = (r.effect || 0) >= 0;
+    return `<li class="${up ? 'r-up' : 'r-down'}"><span aria-hidden="true">${up ? '▲' : '▼'}</span>` +
+      `<span class="sr-only">${up ? 'makes it more likely real:' : 'makes it less likely real:'}</span> ` +
+      `${fmt.escape(r.label || r.feature)}` +
+      `<span class="expert-only vet-muted"> (${fmt.escape(r.feature)} ${up ? '+' : ''}${fmt.num(r.effect, 2)})</span></li>`;
+  }).join('');
+  const unsure = ml.uncertain
+    ? '<div class="vet-callout"><b>The computer is unsure about this one — help us classify.</b> ' +
+      '<a href="#vet-vote" data-jump-vote>Vote below</a>.</div>' : '';
+  return `<p class="big-score">${pct(ml.real_bogus)} <span>likely real</span></p>` +
+    meter(ml.real_bogus, 'ML score, percent likely real') +
+    `<p class="vet-muted">The ML score ranks detections so the best are looked at first; it does not decide.` +
+    `${ml.model_version ? ` <span class="expert-only">Model ${fmt.escape(ml.model_version)}.</span>` : ''}</p>` +
+    (reasons ? `<ul class="ml-reasons" aria-label="Main reasons for the ML score">${reasons}</ul>` : '') + unsure;
+}
+
+function evidenceBlock(det) {
+  const ev = det.evidence;
+  if (!ev || !Number.isFinite(ev.score)) {
+    return '<p class="vet-muted">No evidence score for this snapshot.</p>';
+  }
+  const rows = (ev.parts || []).map((p) => {
+    const v = Number.isFinite(p.value) ? Math.round(p.value * 100) : null;
+    return `<tr><th scope="row">${fmt.escape(EVIDENCE_NAMES[p.name] || p.name)}</th>` +
+      `<td class="mono">${v === null ? '<span class="vet-muted">n/a</span>' : v}</td>` +
+      `<td class="mono expert-only">${Number.isFinite(p.weight) ? `×${fmt.num(p.weight, 2)}` : ''}</td>` +
+      `<td>${fmt.escape(p.detail || '')}</td></tr>`;
+  }).join('');
+  return `<p class="big-score">${Math.round(ev.score * 100)} <span>/ 100</span></p>` +
+    meter(ev.score, 'Evidence score out of 100') +
+    '<p class="vet-muted">Every check combined into one number. n/a = that check could not be made.</p>' +
+    (rows ? `<table class="kv-table ev-table"><caption class="sr-only">Evidence score parts</caption>` +
+      `<thead class="sr-only"><tr><th scope="col">Part</th><th scope="col">Score</th><th scope="col" class="expert-only">Weight</th><th scope="col">Detail</th></tr></thead>` +
+      `<tbody>${rows}</tbody></table>` : '');
+}
+
+function linksBlock(det) {
+  const L = Object.assign({}, det.links || {});
+  let note = '';
+  if (!det.links && Number.isFinite(det.ra) && Number.isFinite(det.dec)) {
+    // Older snapshots: build the two links that need no archive-specific query.
+    L.wiseview = `http://byw.tools/wiseview#ra=${det.ra.toFixed(5)}&dec=${det.dec.toFixed(5)}&size=176&band=3&speed=500&minbright=-50&maxbright=500&window=0.5&diff_by_window=0&linear=1&color=&zoom=9&border=1&gaia=1&invert=1&maxdyr=0&scandir=0&neowise=0&diff=0&outer_epochs=0&unique=1&smooth_scan=0&shift=0&pmra=0&pmdec=0`;
+    L.simbad = `https://simbad.cds.unistra.fr/simbad/sim-coo?Coord=${det.ra.toFixed(5)}+${det.dec.toFixed(5)}&Radius=10&Radius.unit=arcsec`;
+    note = '<p class="vet-muted">Links built in the browser (this snapshot has none).</p>';
+  }
+  const out = [];
+  if (L.wiseview) out.push(extLink(L.wiseview, 'Open in WiseView', 'btn btn-primary ext-btn'));
+  const named = [['irsa_finder', 'IRSA Finder Chart'], ['simbad', 'SIMBAD'], ['gaia_mast', 'Gaia (MAST)']];
+  named.forEach(([k, label]) => { if (L[k]) out.push(extLink(L[k], label, 'btn btn-secondary ext-btn')); });
+  if (!out.length) return '<p class="vet-muted">No archive links for this detection.</p>';
+  return `<div class="vet-linkrow">${out.join('')}</div>${note}` +
+    (L.wiseview ? '<p class="vet-muted">WiseView flips through a decade of WISE images of this spot (Backyard Worlds).</p>' : '');
+}
+
+function neowiseBlock(det) {
+  const n = det.neowise;
+  if (!n || !n.n_visits) return '';
+  const w1 = n.w1 || {};
+  const parts = [`${n.n_visits} visits`, n.variable ? 'brightness VARIED' : 'brightness steady'];
+  if (w1.amplitude != null) parts.push(`W1 amplitude ${w1.amplitude} mag`);
+  if (n.pm_significant && Number.isFinite(n.pm_total_masyr)) parts.push(`moves ${fmt.num(n.pm_total_masyr / 1000, 2)}″/yr`);
+  return vetSection('NEOWISE history (2010–2024)', `<p>${parts.map(fmt.escape).join(' · ')}</p>`);
+}
+
+const VOTE_KEY = 'spx-votes';
+function myVotes() {
+  try { return JSON.parse(lsGet(VOTE_KEY, '{}')) || {}; } catch { return {}; }
+}
+
+state.votesUnavailable = false;
+
+function votingAvailable() {
+  return MOCK_V2 || (!!liveBackendBase() && !state.votesUnavailable && offline.mode !== 'offline');
+}
+
+function voteBlock(det) {
+  const id = det.detection_id || '';
+  const mine = myVotes()[id];
+  const ok = votingAvailable() && !!id;
+  const label = { real: 'Real', bogus: 'Bogus', unsure: 'Not sure' };
+  const buttons = ['real', 'bogus', 'unsure'].map((v) =>
+    `<button type="button" class="btn ${v === 'real' ? 'btn-primary' : 'btn-secondary'} vote-btn" data-vote="${v}"` +
+    ` aria-pressed="${mine === v}"${ok ? '' : ' disabled'}>${label[v]}</button>`).join('');
+  const why = !id ? 'This detection has no stable id in this snapshot, so it cannot be voted on.'
+    : !ok ? 'Voting needs the live backend; this copy of the site is pre-rendered.' : '';
+  return `<section class="vet-sec vet-vote" id="vet-vote" aria-labelledby="vet-vote-h">` +
+    `<h3 id="vet-vote-h">Is this real?</h3>` +
+    '<p class="vet-muted">Look at the pictures and the checks, then tell us what you think.</p>' +
+    `<div class="vote-row" role="group" aria-labelledby="vet-vote-h">${buttons}</div>` +
+    `<p class="vote-status" role="status" aria-live="polite">${mine ? `Thanks — you voted “${label[mine]}”. You can change it.` : ''}` +
+    `${why ? `<span class="needs-backend">${why}</span>` : ''}</p></section>`;
+}
+
+async function sendVote(det, vote, root) {
+  const status = root.querySelector('.vote-status');
+  const id = det.detection_id;
+  const target = (state.data && state.data.target) || state.target;
+  const label = { real: 'Real', bogus: 'Bogus', unsure: 'Not sure' }[vote];
+  root.querySelectorAll('[data-vote]').forEach((b) => { b.disabled = true; });
+  if (status) status.textContent = 'Sending your vote…';
+  let ok = false, unavailable = false, problem = '';
+  if (MOCK_V2) {
+    ok = true;                                       // dev mock: nothing is sent
+  } else {
+    try {
+      const resp = await fetch(`${liveBackendBase()}/votes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, detection_id: id, vote }),
+      });
+      if ([404, 405, 501].includes(resp.status)) unavailable = true;
+      else if (!resp.ok) problem = `HTTP ${resp.status}`;
+      else ok = true;
+    } catch (err) {
+      problem = err.message;
+    }
+  }
+  if (ok) {
+    const all = myVotes();
+    all[id] = vote;
+    lsSet(VOTE_KEY, JSON.stringify(all));
+  }
+  if (unavailable) state.votesUnavailable = true;
+  root.querySelectorAll('[data-vote]').forEach((b) => {
+    b.disabled = !votingAvailable();
+    b.setAttribute('aria-pressed', String(ok ? b.dataset.vote === vote : b.getAttribute('aria-pressed') === 'true'));
+  });
+  if (status) {
+    status.textContent = ok
+      ? `Thanks — you voted “${label}”.${MOCK_V2 ? ' (mock mode: not sent)' : ''}`
+      : unavailable ? 'Voting needs the live backend; this server has no vote endpoint.'
+        : `Your vote was not saved (${problem}). Please try again.`;
+  }
+}
+
+function cutoutsBlock(det) {
+  const d = state.data;
+  const pos = det.position;
+  if (!d || !Array.isArray(pos) || !Array.isArray(d.image)) {
+    return '<p class="vet-muted">No image data in this snapshot.</p>';
+  }
+  const half = 12;
+  const size = (2 * half + 1) * ((d.map && d.map.pixscale_arcsec) || 3);
+  const fig = (id, title, desc) => `<figure class="cutout"><canvas id="${id}" role="img" aria-label="${fmt.escape(desc)}"></canvas>` +
+    `<figcaption>${title}</figcaption></figure>`;
+  const gm = gaiaMotion(det);
+  const minus = det.pos_minus || det.position_minus;
+  const notes = [];
+  if (gm) {
+    notes.push(`<span class="arrow-key gaia" aria-hidden="true"></span> Gaia says this star moves ${fmt.num(gm.mu, 2)}″/yr toward the ${compass(gm.pa)}.`);
+  }
+  if (det.kind === 'dipole' && Array.isArray(minus)) {
+    notes.push('<span class="arrow-key measured" aria-hidden="true"></span> The difference shows a dark spot (where it was) and a bright spot (where it is now): the purple arrow joins them.');
+  } else if (det.kind === 'monopole_negative') {
+    notes.push('One dark spot in the difference: the source got fainter.');
+  } else if (det.kind === 'monopole') {
+    notes.push('One bright spot in the difference: the source got brighter, or appeared.');
+  }
+  const mc = det.motion_check;
+  if (mc && Number.isFinite(mc.predicted_arcsec)) {
+    notes.push(`Expected shift over the baseline: ${fmt.num(mc.predicted_arcsec, 1)}″; measured ${mc.measured_arcsec != null ? `${fmt.num(mc.measured_arcsec, 1)}″` : 'n/a'}.`);
+  }
+  return '<div class="cutouts">' +
+    fig('vet-cut-sky', 'Sky (all visits stacked)', `Co-add picture ${size} arcseconds across, centred on the detection` + (gm ? `, with an arrow showing the Gaia motion toward the ${compass(gm.pa)}` : '')) +
+    fig('vet-cut-diff', 'Difference (later − earlier)', `Difference picture ${size} arcseconds across: ${det.kind === 'dipole' ? 'a dark and a bright spot side by side, the sign of motion' : det.kind === 'monopole_negative' ? 'one dark spot, the source got fainter' : 'one bright spot, the source got brighter'}`) +
+    fig('vet-cut-snr', 'Significance (σ)', `Significance picture: the change is ${fmt.num(det.snr, 1)} sigma`) +
+    '</div>' +
+    `<p class="vet-muted">Each picture is ${size}″ across, north up, east left. This snapshot keeps the stacked picture and the difference, not a separate before and after picture for each visit.</p>` +
+    (notes.length ? `<ul class="cutout-notes">${notes.map((n) => `<li>${n}</li>`).join('')}</ul>` : '');
+}
+
+function paintCutouts(det) {
+  const d = state.data;
+  const pos = det.position;
+  if (!d || !Array.isArray(pos) || !Array.isArray(d.image)) return;
+  const [row, col] = pos;
+  const half = 12;
+  const T = chartTheme();
+  const sky = [];
+  const gm = gaiaMotion(det);
+  if (gm) sky.push({ dx: gm.dirX * 8, dy: gm.dirY * 8, colour: T.blue });
+  const diff = [];
+  const minus = det.pos_minus || det.position_minus;
+  if (det.kind === 'dipole' && Array.isArray(minus)) {
+    const dx = col - minus[1], dy = row - minus[0];
+    if (Math.hypot(dx, dy) > 0.5) diff.push({ fromX: -dx, fromY: -dy, dx, dy, colour: '#c4a7ff' });
+  }
+  const sk = $('vet-cut-sky'), df = $('vet-cut-diff'), sn = $('vet-cut-snr');
+  if (sk) drawCutout(sk, d.image, row, col, half, 'coadd', false, sky);
+  if (df) drawCutout(df, d.zogy_image, row, col, half, 'diff', true, diff);
+  if (sn) drawCutout(sn, d.zogy_snr, row, col, half, 'snr', false);
+}
+
+function renderVetCard(index) {
+  const body = $('vet-body');
+  const d = state.data;
+  const det = d && d.detections[index];
+  if (!body || !det) return;
+  const n = d.detections.length;
+  const cat = categoryOf(det);
+  const info = cat ? CATEGORY_INFO[cat] : null;
+  setText('vet-kicker', `${d.common || d.target} · detection ${index + 1} of ${n}`);
+  setText('vet-title', `${info ? info.label : (det.verdict || 'Detection')} · ${kindLabel(det.kind)} · ${fmt.num(det.snr, 1)}σ`);
+  $('vet-prev').disabled = index <= 0;
+  $('vet-next').disabled = index >= n - 1;
+
+  const reasons = (det.reasons || []).length
+    ? `<div class="verdict-flags">${det.reasons.map(formatVerdictFlag).join('')}</div>`
+    : `<p class="vet-muted">${fmt.escape(info ? info.hint : 'No rule notes.')}</p>`;
+  const facts = `<dl class="vet-facts">` +
+    `<div><dt>Position</dt><dd class="mono">${fmt.num(det.ra, 5)}, ${fmt.num(det.dec, 5)}</dd></div>` +
+    `<div><dt>Epochs</dt><dd class="mono">${fmt.escape(det.pair || '--')}${Number.isFinite(det.mjd_a) ? ` (MJD ${fmt.num(det.mjd_a, 1)} → ${fmt.num(det.mjd_b, 1)})` : ''}</dd></div>` +
+    (det.delta_mag != null ? `<div><dt>Brightness</dt><dd class="mono">${det.delta_mag > 0 ? '+' : ''}${det.delta_mag} mag</dd></div>` : '') +
+    (Number.isFinite(det.sign) && det.kind !== 'dipole' ? `<div><dt>Change</dt><dd>${det.sign < 0 ? 'got fainter' : 'got brighter'}</dd></div>` : '') +
+    (Number.isFinite(det.n_pairs_seen) ? `<div><dt>Seen in</dt><dd>${det.n_pairs_seen} epoch pair${det.n_pairs_seen === 1 ? '' : 's'}</dd></div>` : '') +
+    `<div class="expert-only"><dt>ID</dt><dd class="mono">${fmt.escape(det.detection_id || '--')}</dd></div>` +
+    `<div class="expert-only"><dt>Confidence</dt><dd>${fmt.escape(det.confidence || '--')} · priority ${fmt.escape(det.priority ?? '--')}</dd></div>` +
+    '</dl>';
+
+  const showSed = nearTarget(det) && d.sed &&
+    ((d.sed.points || []).concat(d.sed.spherex || [])).some((p) => p.mjy > 0 && p.lam_um > 0);
+
+  body.innerHTML =
+    `<div class="vet-summary">${categoryBadge(det)}<p class="plain-verdict">${fmt.escape(plainVerdict(det))}</p></div>` +
+    '<div class="vet-grid">' +
+      '<div class="vet-col">' +
+        vetSection('Pictures', cutoutsBlock(det)) +
+        vetSection('Why the pipeline says so', reasons + facts) +
+        neowiseBlock(det) +
+        (showSed ? vetSection('Target spectrum / SED',
+          `<figure class="chart vet-sed"><canvas id="vet-sed" role="img" aria-label="${fmt.escape(sedSummary(d.sed))}"></canvas></figure>`) : '') +
+      '</div>' +
+      '<div class="vet-col">' +
+        vetSection('Asteroid check', asteroidBlock(det), det.asteroid && det.asteroid.status === 'unavailable' ? 'is-caution' : '') +
+        vetSection('ML score', mlBlock(det)) +
+        vetSection('Evidence score', evidenceBlock(det)) +
+        vetSection('NEOSSat', neossatBlock(det)) +
+        vetSection('Look it up', linksBlock(det)) +
+        voteBlock(det) +
+      '</div>' +
+    '</div>';
+
+  paintCutouts(det);
+  if (showSed) drawSed(d.sed, 'vet-sed');
+
+  body.querySelectorAll('[data-vote]').forEach((btn) => {
+    btn.addEventListener('click', () => sendVote(det, btn.dataset.vote, body.querySelector('.vet-vote')));
+  });
+  const jump = body.querySelector('[data-jump-vote]');
+  if (jump) {
+    jump.addEventListener('click', (e) => {
+      e.preventDefault();
+      const first = body.querySelector('[data-vote]:not([disabled])') || body.querySelector('#vet-vote-h');
+      if (first) {
+        if (first.tagName === 'H3') first.tabIndex = -1;
+        first.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+        first.focus({ preventScroll: true });
+      }
+    });
+  }
+}
+
+function stepVetCard(delta) {
+  const dets = (state.data && state.data.detections) || [];
+  const next = state.vetIndex + delta;
+  if (next < 0 || next >= dets.length) return;
+  state.vetIndex = next;
+  selectDetection(next);
+  renderVetCard(next);
+  const btn = $(delta < 0 ? 'vet-prev' : 'vet-next');
+  if (btn && btn.disabled) $('vet-title').focus();
+}
+
+// --------------------------------------------------------- help classify
+
+async function loadClassifyQueue() {
+  const list = $('classify-list');
+  const note = $('classify-note');
+  if (!list) return;
+  if (!MOCK_V2 && !liveBackendBase()) {
+    list.innerHTML = '';
+    if (note) note.innerHTML = '<span class="needs-backend">Help classify needs the live backend; this copy of the site is pre-rendered.</span>';
+    return;
+  }
+  if (note) note.textContent = 'Loading…';
+  const res = await fetchV2Json('votes/queue', '?n=10');
+  if (!res.ok) {
+    list.innerHTML = '';
+    if (note) {
+      note.innerHTML = res.status === 404
+        ? '<span class="needs-backend">Help classify needs the live backend (this server has no vote queue yet).</span>'
+        : `Could not load the list (${fmt.escape(res.error || `HTTP ${res.status}`)}).`;
+    }
+    return;
+  }
+  const raw = res.data;
+  const items = Array.isArray(raw) ? raw : (raw && (raw.items || raw.queue || raw.detections)) || [];
+  if (!items.length) {
+    list.innerHTML = '';
+    if (note) note.textContent = 'Nothing to classify right now — thank you!';
+    return;
+  }
+  const votes = myVotes();
+  list.innerHTML = items.slice(0, 10).map((it, i) => {
+    const cat = it.category && CATEGORY_INFO[it.category] ? CATEGORY_INFO[it.category].label : (it.verdict || '');
+    const score = it.ml && Number.isFinite(it.ml.real_bogus) ? it.ml.real_bogus : it.real_bogus;
+    const done = votes[it.detection_id];
+    return `<li class="classify-item">` +
+      `<div><b>${fmt.escape(it.common || String(it.target || '').replace(/_/g, ' '))}</b> · ${fmt.escape(kindLabel(it.kind))}` +
+      `${Number.isFinite(it.snr) ? ` · ${fmt.num(it.snr, 1)}σ` : ''}` +
+      `<div class="vet-muted">${fmt.escape(cat)}${Number.isFinite(score) ? ` · ML ${pct(score)}` : ''}` +
+      `${Number.isFinite(it.ra) ? ` · ${fmt.num(it.ra, 4)}, ${fmt.num(it.dec, 4)}` : ''}` +
+      `${done ? ` · you voted ${fmt.escape(done)}` : ''}</div></div>` +
+      `<button type="button" class="btn btn-secondary" data-classify="${i}">Look at it</button></li>`;
+  }).join('');
+  if (note) note.textContent = `${items.length} detection${items.length === 1 ? '' : 's'} need a human look.`;
+  list.querySelectorAll('[data-classify]').forEach((btn) => {
+    btn.addEventListener('click', () => openQueuedDetection(items[parseInt(btn.dataset.classify, 10)], btn));
+  });
+}
+
+async function openQueuedDetection(item, opener) {
+  if (!item) return;
+  const sel = $('target-select');
+  if (item.target && sel && sel.value !== item.target) {
+    if (![...sel.options].some((o) => o.value === item.target)) {
+      setText('classify-note', `${item.target} is not in this deployment's field list.`);
+      return;
+    }
+    sel.value = item.target;
+    await waitForPipeline();
+    await runPipeline();
+  }
+  const dets = (state.data && state.data.detections) || [];
+  let index = dets.findIndex((d) => d.detection_id && d.detection_id === item.detection_id);
+  if (index < 0 && Number.isFinite(item.ra)) {
+    let best = Infinity;
+    dets.forEach((d, i) => {
+      const sep = historySeparationArcsec(d.ra, d.dec, item.ra, item.dec);
+      if (sep < best && sep < 6) { best = sep; index = i; }
+    });
+  }
+  if (index < 0) {
+    setText('classify-note', 'That detection is not in the current snapshot of its field.');
+    return;
+  }
+  selectDetection(index);
+  openVetCard(index, opener);
+}
+
+// ------------------------------------------------------------ accuracy page
+
+function v2Frame(id) {
+  const canvas = $(id);
+  if (!canvas) return null;
+  const T = chartTheme();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(canvas.clientWidth) || 360, h = Math.round(canvas.clientHeight) || 220;
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = T.bg; ctx.fillRect(0, 0, w, h);
+  const f = { ctx, w, h, left: 44, right: w - 12, top: 14, bottom: h - 34 };
+  f.X = scaler(0, 1, f.left, f.right);
+  f.Y = scaler(0, 1, f.bottom, f.top);
+  ctx.strokeStyle = T.grid; ctx.lineWidth = 1;
+  ctx.font = '11px "DM Mono", ui-monospace, Menlo, monospace';
+  ctx.fillStyle = T.muted;
+  [0, 0.25, 0.5, 0.75, 1].forEach((t) => {
+    ctx.beginPath(); ctx.moveTo(f.left, f.Y(t)); ctx.lineTo(f.right, f.Y(t)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(f.X(t), f.top); ctx.lineTo(f.X(t), f.bottom); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(t.toFixed(t % 1 ? 2 : 0), f.left - 5, f.Y(t) + 4);
+    ctx.textAlign = 'center'; ctx.fillText(t.toFixed(t % 1 ? 2 : 0), f.X(t), f.bottom + 14);
+  });
+  return f;
+}
+
+function axisTitles(f, x, y) {
+  const { ctx } = f;
+  ctx.fillStyle = chartTheme().text;
+  ctx.font = '11px "DM Mono", ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(x, (f.left + f.right) / 2, f.h - 4);
+  ctx.save();
+  ctx.translate(11, (f.top + f.bottom) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(y, 0, 0);
+  ctx.restore();
+}
+
+function drawPrCurve(id, curve) {
+  const f = v2Frame(id);
+  if (!f) return;
+  const pts = (curve || []).filter((p) => Array.isArray(p) && p.length >= 2).sort((a, b) => a[0] - b[0]);
+  const { ctx } = f;
+  ctx.strokeStyle = chartTheme().blue; ctx.lineWidth = 2;
+  ctx.beginPath();
+  pts.forEach(([r, p], i) => { if (i) ctx.lineTo(f.X(r), f.Y(p)); else ctx.moveTo(f.X(r), f.Y(p)); });
+  ctx.stroke();
+  axisTitles(f, 'recall (share of real ones found)', 'precision');
+}
+
+function drawCalibration(id, cal) {
+  const f = v2Frame(id);
+  if (!f) return;
+  const { ctx } = f;
+  const T = chartTheme();
+  ctx.strokeStyle = T.muted; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(f.X(0), f.Y(0)); ctx.lineTo(f.X(1), f.Y(1)); ctx.stroke();
+  ctx.setLineDash([]);
+  const pts = (cal || []).filter((p) => Array.isArray(p) && p.length >= 2);
+  const maxN = Math.max(1, ...pts.map((p) => p[2] || 1));
+  ctx.strokeStyle = T.amber; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  pts.forEach(([pr, ob], i) => { if (i) ctx.lineTo(f.X(pr), f.Y(ob)); else ctx.moveTo(f.X(pr), f.Y(ob)); });
+  ctx.stroke();
+  ctx.fillStyle = T.amber;
+  pts.forEach(([pr, ob, n]) => {
+    ctx.beginPath(); ctx.arc(f.X(pr), f.Y(ob), 2.5 + 4 * Math.sqrt((n || 1) / maxN), 0, Math.PI * 2); ctx.fill();
+  });
+  axisTitles(f, 'ML score said (chance real)', 'turned out real');
+}
+
+function heatColour(v) {
+  const lut = RAMPS.viridis;
+  const k = Math.round(Math.max(0, Math.min(1, v)) * 255) * 3;
+  const rgb = [lut[k], lut[k + 1], lut[k + 2]];
+  const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+  return { bg: `rgb(${rgb.join(',')})`, fg: lum > 0.5 ? '#0b0e12' : '#ffffff' };
+}
+
+function recallHeatmaps(grid) {
+  const cats = [...new Set(grid.map((g) => g.category || 'all'))];
+  return cats.map((cat) => {
+    const cells = grid.filter((g) => (g.category || 'all') === cat);
+    const snrs = [...new Set(cells.map((g) => g.snr))].sort((a, b) => a - b);
+    const mus = [...new Set(cells.map((g) => g.mu))].sort((a, b) => a - b);
+    const head = snrs.map((s) => `<th scope="col">${fmt.escape(s)}</th>`).join('');
+    const body = mus.map((mu) => `<tr><th scope="row">${fmt.escape(mu)}</th>` + snrs.map((s) => {
+      const c = cells.find((g) => g.snr === s && g.mu === mu);
+      if (!c || !Number.isFinite(c.recall)) return '<td class="heat-na">—</td>';
+      const col = heatColour(c.recall);
+      return `<td style="background:${col.bg};color:${col.fg}" title="${c.n ? `${c.n} planted` : ''}">${Math.round(c.recall * 100)}%</td>`;
+    }).join('') + '</tr>').join('');
+    return `<div class="heat-wrap"><table class="heat-table">` +
+      `<caption>${fmt.escape(cat)}: recall by signal strength (columns, SNR) and speed (rows, ″/yr)</caption>` +
+      `<thead><tr><th scope="col"><span class="sr-only">speed \\ SNR</span>μ \\ SNR</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }).join('');
+}
+
+function accuracyTile(label, value, ci, line) {
+  const ciText = Array.isArray(ci) && ci.length === 2
+    ? `<span class="tile-ci">95% CI ${pct(ci[0])}–${pct(ci[1])}</span>` : '';
+  return `<div class="acc-tile"><div class="tile-label">${label}</div>` +
+    `<div class="tile-value">${value}</div>${ciText}<p class="tile-line">${line}</p></div>`;
+}
+
+function modelCard(model, url) {
+  if (!model) return '<p class="vet-muted">No model card published yet.</p>';
+  const rows = Object.entries(model).filter(([k]) => !k.startsWith('_')).map(([k, v]) => {
+    let val;
+    if (Array.isArray(v)) val = v.map((x) => (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(', ');
+    else if (v && typeof v === 'object') val = Object.entries(v).map(([a, b]) => `${a}: ${typeof b === 'object' ? JSON.stringify(b) : b}`).join(' · ');
+    else val = String(v);
+    return `<div><dt>${fmt.escape(k.replace(/_/g, ' '))}</dt><dd>${fmt.escape(val)}</dd></div>`;
+  }).join('');
+  return `<dl class="prov-list model-card">${rows}</dl>` +
+    (url && !MOCK_V2 ? `<p>${extLink(url, 'Model card (JSON)')}</p>` : '');
+}
+
+async function openAccuracy(opener) {
+  const body = $('accuracy-body');
+  openSheet('accuracy', opener);
+  if (!body) return;
+  body.setAttribute('aria-busy', 'true');
+  body.innerHTML = '<p class="vet-muted">Loading the accuracy measurements…</p>';
+  const [metricsRes, modelRes] = await Promise.all([fetchV2Json('metrics'), fetchV2Json('model')]);
+  body.setAttribute('aria-busy', 'false');
+  const m = metricsRes.ok ? metricsRes.data : null;
+  const model = modelRes.ok && modelRes.data && !modelRes.data.error ? modelRes.data : null;
+  if (!m || m.error || (!m.classifier && !m.null_test && !m.injection)) {
+    body.innerHTML = '<div class="empty-state"><h3>No accuracy measurements yet</h3>' +
+      '<p>They appear here once the evaluation has run: it plants fake sources in real SPHEREx images, ' +
+      'runs the pipeline on empty sky to count false alarms, and scores the ML model on fields it never saw.</p>' +
+      `<p class="vet-muted">Source: <code>/api/metrics</code> (${metricsRes.status ? `HTTP ${metricsRes.status}` : 'not reachable'}).</p>` +
+      (model ? `<h3>Model card</h3>${modelCard(model, modelRes.url)}` : '') + '</div>';
+    return;
+  }
+  const c = m.classifier || {};
+  const ci = c.ci95 || {};
+  const nt = m.null_test || {};
+  const inj = m.injection || {};
+  const th = m.threshold || {};
+  const ak = m.answer_key || {};
+  const p = m.pipeline || {};
+  const num2 = (v) => (Number.isFinite(v) ? v.toFixed(2) : '—');
+
+  const tiles = [
+    accuracyTile('Precision', pct(c.precision), ci.precision,
+      Number.isFinite(c.precision) ? `Of everything we flag as real, ${pct(c.precision)} is real.` : 'Not measured yet.'),
+    accuracyTile('Recall', pct(c.recall), ci.recall,
+      Number.isFinite(c.recall) ? `Of all the real ones, we catch ${pct(c.recall)}.` : 'Not measured yet.'),
+    accuracyTile('F1', num2(c.f1), ci.f1, 'One number that balances the two (1.00 is perfect).'),
+    accuracyTile('PR-AUC', num2(c.pr_auc), ci.pr_auc, 'How well the ML score puts real ones ahead of bogus ones (1.00 is perfect).'),
+  ].join('');
+  const facts = [];
+  if (Number.isFinite(nt.false_alarms_per_field)) {
+    facts.push(accuracyTile('False alarms', num2(nt.false_alarms_per_field), null,
+      `On ${nt.n_fields ?? 'several'} patches of empty sky we raised ${num2(nt.false_alarms_per_field)} false alarms per field` +
+      (Number.isFinite(nt.false_alarms_per_deg2) ? ` (${num2(nt.false_alarms_per_deg2)} per square degree).` : '.')));
+  }
+  if (Number.isFinite(inj.recall_overall)) {
+    facts.push(accuracyTile('Planted sources found', pct(inj.recall_overall), null,
+      `Of the fake sources we planted in real images, we found ${pct(inj.recall_overall)}.`));
+  }
+  if (Number.isFinite(ak.recall)) {
+    facts.push(accuracyTile('Known objects found', pct(ak.recall), null,
+      `Of ${ak.n ?? 'the'} known real objects in our answer key, we found ${pct(ak.recall)}.`));
+  }
+  if (Number.isFinite(th.sigma)) {
+    facts.push(accuracyTile('Threshold', `${fmt.num(th.sigma, 1)}σ`, null,
+      `We only flag changes stronger than ${fmt.num(th.sigma, 1)}σ` +
+      (th.method ? ` (chosen by ${fmt.escape(th.method)}).` : '.')));
+  }
+
+  const pr = c.pr_curve || [];
+  const cal = c.calibration || [];
+  const calGap = cal.length
+    ? cal.reduce((best, x) => (Math.abs(x[1] - x[0]) > Math.abs(best[1] - best[0]) ? x : best), cal[0]) : null;
+  const prMid = pr.length ? pr.reduce((best, x) => (Math.abs(x[0] - 0.9) < Math.abs(best[0] - 0.9) ? x : best), pr[0]) : null;
+  const prText = prMid ? `Precision-recall curve: at ${pct(prMid[0])} recall the precision is ${pct(prMid[1])}. PR-AUC ${num2(c.pr_auc)}.` : '';
+  const calText = calGap ? `Calibration: points close to the dashed diagonal mean the ML percentage can be taken at face value. ` +
+    `Largest gap: the model said ${pct(calGap[0])} and ${pct(calGap[1])} turned out real.` : '';
+
+  const conf = c.confusion;
+  let confHtml = '';
+  if (conf && Array.isArray(conf.matrix) && Array.isArray(conf.labels)) {
+    const L = conf.labels;
+    confHtml = '<table class="conf-table"><caption>Confusion matrix (rows: true label, columns: what the model said)</caption>' +
+      `<thead><tr><th scope="col"><span class="sr-only">true \\ predicted</span></th>${L.map((l) => `<th scope="col">said ${fmt.escape(l)}</th>`).join('')}</tr></thead><tbody>` +
+      conf.matrix.map((row, i) => `<tr><th scope="row">really ${fmt.escape(L[i])}</th>${row.map((v, j) =>
+        `<td class="${i === j ? 'conf-ok' : 'conf-bad'}">${fmt.escape(v)}</td>`).join('')}</tr>`).join('') +
+      '</tbody></table>';
+  }
+  const byClass = ak.by_class && Object.keys(ak.by_class).length
+    ? '<table class="kv-table"><caption class="vet-muted">Answer-key recall by kind of object</caption><tbody>' +
+      Object.entries(ak.by_class).map(([k, v]) => `<tr><th scope="row">${fmt.escape(k.replace(/_/g, ' '))}</th><td class="mono">${pct(v)}</td></tr>`).join('') +
+      '</tbody></table>' : '';
+
+  body.innerHTML =
+    `<p class="acc-lead">How often SPHERExLens is right, measured on fake sources planted in real images, on empty sky, and on fields the model never trained on.</p>` +
+    `<p class="vet-muted mono">pipeline ${fmt.escape(p.pipeline_version || '?')} · config ${fmt.escape(p.config_hash || '?')} · model ${fmt.escape(p.model_version || 'none')}` +
+    `${m.generated_utc ? ` · measured ${fmt.escape(formatTimestamp(m.generated_utc))}` : ''}${c.split ? ` · split: ${fmt.escape(c.split)}` : ''}</p>` +
+    (MOCK_V2 ? '<p class="needs-backend">Mock numbers (?mock=v2) — not a real measurement.</p>' : '') +
+    `<h3>The ML model</h3><div class="acc-tiles">${tiles}</div>` +
+    (facts.length ? `<h3>The whole pipeline</h3><div class="acc-tiles">${facts.join('')}</div>` : '') +
+    '<div class="acc-charts">' +
+      (pr.length ? `<figure class="chart acc-chart"><figcaption>Precision vs recall</figcaption><canvas id="acc-pr" role="img" aria-label="${fmt.escape(prText)}"></canvas><p class="chart-summary">${fmt.escape(prText)}</p></figure>` : '') +
+      (cal.length ? `<figure class="chart acc-chart"><figcaption>Calibration: is “90%” really 90%?</figcaption><canvas id="acc-cal" role="img" aria-label="${fmt.escape(calText)}"></canvas><p class="chart-summary">${fmt.escape(calText)}</p></figure>` : '') +
+    '</div>' +
+    (confHtml || byClass ? `<div class="acc-tables">${confHtml}${byClass}</div>` : '') +
+    ((inj.grid || []).length ? `<h3>Where we find planted sources</h3><p class="vet-muted">Recall in each box: faint (left) to bright (right), slow (top) to fast (bottom). Darker boxes = fewer found.</p><div class="heat-grid">${recallHeatmaps(inj.grid)}</div>` : '') +
+    `<h3>Model card</h3>${modelCard(model, modelRes.url)}`;
+
+  state.accCurves = { pr, cal };
+  if (pr.length) drawPrCurve('acc-pr', pr);
+  if (cal.length) drawCalibration('acc-cal', cal);
+}
+
+// ---------------------------------------------------------------- credits
+
+const CREDITS_FALLBACK = [
+  { name: 'NASA/IPAC Infrared Science Archive (IRSA)', provides: 'SPHEREx Level-2 images; WISE, AllWISE and NEOWISE photometry',
+    licence: 'NASA data, no usage restrictions; acknowledgement requested', url: 'https://irsa.ipac.caltech.edu/',
+    text: 'This research has made use of the NASA/IPAC Infrared Science Archive, which is funded by the National Aeronautics and Space Administration and operated by the California Institute of Technology. SPHEREx is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, funded by NASA. WISE is a joint project of UCLA and JPL/Caltech, funded by NASA; NEOWISE is a project of JPL/Caltech funded by NASA’s Planetary Science Division.' },
+  { name: 'ESA Gaia (DPAC)', provides: 'Gaia DR3 positions, proper motions and variability flags',
+    licence: 'CC BY-SA 3.0 IGO', url: 'https://www.cosmos.esa.int/gaia',
+    text: 'This work has made use of data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). Funding for the DPAC has been provided by national institutions, in particular the institutions participating in the Gaia Multilateral Agreement.' },
+  { name: 'STScI MAST', provides: 'Gaia catalogue links (MAST Portal)',
+    licence: 'public archive; acknowledgement requested', url: 'https://archive.stsci.edu/',
+    text: 'Links to the Mikulski Archive for Space Telescopes (MAST) at the Space Telescope Science Institute.' },
+  { name: 'JPL Solar System Dynamics', provides: 'Small-Body Database (SBDB) and SB Identification asteroid check',
+    licence: 'NASA data, no usage restrictions', url: 'https://ssd.jpl.nasa.gov/',
+    text: 'Asteroid identifications use the JPL Small-Body Identification service and Small-Body Database (NASA/JPL Solar System Dynamics).' },
+  { name: 'Canadian Astronomy Data Centre (CADC)', provides: 'SSOIS asteroid check; NEOSSat archive',
+    licence: 'see CADC terms of use', url: 'https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/',
+    text: 'This research used the facilities of the Canadian Astronomy Data Centre operated by the National Research Council of Canada with the support of the Canadian Space Agency. SSOIS: Gwyn, Hill & Kavelaars (2012).' },
+  { name: 'Canadian Space Agency — NEOSSat', provides: 'NEOSSat images',
+    licence: 'Open Government Licence – Canada', url: 'https://open.canada.ca/en/open-government-licence-canada',
+    text: 'Contains information licensed under the Open Government Licence – Canada (NEOSSat data, Canadian Space Agency).' },
+  { name: 'AAVSO VSX via CDS VizieR', provides: 'variable-star catalogue',
+    licence: 'see AAVSO and CDS terms', url: 'https://www.aavso.org/vsx/',
+    text: 'This research has made use of the International Variable Star Index (VSX) database, operated at AAVSO, Cambridge, Massachusetts, USA, and of the VizieR catalogue access tool, CDS, Strasbourg, France (DOI: 10.26093/cds/vizier). SIMBAD links: CDS, Strasbourg.' },
+  { name: 'WiseView (byw.tools / Backyard Worlds)', provides: 'the “Open in WiseView” image blinker',
+    licence: 'external tool, linked only', url: 'http://byw.tools/wiseview',
+    text: 'WiseView: Caselden et al. (2018), built for the Backyard Worlds: Planet 9 citizen-science project.' },
+];
+
+function normaliseCredits(data) {
+  const list = Array.isArray(data) ? data
+    : (data && (data.sources || data.credits || data.items)) || null;
+  if (!Array.isArray(list) || !list.length) return null;
+  return list.map((c) => (typeof c === 'string' ? { name: c } : {
+    name: c.name || c.title || c.source || 'Data source',
+    provides: c.provides || c.data || c.what || '',
+    licence: c.licence || c.license || '',
+    url: c.url || c.link || '',
+    text: c.text || c.acknowledgement || c.acknowledgment || c.citation || '',
+  }));
+}
+
+async function openCredits(opener) {
+  const body = $('credits-body');
+  openSheet('credits', opener);
+  if (!body) return;
+  const res = await fetchV2Json('credits');
+  const list = (res.ok && normaliseCredits(res.data)) || CREDITS_FALLBACK;
+  const from = res.ok && normaliseCredits(res.data) ? '' : '<p class="vet-muted">Built-in list (the server did not provide <code>/api/credits</code>).</p>';
+  body.innerHTML = '<p>SPHERExLens is an independent project. It is not endorsed by NASA, ESA, the Canadian Space Agency or any data provider, and it uses no agency insignia.</p>' +
+    from + '<ul class="credits-list">' + list.map((c) =>
+    `<li><h3>${fmt.escape(c.name)}</h3>` +
+      (c.provides ? `<p><b>Used for:</b> ${fmt.escape(c.provides)}</p>` : '') +
+      (c.licence ? `<p><b>Licence:</b> ${fmt.escape(c.licence)}</p>` : '') +
+      (c.text ? `<p class="vet-muted">${fmt.escape(c.text)}</p>` : '') +
+      (c.url ? `<p>${extLink(c.url, fmt.escape(c.url.replace(/^https?:\/\//, '').replace(/\/$/, '')))}</p>` : '') +
+    '</li>').join('') + '</ul>';
+}
+
+// ------------------------------------------------------------- deep fields
+// GET /api/deep (list) and /api/deep/{name}: forced-photometry light curves of
+// every catalogued star in a SPHEREx deep field (Phase 7).
+
+MOCK_FILES.deep = 'dev/mock_deep.json';
+state.deep = { field: null, source: -1 };
+
+function deepFlags(s) {
+  const out = [];
+  if (s.variable) out.push('<span class="vf-tag vf-warn">VARIABLE</span>');
+  else if (s.variable_self) out.push('<span class="vf-tag vf-mute" title="varies against its own median, but not against the field ensemble">SELF-VAR</span>');
+  if (s.period && s.period.significant) out.push('<span class="vf-tag vf-info">PERIODIC</span>');
+  if (s.motion && s.motion.significance > 5) out.push('<span class="vf-tag vf-ok">MOVING</span>');
+  return out.join(' ') || '<span class="vet-muted">steady</span>';
+}
+
+function drawDeepCurve(id, lc) {
+  const canvas = $(id);
+  if (!canvas || !lc || !(lc.mjd || []).length) return;
+  const T = chartTheme();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(canvas.clientWidth) || 600, h = Math.round(canvas.clientHeight) || 200;
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = T.bg; ctx.fillRect(0, 0, w, h);
+  const pts = lc.mjd.map((m, i) => [m, (lc.ratio || [])[i], (lc.ratio_err || [])[i] || 0])
+    .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  if (!pts.length) return;
+  const xs = pts.map((p) => p[0]);
+  const lo = Math.min(...pts.map((p) => p[1] - p[2]));
+  const hi = Math.max(...pts.map((p) => p[1] + p[2]));
+  const pad = (hi - lo) * 0.08 || 0.05;
+  const X = scaler(Math.min(...xs), Math.max(...xs), 52, w - 12);
+  const Y = scaler(lo - pad, hi + pad, h - 30, 12);
+  ctx.strokeStyle = T.grid; ctx.fillStyle = T.muted;
+  ctx.font = '11px "DM Mono", ui-monospace, Menlo, monospace';
+  [lo - pad, (lo + hi) / 2, hi + pad].forEach((v) => {
+    ctx.beginPath(); ctx.moveTo(52, Y(v)); ctx.lineTo(w - 12, Y(v)); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(v.toFixed(2), 47, Y(v) + 4);
+  });
+  if (1 > lo - pad && 1 < hi + pad) {
+    ctx.strokeStyle = T.muted; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(52, Y(1)); ctx.lineTo(w - 12, Y(1)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.textAlign = 'left'; ctx.fillText(`MJD ${Math.min(...xs).toFixed(0)}`, 52, h - 10);
+  ctx.textAlign = 'right'; ctx.fillText(`${Math.max(...xs).toFixed(0)}`, w - 12, h - 10);
+  ctx.textAlign = 'center'; ctx.fillText('flux / own median', w / 2, h - 10);
+  ctx.strokeStyle = T.blue; ctx.fillStyle = T.blue; ctx.lineWidth = 1;
+  pts.forEach(([m, r, e]) => {
+    const x = X(m);
+    if (e) { ctx.beginPath(); ctx.moveTo(x, Y(r - e)); ctx.lineTo(x, Y(r + e)); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(x, Y(r), 2.2, 0, Math.PI * 2); ctx.fill();
+  });
+}
+
+function renderDeepSource(i) {
+  const f = state.deep.field;
+  const s = f && f.sources[i];
+  const out = $('deep-source');
+  if (!s || !out) return;
+  state.deep.source = i;
+  const lc = s.lightcurve || {};
+  const ratios = (lc.ratio || []).filter(Number.isFinite);
+  const rms = ratios.length ? Math.sqrt(ratios.reduce((a, r) => a + (r - 1) ** 2, 0) / ratios.length) : null;
+  const per = s.period || {};
+  const mo = s.motion || {};
+  const summary = `${s.id}: ${ratios.length} measurements; scatter ${rms !== null ? `${(rms * 100).toFixed(1)}%` : 'n/a'} around its median` +
+    (per.significant ? `; repeats every ${fmt.num(per.period_days, 2)} days` : '') +
+    (mo.significance > 5 ? `; moves (${fmt.num(Math.hypot(mo.pm_ra, mo.pm_dec), 0)} mas/yr)` : '') + '.';
+  out.innerHTML = `<h3>${fmt.escape(s.id)}</h3><p>${deepFlags(s)}</p>` +
+    `<figure class="chart deep-chart"><canvas id="deep-lc" role="img" aria-label="${fmt.escape(`Light curve. ${summary}`)}"></canvas>` +
+    `<p class="chart-summary">${fmt.escape(summary)}</p></figure>` +
+    '<dl class="prov-list">' +
+    `<div><dt>Position</dt><dd class="mono">${fmt.num(s.ra, 5)}, ${fmt.num(s.dec, 5)}${Number.isFinite(s.gmag) ? ` · G ${fmt.num(s.gmag, 2)}` : ''}</dd></div>` +
+    `<div><dt>Period</dt><dd class="mono">${per.period_days ? `${fmt.num(per.period_days, 3)} d · FAP ${Number(per.fap).toExponential(1)}${per.significant ? '' : ' (not significant)'}` : 'none found'}</dd></div>` +
+    `<div><dt>Motion</dt><dd class="mono">${Number.isFinite(mo.pm_ra) ? `${fmt.num(mo.pm_ra, 1)}, ${fmt.num(mo.pm_dec, 1)} mas/yr · ${fmt.num(mo.significance, 1)}σ` : 'n/a'}</dd></div>` +
+    (Number.isFinite(s.ensemble_chi2_median) ? `<div><dt>Field χ² median</dt><dd class="mono">${fmt.num(s.ensemble_chi2_median, 2)}</dd></div>` : '') +
+    '</dl>';
+  drawDeepCurve('deep-lc', lc);
+}
+
+async function loadDeepField(name) {
+  const body = $('deep-fields-out');
+  if (!body) return;
+  body.innerHTML = '<p class="vet-muted">Loading…</p>';
+  let res;
+  if (MOCK_V2) {
+    const r = await fetch('dev/mock_deep_field.json', { cache: 'no-store' });
+    res = { ok: r.ok, status: r.status, data: r.ok ? await r.json() : null };
+  } else {
+    res = await fetchV2Json(`deep/${encodeURIComponent(name)}`);
+  }
+  if (!res.ok || !res.data || !Array.isArray(res.data.sources)) {
+    body.innerHTML = `<p class="vet-muted">Could not load ${fmt.escape(name)} (${res.status ? `HTTP ${res.status}` : 'not reachable'}).</p>`;
+    return;
+  }
+  const f = res.data;
+  const rank = (s) => (s.variable ? 0 : 4) + ((s.period || {}).significant ? 0 : 2) + ((s.motion || {}).significance > 5 ? 0 : 1);
+  f.sources.sort((a, b) => rank(a) - rank(b));
+  state.deep.field = f;
+  const rows = f.sources.slice(0, 200).map((s, i) => `<tr><td>${fmt.escape(s.id)}</td>` +
+    `<td>${Number.isFinite(s.gmag) ? fmt.num(s.gmag, 1) : '—'}</td><td>${deepFlags(s)}</td>` +
+    `<td>${(s.period || {}).significant ? `${fmt.num(s.period.period_days, 2)} d` : '—'}</td>` +
+    `<td><button type="button" class="row-btn" data-deep-src="${i}" aria-label="Show the light curve of ${fmt.escape(s.id)}">Light curve</button></td></tr>`).join('');
+  body.innerHTML =
+    `<p>${fmt.escape(f.name)}: ${f.n_exposures_used ?? '?'} exposures, ${f.n_analysed ?? f.sources.length} stars measured — ` +
+    `<b>${f.n_variable ?? 0}</b> variable, <b>${f.n_periodic ?? 0}</b> periodic, <b>${f.n_moving ?? 0}</b> moving.</p>` +
+    (f.method ? `<p class="vet-muted">${fmt.escape(f.method)}</p>` : '') +
+    (MOCK_V2 ? '<p class="needs-backend">Mock data (?mock=v2).</p>' : '') +
+    '<div class="deep-grid"><div class="table-wrap deep-table-wrap"><table class="objects-table deep-table">' +
+    '<caption class="sr-only">Stars in this deep field, the interesting ones first</caption>' +
+    '<thead><tr><th scope="col">Star</th><th scope="col">G</th><th scope="col">Flags</th><th scope="col">Period</th><th scope="col"><span class="sr-only">Light curve</span></th></tr></thead>' +
+    `<tbody>${rows}</tbody></table></div><div id="deep-source" class="deep-source"></div></div>`;
+  body.querySelectorAll('[data-deep-src]').forEach((btn) => {
+    btn.addEventListener('click', () => renderDeepSource(parseInt(btn.dataset.deepSrc, 10)));
+  });
+  if (f.sources.length) renderDeepSource(0);
+}
+
+async function openDeep(opener) {
+  openSheet('deep', opener);
+  const body = $('deep-body');
+  if (!body) return;
+  body.innerHTML = '<p class="vet-muted">Loading the deep-field list…</p>';
+  const res = await fetchV2Json('deep');
+  const fields = res.ok && res.data && Array.isArray(res.data.fields) ? res.data.fields : [];
+  if (!fields.length) {
+    body.innerHTML = '<div class="empty-state"><h3>No deep fields yet</h3><p>SPHEREx looks at its two deep fields near the ecliptic poles hundreds of times. ' +
+      'When the deep-field run has been done, every star there gets a light curve, and this page lists the ones that vary, repeat or move.</p>' +
+      `<p class="vet-muted">Source: <code>/api/deep</code> (${res.status ? `HTTP ${res.status}` : 'not reachable'}).</p></div>`;
+    return;
+  }
+  body.innerHTML = '<div class="deep-pick"><label for="deep-select">Deep field</label> ' +
+    `<select id="deep-select" class="control-select">${fields.map((f) =>
+      `<option value="${fmt.escape(f.name)}">${fmt.escape(f.name)} (${f.n_variable ?? 0} variable)</option>`).join('')}</select></div>` +
+    '<div id="deep-fields-out"></div>';
+  $('deep-select').addEventListener('change', (e) => loadDeepField(e.target.value));
+  loadDeepField(fields[0].name);
+}
+
+// ------------------------------------------------------------------ wiring
+
+function attachV2Ui() {
+  applyMode(lsGet(MODE_KEY, 'public'));
+  document.querySelectorAll('#mode-switch .seg').forEach((btn) => {
+    btn.addEventListener('click', () => applyMode(btn.dataset.mode));
+  });
+  attachSheets();
+  $('btn-accuracy')?.addEventListener('click', (e) => openAccuracy(e.currentTarget));
+  $('btn-credits')?.addEventListener('click', (e) => openCredits(e.currentTarget));
+  $('btn-deep')?.addEventListener('click', (e) => openDeep(e.currentTarget));
+  $('vet-prev')?.addEventListener('click', () => stepVetCard(-1));
+  $('vet-next')?.addEventListener('click', () => stepVetCard(1));
+  $('btn-win-classify')?.addEventListener('click', () => {
+    // runs before the generic window toggle: load once it is visible
+    setTimeout(() => {
+      if (!$('win-classify').classList.contains('hidden')) loadClassifyQueue();
+    }, 0);
+  });
+  document.querySelectorAll('.chart canvas').forEach((c) => {
+    if (!c.getAttribute('role')) c.setAttribute('role', 'img');
+    if (!c.getAttribute('aria-label')) c.setAttribute('aria-label', 'Chart: no data loaded yet.');
+  });
+  if (MOCK_V2) {
+    document.body.classList.add('is-mock');
+    setText('field-hint', 'mock data (?mock=v2): every v2 field is synthetic');
+  }
+  // Repaint the accuracy charts at their new size.
+  let t = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      const curves = state.accCurves;
+      if (!curves || !$('accuracy') || $('accuracy').classList.contains('hidden')) return;
+      if ($('acc-pr')) drawPrCurve('acc-pr', curves.pr);
+      if ($('acc-cal')) drawCalibration('acc-cal', curves.cal);
+    }, 200);
+  });
+}
+
 // ------------------------------------------------------- demo / reset / init
 
 function toggleDemo() {
@@ -3828,11 +5386,13 @@ function toggleDemo() {
     state.demo = null;
     btn.classList.remove('active');
     btn.textContent = 'Auto Demo';
+    btn.setAttribute('aria-pressed', 'false');
     setText('footer-status', 'auto demo stopped');
     return;
   }
   btn.classList.add('active');
   btn.textContent = 'Stop Demo';
+  btn.setAttribute('aria-pressed', 'true');
   const advance = () => {
     const sel = $('target-select');
     const n = sel.options.length;
@@ -3840,8 +5400,11 @@ function toggleDemo() {
     refreshSelectedTarget();
   };
   advance();
-  state.demo = setInterval(advance, 12000);
-  setText('footer-status', 'auto demo: cycling targets every 12 s');
+  // Reduced motion: the page changes less often (WCAG 2.2.2 -- the same
+  // button stops it at any time; it never starts on its own).
+  const every = prefersReducedMotion() ? 30000 : 12000;
+  state.demo = setInterval(advance, every);
+  setText('footer-status', `auto demo: cycling targets every ${every / 1000} s — press Stop Demo to stop`);
 }
 
 function resetAll() {
@@ -4232,9 +5795,12 @@ function attachUiEvents() {
   const snapshotSelect = $('snapshot-select');
   if (snapshotSelect) {
     snapshotSelect.addEventListener('change', async (event) => {
+      // Read the chosen manifest before stopping playback: stopSnapshotPlayback
+      // re-renders the control (and therefore rewrites select.value) when a
+      // replay is running.
+      const manifest = event.target.value;
       stopSnapshotPlayback();
       await waitForPipeline();
-      const manifest = event.target.value;
       if (!manifest) {
         await runPipeline();
         return;
@@ -4303,8 +5869,22 @@ function attachUiEvents() {
   if (gc2) gc2.addEventListener('click', closeGuide);
   if (guide) {
     guide.addEventListener('click', (e) => { if (e.target === guide) closeGuide(); });
-    document.querySelectorAll('.guide-tab').forEach((tab) => {
+    guide.addEventListener('keydown', (e) => trapFocus(guide, e));
+    const tabs = [...document.querySelectorAll('.guide-tab')];
+    tabs.forEach((tab, i) => {
       tab.addEventListener('click', () => showGuideTab(tab.dataset.tab));
+      // WAI-ARIA tabs: arrow keys move between tabs, Home / End jump.
+      tab.addEventListener('keydown', (e) => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        let next = null;
+        if (step) next = tabs[(i + step + tabs.length) % tabs.length];
+        if (e.key === 'Home') next = tabs[0];
+        if (e.key === 'End') next = tabs[tabs.length - 1];
+        if (!next) return;
+        e.preventDefault();
+        showGuideTab(next.dataset.tab);
+        next.focus();
+      });
     });
   }
   document.addEventListener('keydown', (e) => {
@@ -4383,6 +5963,7 @@ function attachUiEvents() {
 }
 
 async function init() {
+  attachV2Ui();
   attachUiEvents();
   attachMapEvents();
   attachHistoryEvents();
@@ -4497,8 +6078,8 @@ function drawHistogram(hist) {
     const x = plotLeft + i * bw;
     const hgt = (plotBottom - plotTop) * (c / max);
     const centre = hist.edges[i] + (hist.edges[i + 1] - hist.edges[i]) / 2;
-    ctx.fillStyle = Math.abs(centre) > 5 ? chartTheme().red : chartTheme().blue;
-    ctx.globalAlpha = Math.abs(centre) > 5 ? 0.9 : 0.6;
+    ctx.fillStyle = Math.abs(centre) > (hist.threshold || 6) ? chartTheme().red : chartTheme().blue;
+    ctx.globalAlpha = Math.abs(centre) > (hist.threshold || 6) ? 0.9 : 0.6;
     ctx.fillRect(x + 0.5, plotBottom - hgt, Math.max(1, bw - 1), hgt);
   });
   ctx.globalAlpha = 1;
@@ -4549,6 +6130,9 @@ function drawRecoveryChart(grid) {
   if (wrap) wrap.classList.toggle('hidden', !hasGrid);
   if (diag) diag.classList.toggle('has-3', !hasGrid);
   if (!hasGrid) return;
+  const mean = grid.reduce((a, g) => a + (g.recovery || 0), 0) / grid.length;
+  chartLabel('chart-recovery', `Injection recovery: ${grid.length} cells, mean ${Math.round(mean * 100)}% ` +
+    'of planted sources recovered; recovery rises with SNR. Open the Recovery window for the table.');
   const f = chartFrame('chart-recovery', 'recovered % vs SNR');
   if (!f) return;
   const { ctx, plotBottom, plotTop, plotLeft, plotRight } = f;
@@ -4594,8 +6178,8 @@ function scaler(lo, hi, a, b) {
 }
 
 // W6: Gaia + AllWISE photometry and the SPHEREx aperture spectrum, log-log.
-function drawSed(sed) {
-  const f = chartFrame('chart-sed', 'flux density (mJy) vs λ (µm), log-log');
+function drawSed(sed, canvasId = 'chart-sed') {
+  const f = chartFrame(canvasId, 'flux density (mJy) vs λ (µm), log-log');
   if (!f) return;
   const cat = (sed && sed.points) || [];
   const sph = ((sed && sed.spherex) || []).filter((p) => p.mjy > 0);
@@ -4705,6 +6289,13 @@ function renderHistory(data) {
 
   if (hasSed) drawSed(sed);
   if (hasNw) drawLightCurve(nw, data.epochs);
+  if (hasSed) chartLabel('chart-sed', sedSummary(sed));
+  if (hasNw) {
+    const yrs = visits.map((v) => v.year).filter(Number.isFinite);
+    chartLabel('chart-neowise', `Infrared light curve: ${visits.length} AllWISE/NEOWISE visits` +
+      (yrs.length ? ` from ${Math.min(...yrs).toFixed(0)} to ${Math.max(...yrs).toFixed(0)}` : '') +
+      '. Dashed lines mark the SPHEREx visits. The notes below give the numbers.');
+  }
 
   const notes = [];
   const queriedAt = nw.generated_utc
@@ -4765,4 +6356,26 @@ function renderCharts(data) {
            (data.epoch_pairs || []).map((p) => p.n_detections),
            chartTheme().green, 'detections per pair');
   drawRecoveryChart(state.recovery);
+
+  // Text alternatives for the canvas charts (WCAG 1.1.1).
+  const h = data.histogram;
+  if (h && h.counts && h.counts.length) {
+    const total = h.counts.reduce((a, b) => a + b, 0);
+    const beyond = h.counts.reduce((a, c, i) => {
+      const centre = h.edges[i] + (h.edges[i + 1] - h.edges[i]) / 2;
+      return a + (Math.abs(centre) > (h.threshold || 6) ? c : 0);
+    }, 0);
+    chartLabel('chart-hist', `Significance histogram: ${total} pixels from ${h.edges[0]} to ` +
+      `${h.edges[h.edges.length - 1]} sigma; ${beyond} pixels lie beyond the ` +
+      `${h.threshold || 6} sigma detection threshold (shown in red).`);
+  } else {
+    chartLabel('chart-hist', 'Significance histogram: no data.');
+  }
+  const pairs = data.epoch_pairs || [];
+  chartLabel('chart-noise', pairs.length
+    ? `Noise per epoch pair: ${pairs.map((p) => `${p.pair} ${(p.sigma_a * 1000).toFixed(1)}`).join(', ')} (thousandths of MJy/sr).`
+    : 'Noise per epoch: no data.');
+  chartLabel('chart-pairs', pairs.length
+    ? `Detections per epoch pair: ${pairs.map((p) => `${p.pair} ${p.n_detections}`).join(', ')}.`
+    : 'Detections per epoch pair: no data.');
 }

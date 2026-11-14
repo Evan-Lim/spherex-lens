@@ -25,6 +25,8 @@ jobs:
         env:
           SPHEREX_ARCHIVE_CACHE: "false"
         run: python -m pytest -q
+      - name: Frontend service-worker and catalogue tests
+        run: node --test tests/test_service_worker.mjs tests/test_catalog_helpers.mjs
       - name: Metrics regression gate
         # Compares eval/metrics.json against eval/baseline_metrics.json; the
         # gate is skipped (exit 0) until a baseline has been committed.

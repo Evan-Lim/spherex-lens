@@ -1,0 +1,230 @@
+{
+  "targets": [
+    {
+      "target": "Barnards_Star",
+      "common": "Barnard's Star",
+      "ra": 269.452083,
+      "dec": 4.693333,
+      "n_epoch1": 2,
+      "n_epoch2": 2,
+      "sigma1": 1000000.0,
+      "sigma2": 1000000.0,
+      "detections": 2,
+      "known": 1,
+      "candidates": 1,
+      "dipoles": 1,
+      "monopoles": 1,
+      "max_snr": 12.53,
+      "ch4": 1.05,
+      "h2o": 0.89,
+      "nir_slope": -0.56,
+      "spectral_label": "M-dwarf / Mira red giant"
+    },
+    {
+      "target": "Epsilon_Indi_B",
+      "common": "Epsilon Indi B",
+      "ra": 331.04375,
+      "dec": -56.782778,
+      "n_epoch1": 2,
+      "n_epoch2": 2,
+      "sigma1": 1000000.0,
+      "sigma2": 1000000.0,
+      "detections": 2,
+      "known": 1,
+      "candidates": 1,
+      "dipoles": 1,
+      "monopoles": 1,
+      "max_snr": 13.2,
+      "ch4": 1.83,
+      "h2o": 0.64,
+      "nir_slope": 0.42,
+      "spectral_label": "T-type brown dwarf"
+    },
+    {
+      "target": "RW_Aurigae",
+      "common": "RW Aurigae",
+      "ra": 76.95625,
+      "dec": 30.401389,
+      "n_epoch1": 2,
+      "n_epoch2": 2,
+      "sigma1": 1000000.0,
+      "sigma2": 1000000.0,
+      "detections": 2,
+      "known": 0,
+      "candidates": 2,
+      "dipoles": 1,
+      "monopoles": 1,
+      "max_snr": 12.99,
+      "ch4": 0.83,
+      "h2o": 0.54,
+      "nir_slope": 0.32,
+      "spectral_label": "Dusty T Tauri / variable star"
+    },
+    {
+      "target": "R_Draconis",
+      "common": "R Draconis",
+      "ra": 248.1675,
+      "dec": 66.754722,
+      "n_epoch1": 2,
+      "n_epoch2": 2,
+      "sigma1": 1000000.0,
+      "sigma2": 1000000.0,
+      "detections": 3,
+      "known": 0,
+      "candidates": 3,
+      "dipoles": 1,
+      "monopoles": 2,
+      "max_snr": 12.95,
+      "ch4": 1.06,
+      "h2o": 0.92,
+      "nir_slope": -0.57,
+      "spectral_label": "M-dwarf / Mira red giant"
+    },
+    {
+      "target": "WISE_0855",
+      "common": "WISE 0855",
+      "ra": 133.795129,
+      "dec": -7.245147,
+      "n_epoch1": 2,
+      "n_epoch2": 2,
+      "sigma1": 1000000.0,
+      "sigma2": 1000000.0,
+      "detections": 2,
+      "known": 0,
+      "candidates": 2,
+      "dipoles": 1,
+      "monopoles": 1,
+      "max_snr": 12.96,
+      "ch4": 2.74,
+      "h2o": 0.85,
+      "nir_slope": 1.01,
+      "spectral_label": "Ultracool Y-dwarf"
+    }
+  ],
+  "extras": {
+    "detail_target": "WISE_0855",
+    "clean_pixel_fraction": 96.483,
+    "recovery_grid": [
+      {
+        "snr": 3,
+        "mu": 1,
+        "recovery": 0.0
+      },
+      {
+        "snr": 3,
+        "mu": 2,
+        "recovery": 0.0
+      },
+      {
+        "snr": 3,
+        "mu": 5,
+        "recovery": 0.0
+      },
+      {
+        "snr": 3,
+        "mu": 10,
+        "recovery": 0.0
+      },
+      {
+        "snr": 5,
+        "mu": 1,
+        "recovery": 0.0
+      },
+      {
+        "snr": 5,
+        "mu": 2,
+        "recovery": 0.0
+      },
+      {
+        "snr": 5,
+        "mu": 5,
+        "recovery": 0.0
+      },
+      {
+        "snr": 5,
+        "mu": 10,
+        "recovery": 0.0
+      },
+      {
+        "snr": 7,
+        "mu": 1,
+        "recovery": 0.0
+      },
+      {
+        "snr": 7,
+        "mu": 2,
+        "recovery": 0.0
+      },
+      {
+        "snr": 7,
+        "mu": 5,
+        "recovery": 0.0
+      },
+      {
+        "snr": 7,
+        "mu": 10,
+        "recovery": 0.0
+      },
+      {
+        "snr": 10,
+        "mu": 1,
+        "recovery": 0.0
+      },
+      {
+        "snr": 10,
+        "mu": 2,
+        "recovery": 0.0
+      },
+      {
+        "snr": 10,
+        "mu": 5,
+        "recovery": 0.0
+      },
+      {
+        "snr": 10,
+        "mu": 10,
+        "recovery": 0.0
+      },
+      {
+        "snr": 15,
+        "mu": 1,
+        "recovery": 0.0
+      },
+      {
+        "snr": 15,
+        "mu": 2,
+        "recovery": 0.0
+      },
+      {
+        "snr": 15,
+        "mu": 5,
+        "recovery": 0.0
+      },
+      {
+        "snr": 15,
+        "mu": 10,
+        "recovery": 0.0
+      },
+      {
+        "snr": 20,
+        "mu": 1,
+        "recovery": 0.0
+      },
+      {
+        "snr": 20,
+        "mu": 2,
+        "recovery": 0.0
+      },
+      {
+        "snr": 20,
+        "mu": 5,
+        "recovery": 0.0
+      },
+      {
+        "snr": 20,
+        "mu": 10,
+        "recovery": 0.0
+      }
+    ]
+  }
+}

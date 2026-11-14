@@ -18,7 +18,7 @@ const SHELL_FILES = ['./', 'index.html', 'app.js', 'style.css',
   'assets/icons/logo-spherex-lens.svg'];
 const DATA_PATH = /\/(?:api|live-api)\/(targets|dashboard|status|recovery|mosaic)$/;
 const HISTORY_PREFIX = '/__spx/obj/history-dashboard/';
-const HISTORY_FRAME_LIMIT = 8;   // per device; each frame is a full dashboard
+const HISTORY_FRAME_LIMIT = 8;   // per field; each frame is a full dashboard
 const FONT_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
 
 self.addEventListener('install', (event) => {
@@ -37,6 +37,16 @@ self.addEventListener('activate', (event) => {
     const names = await caches.keys();
     await Promise.all(names.filter((n) => n.startsWith('spx-') && !keep.has(n))
       .map((n) => caches.delete(n)));
+    // v19 changed the history-frame key from <manifest> to <target>/<manifest>.
+    // Drop frames written under the old, field-less key so a stale WISE 0855
+    // copy can never be matched again.
+    const data = await caches.open(DATA_CACHE);
+    const oldFrames = (await data.keys()).filter((request) => {
+      const path = new URL(request.url).pathname;
+      if (!path.startsWith(HISTORY_PREFIX)) return false;
+      return !path.slice(HISTORY_PREFIX.length).includes('/');
+    });
+    await Promise.all(oldFrames.map((request) => data.delete(request)));
     await self.clients.claim();
   })());
 });
@@ -70,11 +80,19 @@ function withTimeout(promise, ms) {
   });
 }
 
+// A historical dashboard is identified by (field, published manifest): every
+// field has its own dashboard object inside the same manifest, so the field
+// must be part of the key.  Without it, the first field whose frame was saved
+// (WISE 0855, the default target) was served for every other field.
+function historyFrameKey(target, snapshot) {
+  return `${HISTORY_PREFIX}${encodeURIComponent(target || 'unknown')}/` +
+    encodeURIComponent(snapshot);
+}
+
 async function fromSavedCopy(kind, target, snapshot) {
   const cache = await caches.open(DATA_CACHE);
   if (snapshot && kind === 'dashboard') {
-    const savedFrame = await cache.match(
-      `${HISTORY_PREFIX}${encodeURIComponent(snapshot)}`);
+    const savedFrame = await cache.match(historyFrameKey(target, snapshot));
     if (savedFrame) {
       const headers = new Headers(savedFrame.headers);
       headers.set('X-SPX-Source', 'offline-copy');
@@ -99,8 +117,8 @@ async function saveLabelled(kind, target, response, snapshot) {
   const object = response.headers.get('X-Snapshot-Object');
   const manifest = response.headers.get('X-Snapshot-Manifest');
   let key = null;
-  if (snapshot && kind === 'dashboard')
-    key = `${HISTORY_PREFIX}${encodeURIComponent(snapshot)}`;
+  if (snapshot && kind === 'dashboard' && target)
+    key = historyFrameKey(target, snapshot);
   else if (object && kind !== 'status')
     key = `/__spx/obj/${kind}/${encodeURIComponent(object)}`;
   else if (manifest && kind === 'status' && target) {
@@ -119,15 +137,17 @@ async function saveLabelled(kind, target, response, snapshot) {
       'X-SPX-Saved-At': new Date().toISOString(),
     },
   }));
-  if (key.startsWith(HISTORY_PREFIX)) await pruneHistoryFrames(cache);
+  if (key.startsWith(HISTORY_PREFIX)) await pruneHistoryFrames(cache, target);
 }
 
 // Historical dashboards are immutable, so a saved frame is always correct.
-// Keep only the most recently saved few to stay well inside browser quota.
-async function pruneHistoryFrames(cache) {
+// Keep only the most recently saved few per field to stay well inside browser
+// quota without one field's playback evicting another field's frames.
+async function pruneHistoryFrames(cache, target) {
+  const prefix = `${HISTORY_PREFIX}${encodeURIComponent(target || 'unknown')}/`;
   const keys = await cache.keys();
   const history = keys.filter((request) =>
-    new URL(request.url).pathname.startsWith(HISTORY_PREFIX));
+    new URL(request.url).pathname.startsWith(prefix));
   while (history.length > HISTORY_FRAME_LIMIT) {
     const oldest = history.shift();
     await cache.delete(oldest);
