@@ -512,3 +512,17 @@ def test_s8_netlify_signature_gates_the_visitor_header(monkeypatch):
     assert g.trusted_client_ip(old, "x") == "198.51.100.7"
     none_alg = dict(base, **{"x-nf-sign": tok("s3cret", {"iss": "netlify"}, alg="none")})
     assert g.trusted_client_ip(none_alg, "x") == "198.51.100.7"
+
+
+def test_cloud_run_never_switches_to_forwarding_to_itself(monkeypatch):
+    """2026-11-14 outage: one Forbidden on Cloud Run flipped the API into
+    'api' mode, which forwards every request to SNAPSHOT_API = itself."""
+    import app
+    monkeypatch.setenv("K_SERVICE", "spherex-lens-api")
+    monkeypatch.setitem(app._SNAPSHOT_MODE, "value", None)
+    app._use_snapshot_api("Forbidden")
+    assert app._SNAPSHOT_MODE["value"] is None
+    monkeypatch.delenv("K_SERVICE")
+    app._use_snapshot_api("Forbidden")                 # a laptop may switch
+    assert app._SNAPSHOT_MODE["value"] == "api"
+    monkeypatch.setitem(app._SNAPSHOT_MODE, "value", None)

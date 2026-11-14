@@ -193,6 +193,8 @@ resource "google_cloud_run_v2_service" "api" {
         value = google_storage_bucket.snapshots.name
       }
       env {
+        # Read the bucket directly, never "auto": in auto mode a permission
+        # error made the service forward to itself (2026-11-14 outage).
         name  = "SPHEREX_SNAPSHOT_SOURCE"
         value = "bucket"
       }
@@ -315,6 +317,8 @@ resource "google_cloud_run_v2_service" "live_api" {
         value = google_storage_bucket.snapshots.name
       }
       env {
+        # Read the bucket directly, never "auto": in auto mode a permission
+        # error made the service forward to itself (2026-11-14 outage).
         name  = "SPHEREX_SNAPSHOT_SOURCE"
         value = "bucket"
       }

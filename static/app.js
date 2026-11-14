@@ -94,7 +94,7 @@ function syncBackendUi() {
     if (el) el.disabled = !fieldOk;
   });
   if (fieldHint && isOffline) {
-    fieldHint.textContent = 'offline \u2014 only coordinates saved in History can be opened';
+    fieldHint.textContent = `${offlineWhy()} \u2014 only fields saved in History can be opened`;
     fieldHint.classList.add('hint-warn');
     fieldHint.dataset.offline = 'true';
   } else if (fieldHint && !ok) {
@@ -285,7 +285,7 @@ function renderCloudFreshness(status, running) {
   let text = 'no snapshot';
   if (status.status === 'offline') {
     state = 'offline';
-    text = 'offline';
+    text = deviceOffline() ? 'offline' : 'server down';
   } else if (running || status.awaiting_requested_run) {
     state = 'refreshing';
     text = running ? `refreshing ${completed}/${total}` : 'starting refresh';
@@ -298,7 +298,9 @@ function renderCloudFreshness(status, running) {
   badge.title = state === 'overdue'
     ? 'The published snapshot is older than one 12-hour cycle plus 2 h; a scheduled run was missed or failed.'
     : (state === 'offline'
-      ? 'No connection to the Cloud snapshot: showing the copy saved on this device.'
+      ? (deviceOffline()
+        ? 'This device is offline: showing the copy saved on this device.'
+        : 'The SPHEREx-Lens server is not answering (your internet is fine): showing the copy saved on this device.')
       : '');
 
   const progress = $('cloud-refresh-progress');
@@ -516,6 +518,17 @@ async function requestCloudRefresh(event) {
   }
 }
 
+// Two different situations used to be both called "offline": the visitor's
+// own internet being down, and the SPHEREx-Lens server not answering (as in
+// the 2026-11-14 outage).  The browser knows which one it is.
+function deviceOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function offlineWhy() {
+  return deviceOffline() ? 'This device is offline' : 'The server is not answering';
+}
+
 // ------------------------------------------------------------ offline copy
 //
 // The browser keeps a complete copy of the latest Cloud snapshot so the site
@@ -609,10 +622,10 @@ function renderOfflineCopy() {
   let text;
   if (offline.mode === 'offline') {
     text = offline.meta
-      ? `No connection · showing the copy saved on this device (${offlineSavedText()}). ` +
-        'Reconnecting automatically.'
-      : 'No connection, and no offline copy is saved on this device yet. ' +
-        'Open the site once while connected to save one.';
+      ? `${offlineWhy()} · showing the copy saved on this device (${offlineSavedText()}). ` +
+        'Retrying automatically.'
+      : `${offlineWhy()}, and no copy is saved on this device yet. ` +
+        'Open the site once while it works to save one.';
   } else if (offline.syncing && offline.total) {
     text = `Saving offline copy on this device: ${offline.saved}/${offline.total} files…`;
   } else if (offline.note) {
@@ -3314,7 +3327,7 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null,
               ? `Loaded from cache (${formatTimestamp(data.generated_at)})`
               : 'Loaded from local cache')));
     setStatus(savedEntry ? 'HISTORY \u00b7 SAVED'
-      : offlineView ? 'OFFLINE \u00b7 SNAPSHOT'
+      : offlineView ? (deviceOffline() ? 'OFFLINE \u00b7 SAVED COPY' : 'SERVER DOWN \u00b7 SAVED COPY')
         : snapshotMeta ? `SNAPSHOT \u00b7 ${snapshotMeta.latest ? 'READY' : 'HISTORY'}`
           : data.source === 'scheduled' ? 'SNAPSHOT \u00b7 READY'
             : 'CACHE \u00b7 READY', offlineView || savedEntry ? 'busy' : undefined);
@@ -3373,14 +3386,14 @@ async function openFieldAt(ra, dec, name) {
   if (saved && await openHistoryEntry(saved)) {
     const when = formatTimestamp(saved.saved_at);
     if (offline.mode === 'offline' || !backendAvailable()) {
-      setText('field-hint', `saved result from ${when} (offline: opened from History)`);
+      setText('field-hint', `saved result from ${when} (${offlineWhy().toLowerCase()}: opened from History)`);
       return true;
     }
     if (saved.fingerprint) params.known = saved.fingerprint;
     setText('field-hint', `saved result from ${when} shown · checking IRSA for new images…`);
   } else if (offline.mode === 'offline') {
     setText('field-hint',
-      'offline, and these coordinates are not in History \u2014 new fields need IRSA');
+      `${offlineWhy().toLowerCase()}, and these coordinates are not in History \u2014 new fields need IRSA`);
     return false;
   }
   if (!backendAvailable()) {

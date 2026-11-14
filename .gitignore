@@ -47,3 +47,12 @@ data_cache/deep/
 data_cache/archive_cache/
 data_cache/votes/
 ml/data/
+
+# Never commit (2026-11-14 clean-up; these were committed by mistake in daaface):
+# downloaded archive data and caches -- rebuilt by step1_ingest.py / eval
+data_cache/
+# Terraform plan files embed a copy of the state (emails, billing account ID)
+cloud/terraform/*.plan
+*.tfplan
+# local agent scratch worktrees
+.claude/worktrees/
