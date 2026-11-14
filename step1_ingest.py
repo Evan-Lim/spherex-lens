@@ -19,10 +19,12 @@ returns only the region around the target (~5 MB, ~117x117 px at 6.15"/px).
 
 Output: data_cache/<target>_meta.json and data_cache/*.fits
 
-Run: python step1_ingest.py [--collection spherex_qr2] [--size 0.2]
+Run: python step1_ingest.py [--collection spherex_dr1] [--size 0.2]
 """
 
 import os
+
+import config
 import json
 import time
 import argparse
@@ -159,7 +161,7 @@ def parse_votable(xml_bytes):
     return rows
 
 
-def query_sia2(ra, dec, radius_deg=0.1, collection="spherex_qr2", retries=3,
+def query_sia2(ra, dec, radius_deg=0.1, collection=config.SPHEREX_COLLECTION, retries=3,
                use_cache=True):
     """
     SIA2 cone search for SPHEREx Level-2 spectral images (obs_collection,
@@ -477,11 +479,17 @@ def describe_sources(paths, epochs, rows, collection, size_deg):
     return sources
 
 
-def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
+def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection=config.SPHEREX_COLLECTION,
                              size_deg=0.2, bands=DEFAULT_BANDS,
-                             epoch_mode="all", overwrite=False, rows=None):
+                             epoch_mode="all", overwrite=False, rows=None,
+                             keep_per_slot=1):
     """
     Query SIA2 for SPHEREx Level-2 images and download validated cutouts.
+
+    keep_per_slot: how many validated exposures to keep per (epoch, band).
+    1 (default, what the dashboards and the cloud refresh use) keeps the best
+    one; 2+ is what the null test needs -- it splits one epoch's exposures in
+    two halves and subtracts them (Phase 4.1).
 
     For every (epoch, band) slot the candidate images are tried in order of
     footprint-centre distance until one yields a cutout that contains the target
@@ -493,7 +501,8 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
     if rows is None:
         rows = query_sia2(ra, dec, radius_deg=radius_deg, collection=collection)
     slots, n_epochs = select_exposures(rows, ra, dec, bands=bands,
-                                       epoch_mode=epoch_mode)
+                                       epoch_mode=epoch_mode,
+                                       per_slot=max(2, 3 * keep_per_slot))
     print(f"  {n_epochs} epoch(s), {len(slots)} (epoch, band) slot(s).")
 
     paths = []
@@ -504,6 +513,7 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
             key=lambda r: _separation_deg(ra, dec,
                                           float(r.get("s_ra", ra)),
                                           float(r.get("s_dec", dec))))
+        kept = 0
         for row in ordered:
             fname = download_cutout(row, ra, dec, size_deg=size_deg,
                                     overwrite=overwrite)
@@ -516,7 +526,10 @@ def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection="spherex_qr2",
                       f"({os.path.basename(fname)})")
                 paths.append(fname)
                 epochs.append(epoch)
-                break
+                kept += 1
+                if kept >= keep_per_slot:
+                    break
+                continue
             print(f"    rejected epoch {epoch} {band}: {reason}")
         time.sleep(1)
     return paths, epochs, len(rows), n_epochs
@@ -800,8 +813,20 @@ def download_catalogs_with_status(ra, dec, radius_arcmin=15, strict=False,
     coord = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
     radius_deg = radius_arcmin / 60.0
     tap = {"gaia": query_irsa_tap_gaia, "wise": query_irsa_tap_allwise}
+    mirrors = {}
 
     def one(key):
+        if key == "gaia":
+            # IRSA TAP -> MAST -> VizieR (spherexlens.ingest.gaia); same row
+            # format, and the mirror that answered is recorded.
+            from spherexlens.ingest.gaia import fetch_gaia_with_fallback
+            got = fetch_gaia_with_fallback(ra, dec, radius_deg, limit=GAIA_TAP_LIMIT)
+            mirrors["gaia"] = got.mirror
+            if strict and not got.rows and not got.answered:
+                raise RuntimeError("gaia catalog query failed without a valid response")
+            if progress:
+                progress(key, len(got.rows), got.state)
+            return got.rows, got.state
         tap_ok = False
         rows = []
         if key in tap:
@@ -834,6 +859,8 @@ def download_catalogs_with_status(ra, dec, radius_arcmin=15, strict=False,
 
     out = {key: rows for key, (rows, _) in results.items()}
     status = {key: state for key, (_, state) in results.items()}
+    # which Gaia mirror answered: "irsa", "mast", "vizier:<host>" or None
+    status["gaia_mirror"] = mirrors.get("gaia")
     return out, status
 
 
@@ -846,10 +873,10 @@ def download_catalogs(ra, dec, radius_arcmin=15, strict=False):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def ingest_target(name, collection="spherex_qr2", radius_deg=0.1,
+def ingest_target(name, collection=config.SPHEREX_COLLECTION, radius_deg=0.1,
                   size_deg=0.2, bands=DEFAULT_BANDS, epoch_mode="all",
                   overwrite=False, skip_catalogs=False, rows=None,
-                  catalogs=None, strict_catalogs=False):
+                  catalogs=None, strict_catalogs=False, keep_per_slot=1):
     """Ingest one registered target, optionally using an already-fresh SIA2 listing."""
     meta = dict(TARGETS[name])
     if meta.get("pm_ra") or meta.get("pm_dec"):
@@ -871,6 +898,7 @@ def ingest_target(name, collection="spherex_qr2", radius_deg=0.1,
         epoch_mode=epoch_mode,
         overwrite=overwrite,
         rows=rows,
+        keep_per_slot=keep_per_slot,
     )
     if catalogs is not None:
         cats = catalogs
@@ -900,6 +928,12 @@ def ingest_target(name, collection="spherex_qr2", radius_deg=0.1,
         "sia2_rows": n_rows,
         "n_epochs": n_epochs,
     }
+    if os.environ.get("SPHEREX_CATALOG_PARQUET", "true").lower() != "false":
+        try:        # versioned Parquet copy (additive: JSON stays the source)
+            from spherexlens.ingest.store import snapshot_meta
+            snapshot_meta(record, {"gaia": {"release": "DR3"}})
+        except Exception as e:
+            print(f"  catalogue snapshot skipped: {type(e).__name__}: {e}")
     with open(os.path.join(CACHE, f"{name}_meta.json"), "w") as f:
         json.dump(record, f, indent=2)
 
@@ -910,8 +944,8 @@ def ingest_target(name, collection="spherex_qr2", radius_deg=0.1,
 
 def main():
     parser = argparse.ArgumentParser(description="Ingest real SPHEREx data.")
-    parser.add_argument("--collection", default="spherex_qr2",
-                        help="SIA2 collection (spherex_qr2 / spherex_qr3)")
+    parser.add_argument("--collection", default=config.SPHEREX_COLLECTION,
+                        help="SIA2 collection (spherex_dr1 / spherex_qr3 / spherex_dr1_deep)")
     parser.add_argument("--radius", type=float, default=0.1,
                         help="SIA2 cone radius in degrees")
     parser.add_argument("--size", type=float, default=0.2,
@@ -923,6 +957,9 @@ def main():
     parser.add_argument("--targets", nargs="*", default=None)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--skip-catalogs", action="store_true")
+    parser.add_argument("--keep-per-slot", type=int, default=1,
+                        help="validated exposures kept per (epoch, band); 2+ "
+                             "enables the null test (spherexlens.eval)")
     args = parser.parse_args()
 
     names = args.targets or list(TARGETS)
@@ -931,7 +968,8 @@ def main():
             name, collection=args.collection, radius_deg=args.radius,
             size_deg=args.size, bands=tuple(args.bands),
             epoch_mode=args.epochs, overwrite=args.overwrite,
-            skip_catalogs=args.skip_catalogs)
+            skip_catalogs=args.skip_catalogs,
+            keep_per_slot=args.keep_per_slot)
         if record is None:
             print("  nothing downloaded -- skipping this target.")
             continue

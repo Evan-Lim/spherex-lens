@@ -1,0 +1,527 @@
+{
+ "_mock": "SPHEREx-Lens dev mock for /api/metrics (?mock=v2). Numbers are invented.",
+ "pipeline": {
+  "pipeline_version": "2.0.0-dev",
+  "config_hash": "a142205b47b8",
+  "model_version": "rb-2026.11.13-1"
+ },
+ "generated_utc": "2026-11-13T05:12:00Z",
+ "threshold": {
+  "sigma": 5.3,
+  "false_alarms_per_field": 0.08,
+  "method": "null-test + BH FDR"
+ },
+ "null_test": {
+  "n_fields": 16,
+  "false_alarms_per_field": 0.08,
+  "false_alarms_per_deg2": 3.5
+ },
+ "injection": {
+  "recall_overall": 0.87,
+  "grid": [
+   {
+    "snr": 5,
+    "mu": 0.5,
+    "category": "mover",
+    "recall": 0.14,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 1,
+    "category": "mover",
+    "recall": 0.26,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 3,
+    "category": "mover",
+    "recall": 0.26,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.22,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 0.5,
+    "category": "mover",
+    "recall": 0.32,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 1,
+    "category": "mover",
+    "recall": 0.59,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 3,
+    "category": "mover",
+    "recall": 0.59,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.5,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 0.5,
+    "category": "mover",
+    "recall": 0.51,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 1,
+    "category": "mover",
+    "recall": 0.92,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 3,
+    "category": "mover",
+    "recall": 0.92,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.79,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 0.5,
+    "category": "mover",
+    "recall": 0.55,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 1,
+    "category": "mover",
+    "recall": 1.0,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 3,
+    "category": "mover",
+    "recall": 1.0,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.85,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 0.5,
+    "category": "mover",
+    "recall": 0.55,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 1,
+    "category": "mover",
+    "recall": 1.0,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 3,
+    "category": "mover",
+    "recall": 1.0,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.85,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 0,
+    "category": "variable",
+    "recall": 0.26,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 0,
+    "category": "variable",
+    "recall": 0.59,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 0,
+    "category": "variable",
+    "recall": 0.92,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 0,
+    "category": "variable",
+    "recall": 1.0,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 0,
+    "category": "variable",
+    "recall": 1.0,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 0.5,
+    "category": "asteroid",
+    "recall": 0.23,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 1,
+    "category": "asteroid",
+    "recall": 0.23,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 3,
+    "category": "asteroid",
+    "recall": 0.23,
+    "n": 50
+   },
+   {
+    "snr": 5,
+    "mu": 10,
+    "category": "asteroid",
+    "recall": 0.15,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 0.5,
+    "category": "asteroid",
+    "recall": 0.53,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 1,
+    "category": "asteroid",
+    "recall": 0.53,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 3,
+    "category": "asteroid",
+    "recall": 0.53,
+    "n": 50
+   },
+   {
+    "snr": 7,
+    "mu": 10,
+    "category": "asteroid",
+    "recall": 0.35,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 0.5,
+    "category": "asteroid",
+    "recall": 0.83,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 1,
+    "category": "asteroid",
+    "recall": 0.83,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 3,
+    "category": "asteroid",
+    "recall": 0.83,
+    "n": 50
+   },
+   {
+    "snr": 10,
+    "mu": 10,
+    "category": "asteroid",
+    "recall": 0.55,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 0.5,
+    "category": "asteroid",
+    "recall": 0.9,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 1,
+    "category": "asteroid",
+    "recall": 0.9,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 3,
+    "category": "asteroid",
+    "recall": 0.9,
+    "n": 50
+   },
+   {
+    "snr": 15,
+    "mu": 10,
+    "category": "asteroid",
+    "recall": 0.6,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 0.5,
+    "category": "asteroid",
+    "recall": 0.9,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 1,
+    "category": "asteroid",
+    "recall": 0.9,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 3,
+    "category": "asteroid",
+    "recall": 0.9,
+    "n": 50
+   },
+   {
+    "snr": 25,
+    "mu": 10,
+    "category": "asteroid",
+    "recall": 0.6,
+    "n": 50
+   }
+  ]
+ },
+ "answer_key": {
+  "n": 41,
+  "recall": 0.78,
+  "by_class": {
+   "high_pm_star": 0.8,
+   "variable": 0.75,
+   "asteroid": 0.79
+  }
+ },
+ "classifier": {
+  "precision": 0.94,
+  "recall": 0.9,
+  "f1": 0.92,
+  "pr_auc": 0.95,
+  "ci95": {
+   "precision": [
+    0.9,
+    0.97
+   ],
+   "recall": [
+    0.85,
+    0.94
+   ],
+   "f1": [
+    0.88,
+    0.95
+   ],
+   "pr_auc": [
+    0.92,
+    0.97
+   ]
+  },
+  "pr_curve": [
+   [
+    0.0,
+    1.0
+   ],
+   [
+    0.05,
+    0.995
+   ],
+   [
+    0.1,
+    0.995
+   ],
+   [
+    0.15,
+    0.995
+   ],
+   [
+    0.2,
+    0.995
+   ],
+   [
+    0.25,
+    0.994
+   ],
+   [
+    0.3,
+    0.993
+   ],
+   [
+    0.35,
+    0.992
+   ],
+   [
+    0.4,
+    0.991
+   ],
+   [
+    0.45,
+    0.99
+   ],
+   [
+    0.5,
+    0.988
+   ],
+   [
+    0.55,
+    0.985
+   ],
+   [
+    0.6,
+    0.982
+   ],
+   [
+    0.65,
+    0.979
+   ],
+   [
+    0.7,
+    0.974
+   ],
+   [
+    0.75,
+    0.97
+   ],
+   [
+    0.8,
+    0.964
+   ],
+   [
+    0.85,
+    0.958
+   ],
+   [
+    0.9,
+    0.951
+   ],
+   [
+    0.95,
+    0.928
+   ],
+   [
+    1.0,
+    0.9
+   ]
+  ],
+  "calibration": [
+   [
+    0.05,
+    0.07,
+    410
+   ],
+   [
+    0.15,
+    0.12,
+    180
+   ],
+   [
+    0.25,
+    0.29,
+    95
+   ],
+   [
+    0.35,
+    0.33,
+    60
+   ],
+   [
+    0.45,
+    0.5,
+    48
+   ],
+   [
+    0.55,
+    0.51,
+    52
+   ],
+   [
+    0.65,
+    0.68,
+    70
+   ],
+   [
+    0.75,
+    0.73,
+    110
+   ],
+   [
+    0.85,
+    0.86,
+    260
+   ],
+   [
+    0.95,
+    0.95,
+    640
+   ]
+  ],
+  "confusion": {
+   "labels": [
+    "real",
+    "bogus"
+   ],
+   "matrix": [
+    [
+     812,
+     90
+    ],
+    [
+     52,
+     1371
+    ]
+   ]
+  },
+  "split": "GroupKFold by field + held-out fields"
+ }
+}

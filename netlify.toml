@@ -21,6 +21,9 @@
   to = "https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api/:splat"
   status = 200
   force = true
+  # S8: Netlify signs proxied requests (X-Nf-Sign) with the Netlify env var
+  # SPHEREX_PROXY_SECRET; the API trusts the visitor IP only when it verifies.
+  signed = "SPHEREX_PROXY_SECRET"
 
 # /data-live-api  → live-pipeline service (concurrency=1).
 #   Used only for the /api/refresh POST trigger (fast ack) and health checks.
@@ -32,6 +35,9 @@
   to = "https://spherex-lens-live-m6cqoypnxa-uc.a.run.app/api/:splat"
   status = 200
   force = true
+  # S8: Netlify signs proxied requests (X-Nf-Sign) with the Netlify env var
+  # SPHEREX_PROXY_SECRET; the API trusts the visitor IP only when it verifies.
+  signed = "SPHEREX_PROXY_SECRET"
 
 # Long-running IRSA jobs use the direct Cloud Run URL because Netlify proxy
 # rewrites time out after 26 seconds. The static shell configures that base.

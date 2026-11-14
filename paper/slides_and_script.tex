@@ -978,6 +978,42 @@ to the raw exposure level using local empirical noise, we refuse to quote a fals
 
 \newpage
 % -------------------------------------------------------------- SLIDE 17 ---
+\slidehead{16b}{Validation, v2: the completeness defect found and fixed}{0:55}
+
+\textbf{On the slide.}
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
+\item Strict test on 18 DR1 fields: real ePSF, random directions, found only within 1.5\,px \emph{and} as the right kind
+\item Null test: two halves of one epoch subtracted -- every detection is a false alarm by construction
+\item Three causes: $S$ divided by its std (one bright residual shrinks everything); fading dips glued to
+      any blob within 75\arcsec; injection SNR ignored resampling-correlated noise ($\times2$)
+\item Fixes: $S/(1.4826\,\mathrm{MAD})$, physical dipole pairing (motion limit, lobes within $2\times$),
+      brightness-scaled IR masks, threshold $6\sigma$ set on the null test
+\end{itemize}
+
+\figbox{\begin{tabular}{lrr}
+\toprule
+ & before v2 & v2, $6\sigma$ \
+\midrule
+Planted objects found & 0.2\,\% & \textbf{69.3\,\%} \
+\quad brightening / fading & -- & 96.7\,\% / 95.3\,\% \
+\quad movers & -- & 56.0\,\% \
+Fake candidates per field (null, after triage) & unmeasured & 1.66 (0 in six star fields) \
+ML, unseen fields: brightening P / R & -- & 0.90 / 0.82 \
+\bottomrule
+\end{tabular}}
+
+\textbf{Spoken script.} The previous slide ended with an honest zero. Here is what it turned out to be.
+We re-measured with a strict test on all eighteen fields of SPHEREx Data Release One, and added a null
+test: subtract two halves of the same epoch, where nothing real can have changed. Three defects explained
+the zero. The significance map was divided by its standard deviation, so one bright star's leftover
+shrank every other signal. Fading stars were paired with unrelated blobs up to seventy-five arcseconds
+away and called movers. And the injected signal-to-noise ignored noise that resampling correlates. With
+those fixed, the detector finds sixty-nine percent of planted objects -- ninety-seven percent of
+brightenings, ninety-five percent of fadings, fifty-six percent of movers -- with about one and a half
+fake candidates per field, mostly in nebulae and galaxies. One honest consequence: Barnard's Star moves
+only five point seven arcseconds in this baseline, less than the telescope's blur, so it is reported as
+a brightness change, not a mover.
+
 \slidehead{17}{Implementation I: Python modules and FastAPI backend}{1:05}
 
 \textbf{On the slide.}

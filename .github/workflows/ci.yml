@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+          pip install pytest httpx pip-audit
+      - name: Dependency audit (S13)
+        run: pip-audit -r requirements.lock --disable-pip --no-deps
+      - name: Tests (offline)
+        env:
+          SPHEREX_ARCHIVE_CACHE: "false"
+        run: python -m pytest -q
+      - name: Metrics regression gate
+        # Compares eval/metrics.json against eval/baseline_metrics.json; the
+        # gate is skipped (exit 0) until a baseline has been committed.
+        run: python -m spherexlens.eval.gate

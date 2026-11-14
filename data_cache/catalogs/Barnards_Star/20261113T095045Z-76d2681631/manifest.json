@@ -1,0 +1,39 @@
+{
+ "target": "Barnards_Star",
+ "snapshot_id": "20261113T095045Z-76d2681631",
+ "version": 2,
+ "created_utc": "2026-11-13T09:50:45Z",
+ "content_sha256": "76d2681631b1452b624274611cb245ef59439927413fe1cb0a6134dc0bca9888",
+ "catalogs": {
+  "gaia": {
+   "source": "Gaia",
+   "mirror": null,
+   "release": "DR3",
+   "status": null,
+   "query_utc": "2026-11-13T09:50:44Z",
+   "rows": 15411,
+   "sha256": "a051eead666a62291d1e3e28c9ef1bdf559e2db40e7a127b996fc616f7ea4525",
+   "file": "gaia.parquet"
+  },
+  "wise": {
+   "source": "AllWISE (allwise_p3as_psd)",
+   "mirror": null,
+   "release": null,
+   "status": null,
+   "query_utc": "2026-11-13T09:50:44Z",
+   "rows": 4617,
+   "sha256": "700c264c245fa0bd83cb20ed6fbb20392ec46d8e1e881ee9c5a83c169bfae931",
+   "file": "wise.parquet"
+  },
+  "vsx": {
+   "source": "AAVSO VSX (B/vsx/vsx)",
+   "mirror": null,
+   "release": null,
+   "status": null,
+   "query_utc": "2026-11-13T09:50:44Z",
+   "rows": 43,
+   "sha256": "cd9aeda3579d53922e7e9d9beaa2be838804a3e769fca12fe271eaf208456bb5",
+   "file": "vsx.parquet"
+  }
+ }
+}

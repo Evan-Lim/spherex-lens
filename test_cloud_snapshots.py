@@ -169,7 +169,9 @@ def test_snapshot_api_reads_published_registered_field(store, monkeypatch):
     monkeypatch.setattr(portal, "live_exposures", failed_live_fetch)
     live_response = portal.get_dashboard(target="Field_A", source="live")
     assert live_response.status_code == 502
-    assert b"IRSA is unavailable" in live_response.body
+    # S7: the step and error type reach the client, the internal text does not
+    assert b"Live fetch from IRSA failed (RuntimeError)" in live_response.body
+    assert b"IRSA is unavailable" not in live_response.body
 
 
 def _asgi_get(asgi_app, path, query=""):

@@ -18,13 +18,126 @@ and a deployable dashboard.
 
 ---
 
+## What v2 adds (execution plan, November 2026)
+
+v2 turns the five-field demo into a measured, production tool. Everything
+below is on branch `exec-plan-v1`; `spherexlens/CONTRACT.md` lists every new
+JSON field and endpoint.
+
+**Data release.** IRSA retired `spherex_qr2`; the default collection is now
+**SPHEREx Data Release 1** (`spherex_dr1`, set once in `config.py`). DR1
+files carry the real PSF (`EPSF`, 21x21 detector zones) and the zodiacal-light
+model (`ZODI`), and both are now used.
+
+### Data sources and what each is used for
+
+| Source | Used for | Module |
+|---|---|---|
+| NASA/IPAC IRSA: SPHEREx DR1 (SIA2, cutouts, public S3 bucket) | images, PSF, ZODI, deep fields | `step1_ingest.py`, `spherexlens/ingest/spherex.py`, `spherexlens/deep/` |
+| IRSA: AllWISE, NEOWISE 2010-2024 | infrared catalogue, 14-year history and motion | `step1_ingest.py`, `step7_neowise.py` |
+| Gaia DR3: IRSA, then **MAST** as fallback | positions, motions, RUWE quality cut, variability | `spherexlens/ingest/gaia.py` |
+| AAVSO VSX (VizieR) | known variable stars | `step1_ingest.py` |
+| **JPL SB Identification + SBDB** | which known asteroids were in the field at each exposure time | `spherexlens/ingest/jpl.py` |
+| **CADC SSOIS** | independent asteroid position check and other images of it | `spherexlens/ingest/ssois.py` |
+| **CSA NEOSSat via CADC** | visible-light confirmation where it has frames | `spherexlens/ingest/cadc.py`, `neossat_clean.py` |
+| **WiseView** (byw.tools) | one-click WISE/NEOWISE flip-book for every detection | `spherexlens/ingest/links.py` |
+
+### The two data paths
+
+```
+ IRSA / Gaia / JPL / CADC ...
+        │
+        ├── A. website: Cloud Run Job (cloud_refresh.py, every 12 h)
+        │      ingest -> co-add -> ZOGY -> triage -> asteroid check -> ML -> evidence
+        │      -> finished dashboards published to Cloud Storage ("snapshots")
+        │      -> API on Cloud Run reads them -> Netlify site
+        │
+        └── B. science work on raw pixels (local data_cache/, or Cloud Run Jobs)
+               null test, injections, ML training, deep-field light curves
+               -> eval/metrics.json and the ML model, committed and shipped
+```
+
+`data_cache/` is only for path B. The website never reads it.
+
+### Detection quality: how it is measured
+
+```powershell
+# 1. data with >= 2 exposures per (epoch, band), so the null test can run
+python step1_ingest.py --keep-per-slot 2
+# 2. null test, strict injections, real-sky answer key, calibrated threshold
+python -m spherexlens.eval.run --cache data_cache --write-threshold
+# 3. real/bogus model (fields held out, calibrated, model card)
+python -m spherexlens.ml.train --labels ml/data/labels.parquet
+```
+
+* **Null test**: two halves of the same epoch are subtracted, so every
+  detection is a false alarm by construction. This gives the false-alarm rate,
+  and the detection threshold is set from it (`eval/threshold.json`).
+* **Strict injection test**: fake movers, brightening and fading sources with
+  the real PSF and random directions. One only counts as found within 1.5 px
+  and with the right kind.
+* **Answer key**: known high-proper-motion Gaia stars, VSX variables and known
+  asteroids in the fields.
+* **CI gate**: `python -m spherexlens.eval.gate` fails a change that lowers
+  precision, recall or PR-AUC (or loses a metric).
+
+<!-- METRICS:START -->
+**Measured on all 18 DR1 fields** (2 exposures per epoch and band, 6 sigma,
+`eval/metrics.json`, model `rb-2026.11.13-1`):
+
+| What | Result |
+|---|---|
+| Planted objects found (strict: right place, right kind) | **69.3 %** overall: brightening **96.7 %**, fading **95.3 %**, movers **56.0 %** (12,240 injections) |
+| Fake CANDIDATEs per field (null test, after triage) | **1.66** overall; 0 in 6 star fields, 0.5 in Barnard's Star / RW Aurigae; highest in nebulae and galaxies (Crab 5.3, Whirlpool 2.1) and Sirius (3.7, too bright for Gaia) |
+| Before the v2 fixes | **0.2 %** of planted objects found |
+| ML real/bogus, 4 fields never seen in training | brightening precision **0.90** / recall **0.82**; fading **0.72** / **0.63** |
+| Known variables (VSX) re-found | 7 of 101: a lower bound, a catalogued variable need not have changed between the two epochs |
+
+The ML's headline held-out score (precision 0.96, PR-AUC 0.99) is
+**inflated by movers**: planted movers are dipoles and null-test artefacts
+almost never are. Quote the per-kind numbers (`ml/MODEL_CARD.md`).
+
+What changed between 0.2 % and 69 %: the significance map is scaled by a
+robust spread so one bright star cannot shrink every other detection; a
+"mover" now needs two halves of similar strength within a physically possible
+distance (fading stars were being glued to unrelated blobs up to 75" away);
+and very bright infrared stars get masks that grow with their brightness.
+<!-- METRICS:END -->
+
+### Other v2 pieces
+
+* **Asteroid check**: categories `KNOWN_ASTEROID` and
+  `POSSIBLE_UNKNOWN_ASTEROID`. If JPL is down the card says "asteroid check
+  unavailable" and never passes silently. Web requests wait at most 25 s
+  (`ASTEROID_TIME_BOX_S`); the cloud refresh waits for every answer.
+* **Fading sources** (`monopole_negative`), real PSF, ZODI subtraction,
+  per-exposure quality score, edge/spike masks, KD-tree de-duplication.
+* **ML** (`spherexlens/ml/`): 22 features, gradient-boosted real/bogus model
+  with calibrated probabilities and per-candidate reasons. It **ranks**
+  candidates and never changes the KNOWN/CANDIDATE verdict. Public votes feed
+  back as labels (`python -m spherexlens.ml.active retrain`).
+* **Evidence score** (`spherexlens/triage/evidence.py`): ML + signal + motion
+  agreement with NEOWISE/Gaia + asteroid check + NEOSSat, each part shown.
+* **Deep fields** (`spherexlens/deep/`): light curves at the ecliptic poles,
+  where DR1 has ~20,800 visits to one spot. Each star's own spectrum is
+  divided out first, because the filter puts every visit at another
+  wavelength. Cloud job `spherex-deep`; results at `/api/deep`.
+* **Website**: vetting card, coverage chips, Accuracy page, public voting,
+  expert downloads (CSV, VOTable, IVOA cone search `/api/cone`), credits,
+  WCAG 2.1 AA pass (`docs/ACCESSIBILITY.md`).
+* **Production**: votes store, `/api/health`, job queue, alerts and uptime
+  check, signed Netlify proxy, hashed lock file, non-root containers
+  (`docs/SECURITY_REVIEW.md`, `cloud/README.md`).
+
+---
+
 ## How much data does it use?
 
 `step1_ingest.py` now ingests **every detector and every epoch** available for a
 target, not just a 2-band subset:
 
 ```bash
-python step1_ingest.py                       # QR2, all six bands, all epochs
+python step1_ingest.py                       # DR1, all six bands, all epochs
 python step1_ingest.py --epochs firstlast    # quick mode: first + last epoch only
 python step1_ingest.py --bands SPHEREx-D1 SPHEREx-D4
 ```
@@ -175,7 +288,7 @@ may therefore be listed in the all-sky map but have no comparable thumbnail.
 `static/` is a two-column RefractID-style console that works in both deployment
 shapes (live FastAPI or pre-rendered static files):
 
-* **Top bar** -- brand, data release (`NEXUS // SPHEREX-QR2`), status pill
+* **Top bar** -- brand, data release (`SPHEREx DR1`), status pill
   (`NORMAL OPS · FIELD LOADED` / amber while running / red on error),
   **Guide**, **Auto Demo** (cycles the fields every 12 s) and **Reset**.
 * **Guide** -- a three-tab explainer written for a non-specialist: *How it works*
@@ -183,6 +296,20 @@ shapes (live FastAPI or pre-rendered static files):
   use it* (a click-by-click walkthrough of the page) and *The words* (a ten-term
   glossary). It is plain HTML inside `index.html`, so it works with no backend and
   ships in the static build; `Esc`, the backdrop or *Got it* closes it.
+* **v2 views** (all optional fields from `spherexlens/CONTRACT.md`; hidden or
+  labelled when a snapshot lacks them):
+  **vetting card** (the *Vet* button on a detection row, *Open vetting card*, or a
+  second click on a map marker) with sky / difference / significance cutouts,
+  Gaia motion arrow, asteroid check, NEOSSat, ML and evidence scores, archive
+  links (WiseView, IRSA Finder, SIMBAD, Gaia at MAST) and an *Is this real?*
+  vote; **coverage chips** under the metric cards; **Accuracy** page
+  (`/api/metrics`, `/api/model`); **Deep fields** light curves (`/api/deep`);
+  **Help classify** (`/api/votes/queue`); **Credits & licences** in the footer;
+  a **Public / Expert** switch (expert adds ML / evidence columns, provenance and
+  CSV / VOTable / cone-search access). Voting, the queue, cone search and the
+  candidate tables need the live backend and say so on the static build.
+  `?mock=v2` loads `static/dev/mock_*.json` to preview every v2 field.
+  Accessibility notes: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md).
 * **/01 Target Control** -- target dropdown, RA/Dec, Run Pipeline, Recovery Grid,
   Copy Share Link, the triage verdict and eleven live statistics (exposures,
   epochs, baseline, noise, 5-sigma depth, field/pixel, catalogue counts,
@@ -440,7 +567,7 @@ the static build (Netlify) and the live server behave identically.
 
 | Product | Archive | Endpoint |
 |---|---|---|
-| SPHEREx Level-2 images/cutouts (QR2, QR3) | NASA/IPAC IRSA | SIA2: `https://irsa.ipac.caltech.edu/SIA` · TAP: `https://irsa.ipac.caltech.edu/TAP` |
+| SPHEREx Level-2 images/cutouts (DR1; earlier QR2, QR3) | NASA/IPAC IRSA | SIA2: `https://irsa.ipac.caltech.edu/SIA` · TAP: `https://irsa.ipac.caltech.edu/TAP` |
 | Gaia DR3 | IRSA TAP (fallback: VizieR) | table `gaia.gaia_dr3_source` · VizieR `I/355/gaiadr3` |
 | AllWISE | IRSA TAP (fallback: VizieR) | table `allwise_p3as_psd` · VizieR `II/328/allwise` (not on the Harvard mirror) |
 | AAVSO VSX | VizieR (Harvard → CDS → NAOJ) | catalog `B/vsx/vsx` (type, period, amplitude, OID) |
@@ -459,14 +586,14 @@ before the event.
 **a) The script in this repo (recommended, does everything):**
 
 ```bash
-python step1_ingest.py                      # QR2, 4 cutouts per target
+python step1_ingest.py                      # DR1 (QR2 was retired by IRSA)
 python step1_ingest.py --collection spherex_qr3 --size 0.15
 ```
 
 `step1_ingest.py` loops over the five mandatory targets and, for each one:
 
 1. issues an **SIA2 cone search** --
-   `https://irsa.ipac.caltech.edu/SIA?POS=CIRCLE ra dec 0.1&COLLECTION=spherex_qr2`
+   `https://irsa.ipac.caltech.edu/SIA?POS=CIRCLE ra dec 0.1&COLLECTION=spherex_dr1`
    -- and parses the returned VOTable into rows (`obs_id`,
    `energy_bandpassname`, `t_min`, `s_region`, `access_url`, ...);
 2. splits the rows into **observing epochs** (gaps > 30 days) and keeps the
@@ -520,7 +647,7 @@ print(table["access_url"])          # one Level-2 FITS file per row
 (`pos=`, `collection=`, `res_format=`). TAP works too for catalogue-style
 queries across the whole mission (`https://irsa.ipac.caltech.edu/TAP`), and
 `Irsa.list_collections()` shows the live list -- currently
-`spherex_qr2`, `spherex_qr2_cal`, `spherex_qr2_deep`, `spherex_qr3`,
+`spherex_dr1`, `spherex_dr1_cal`, `spherex_dr1_deep`, `spherex_dr1_cube`, `spherex_qr3` (November 2026; QR2 retired),
 `spherex_qr3_cal`, `spherex_qr3_deep`.
 
 **d) The IRSA web UI** -- search by position or object name, use the
@@ -727,6 +854,13 @@ Two honest caveats, both visible in the figures:
 | `GET /api/recovery?target=WISE_0855` | Injection-recovery grid (`snr`, `mu`, `recovery`) |
 | `GET /api/field?ra=&dec=&name=` | Register any sky position: streams its cutouts from IRSA, runs the pipeline, adds it to the dropdown/mosaic (RAM only) |
 | `GET /api/mosaic` | One 48x48 significance thumbnail + statistics per cached field, for the all-sky view (cached in RAM for 15 min) |
+| `POST /api/votes` | Public real/bogus/unsure vote on one detection (`{"target","detection_id","vote"}`) |
+| `GET /api/votes/queue?n=10` | Detections to vote on, most uncertain first |
+| `GET /api/candidates.csv`, `GET /api/candidates.votable` | Every triaged detection as a flat table, with provenance |
+| `GET /api/cone?RA=&DEC=&SR=` | IVOA Simple Cone Search 1.03 over the candidates (SR ≤ 1°) |
+| `GET /api/health`, `GET /api/health/live` | Snapshot age + archive probes; liveness (no network) |
+| `GET /api/credits` | Data sources, acknowledgements and licences |
+| `POST /api/jobs/field`, `GET /api/jobs/{id}` | Queued "Open any field" run and its status |
 | `GET /` | Static dashboard (`static/index.html`) |
 
 The `/api/dashboard` response carries 180 x 180 nested arrays for `image`,
@@ -1053,7 +1187,7 @@ spherex-lens/
 * ZOGY needs **two epochs**: `app.py` splits the cached files in half, co-adds
   each half and subtracts the two stacks. Fewer than two files returns a clear
   500 (see Section 8.3 of the blueprint).
-* Detection threshold defaults to 5 sigma (`find_detections(..., sigma_thresh=5.0)`);
+* Detection threshold defaults to **6 sigma** (`config.DETECTION_SIGMA`, chosen on the null test; it was 5 before v2);
   the significance map is normalized by its own standard deviation.
 * Triage radius is 30 arcsec (`MATCH_RADIUS_ARCSEC`), with a 5 arcsec "tight"
   radius that promotes the verdict confidence to `high`.

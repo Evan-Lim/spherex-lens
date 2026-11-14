@@ -1,0 +1,39 @@
+{
+ "target": "Betelgeuse",
+ "snapshot_id": "20261113T101729Z-6b8f891639",
+ "version": 2,
+ "created_utc": "2026-11-13T10:17:29Z",
+ "content_sha256": "6b8f8916395cd7fff9e6cb292bed1dde6360190b304e1b801cf2f1e28bafec21",
+ "catalogs": {
+  "gaia": {
+   "source": "Gaia",
+   "mirror": null,
+   "release": "DR3",
+   "status": null,
+   "query_utc": "2026-11-13T10:17:29Z",
+   "rows": 6140,
+   "sha256": "0e809cf473038dcf4fc9ab5ada9334ecaaa45d8bbae966244e8ef15075da225a",
+   "file": "gaia.parquet"
+  },
+  "wise": {
+   "source": "AllWISE (allwise_p3as_psd)",
+   "mirror": null,
+   "release": null,
+   "status": null,
+   "query_utc": "2026-11-13T10:17:29Z",
+   "rows": 665,
+   "sha256": "11fb9e79f5320de1530e67f35f9d3e2f640631c3edee0028db9db53c97968fe3",
+   "file": "wise.parquet"
+  },
+  "vsx": {
+   "source": "AAVSO VSX (B/vsx/vsx)",
+   "mirror": null,
+   "release": null,
+   "status": null,
+   "query_utc": "2026-11-13T10:17:29Z",
+   "rows": 30,
+   "sha256": "12091388a583ae48e6931fba1f39a2638bb14cf7013dc5f67b3c8df162c22bc8",
+   "file": "vsx.parquet"
+  }
+ }
+}

@@ -172,7 +172,9 @@ MAX_MATCH_ARCSEC = 120.0
 CATALOG_CONE_ARCMIN = 15.0        # step1_ingest queries 15' cones
 BRIGHT_G = 7.0            # Gaia G brighter than this saturates SPHEREx
 BRIGHT_W1 = 5.5           # same for AllWISE W1 (stars are ~1.5 mag brighter in W1)
-MAX_MASK_ARCSEC = 180.0
+# 10': a G~4 / W1~1 star saturates SPHEREx and its halo reaches ~4'
+# (Epsilon Indi A, measured on the null test 2026-11-13).
+MAX_MASK_ARCSEC = 600.0
 
 
 def source_mag(cat, src):
@@ -235,6 +237,14 @@ def bright_mask_radius(cat, src):
         return None
     if m is None or m >= lim:
         return None
+    if cat == "wise":
+        # SPHEREx is an infrared camera, so W1 tracks how much light hits it.
+        # A saturated star's halo falls off steeply with radius, so its reach
+        # grows exponentially with brightness: 30" at the saturation limit,
+        # doubling every 1.5 mag (W1 0.9 -> ~250").  The old linear rule gave
+        # 146" for Epsilon Indi A (W1 0.87), whose halo produced fake
+        # CANDIDATEs at 190-230" in the null test.
+        return min(MAX_MASK_ARCSEC, 30.0 * 10 ** (0.2 * (lim - m)))
     return min(MAX_MASK_ARCSEC, 30.0 + 25.0 * (lim - m))
 
 
@@ -399,6 +409,22 @@ def gaia_distance(src):
     if g is not None and g < 90:
         out["abs_g"] = round(g + 5.0 * math.log10(plx) - 10.0, 2)
     return out
+
+
+def gaia_reliable(src):
+    """
+    False when a Gaia row's astrometry is unreliable: RUWE above
+    config.GAIA_RUWE_MAX (1.4, the usual single-star cut -- higher values
+    flag unresolved binaries or bad fits whose proper motion may be biased).
+    Rows without a RUWE (VizieR-era caches, AllWISE) count as reliable.
+    """
+    import config
+    ruwe = (src or {}).get("ruwe")
+    try:
+        ruwe = float(ruwe)
+    except (TypeError, ValueError):
+        return True
+    return not (math.isfinite(ruwe) and ruwe > config.GAIA_RUWE_MAX)
 
 
 # ---------------------------------------------------------------------------

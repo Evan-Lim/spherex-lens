@@ -228,6 +228,109 @@ cannot modify snapshots. The bucket enforces uniform access and public access
 prevention. Only the API service is public; its published data is the
 application's intended public output.
 
+## v2 changes (Phase 9: production hardening)
+
+What the v2 Terraform adds (all in `cloud/terraform/production.tf`, plus one
+env var and two APIs in `main.tf`):
+
+| Resource | Purpose |
+|---|---|
+| `google_storage_bucket.votes` (`<project>-spherex-votes`) | Public real/bogus votes. Private, uniform access, public access prevention, versioning; noncurrent versions deleted after 30 days; optional age limit (`votes_retention_days`). |
+| `spherexVotesWriter` custom role -> API service account | `objects.create/get/list` only: the API can add votes but never overwrite or delete them. |
+| `roles/storage.objectViewer` on the votes bucket -> worker | The ML training run can read votes. |
+| `SPHEREX_VOTES_BUCKET` env on both Cloud Run services | Turns on GCS vote storage. Without it a production instance answers `POST /api/votes` with 503. |
+| `google_monitoring_uptime_check_config.api_live` | Checks `https://<api>/api/health/live` every 5 minutes. |
+| `google_monitoring_alert_policy.api_down` | Fires when that check fails for 10 minutes. |
+| `google_logging_metric.refresh_job_errors` + `refresh_job_failed` policy | Counts `severity>=ERROR` log lines from the `spherex-refresh` job and alerts on any. |
+| `google_monitoring_notification_channel.email` | Created only when `alert_email` is set; the policies exist either way. |
+| `google_billing_budget.monthly` | Optional: created only when `budget_amount > 0` and `billing_account` is set. Alerts at 50/90/100 % and at a forecast of 100 %. **Budgets alert; they do not cap spend.** |
+
+New variables (`terraform.tfvars`): `alert_email`, `billing_account`,
+`budget_amount`, `votes_retention_days` (see `terraform.tfvars.example`).
+
+New API routes served by the same image: `POST /api/votes`,
+`GET /api/votes/queue`, `GET /api/candidates.csv`,
+`GET /api/candidates.votable`, `GET /api/cone` (IVOA Simple Cone Search),
+`GET /api/health`, `GET /api/health/live`, `GET /api/credits`,
+`POST /api/jobs/field`, `GET /api/jobs/{id}`. Production limits (queue size,
+timeouts, probe TTL, ...) are in `config.Production` and can be overridden with
+`SPHEREX_<NAME>` environment variables (for example `SPHEREX_MAX_CONCURRENT_JOBS=2`).
+The security review is in `docs/SECURITY_REVIEW.md`.
+
+### Commands to apply v2 (run them yourself, from the repository root)
+
+1. Enable the APIs used by the new resources. `terraform apply` also enables
+   `logging` and `monitoring`; doing it first avoids a slow first apply.
+   Add `billingbudgets` only if you will set a budget:
+
+   ```powershell
+   gcloud services enable logging.googleapis.com monitoring.googleapis.com
+   gcloud services enable billingbudgets.googleapis.com   # only for the budget
+   ```
+
+2. Optional settings: add to `cloud/terraform/terraform.tfvars`:
+
+   ```hcl
+   alert_email     = "you@example.com"
+   billing_account = "012345-6789AB-CDEF01"   # gcloud billing accounts list
+   budget_amount   = 20
+   ```
+
+   A budget created with your user login needs the **Billing Account
+   Administrator** (or Costs Manager) role on that billing account.
+
+3. Build a new image with the v2 code (use a new tag; reusing `latest` may not
+   redeploy):
+
+   ```powershell
+   $tag = "v2-prod-20261113"
+   gcloud builds submit --config cloud/cloudbuild.yaml --substitutions="_IMAGE=us-central1-docker.pkg.dev/YOUR_PROJECT_ID/spherex-lens/spherex-lens:$tag" .
+   ```
+
+   Then set `image_tag = "v2-prod-20261113"` in `terraform.tfvars`.
+
+4. Review and apply:
+
+   ```powershell
+   Set-Location cloud\terraform
+   terraform init -upgrade
+   terraform plan -var-file=terraform.tfvars -var="deploy_runtime=true" -out=v2.plan
+   terraform apply v2.plan
+   terraform output votes_bucket
+   ```
+
+   The plan should **add** the votes bucket, custom role, three bucket IAM
+   bindings, the log metric, two alert policies, the uptime check (and the
+   channel or budget if configured), and **update in place** both Cloud Run
+   services (new env var and image). It should destroy nothing. If the plan
+   shows a replacement or destroy, stop and check before applying.
+
+5. Check the deployment:
+
+   ```powershell
+   $api = terraform output -raw api_url
+   curl.exe "$api/api/health/live"
+   curl.exe "$api/api/health"
+   curl.exe "$api/api/credits"
+   curl.exe "$api/api/cone?RA=133.78&DEC=-7.24&SR=0.2"
+   ```
+
+   If you set `alert_email`, confirm the address in the verification email
+   Cloud Monitoring sends.
+
+6. Netlify: no change is needed for the new GET routes, because `/live-api/*`
+   already forwards everything under `/api/`. `POST /api/votes` also goes
+   through the same proxy. Redeploy `site/` only when the frontend changes.
+
+Known limits:
+- The job queue (`/api/jobs/*`) keeps jobs in memory, so a job ID is known
+  only to the instance that accepted it. On the scaled live service, either
+  enable session affinity (`gcloud run services update spherex-lens-live
+  --session-affinity --region us-central1`) or keep using the synchronous SSE
+  route. `SPHEREX_JOBS_BACKEND=cloudrun` is a documented stub (HTTP 501).
+- Rate limits are in memory and per instance (as are the existing slowapi
+  limits). See `docs/SECURITY_REVIEW.md` S8 about forged client headers.
+
 ## Cost and exposure
 
 This is **not guaranteed free**. A 12-hour trigger uses one Scheduler job, but
@@ -249,3 +352,63 @@ if that risk is unacceptable.
 
 Cloud Storage is in `us-central1`, and the API and worker use the same region.
 No cloud resource is created until you run Terraform with your own project.
+
+## S8 signed Netlify proxy (stops forged visitor IPs)
+
+Netlify signs every proxied `/live-api/*` and `/data-live-api/*` request with a
+shared secret (`signed = "SPHEREX_PROXY_SECRET"` in `netlify.toml`); the API
+trusts the visitor-IP header only when that signature verifies.
+
+`site/_redirects` holds the same proxy rules **unsigned**, and Netlify applies
+`_redirects` before `netlify.toml`.  For signing to take effect the proxy rules
+must come from `netlify.toml`: remove the two proxy lines from
+`site/_redirects` and deploy from the repository root (`netlify deploy --prod`,
+which publishes `site/` per `[build] publish`).
+
+1. Create the secret value once and store it in Secret Manager:
+
+   ```powershell
+   $b = New-Object byte[] 32
+   [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+   $secret = [Convert]::ToBase64String($b)
+   $secret | gcloud secrets versions add spherex-proxy-secret --data-file=- --project spherex-lens
+   ```
+
+   (`terraform apply` creates the empty secret first; run this after it.)
+
+2. Netlify: Site configuration -> Environment variables -> add
+   `SPHEREX_PROXY_SECRET` with the same value (scope: Builds, Functions,
+   Runtime / all deploy contexts).  Then redeploy the site.
+
+3. Check the Netlify side reaches the API signed:
+   `curl.exe https://spherex-lens.netlify.app/live-api/health/live`
+   shows `"proxy_signature": "not_configured"` until step 4.
+
+4. Set `proxy_signing = true` in `terraform.tfvars`, `terraform plan` /
+   `apply`.  Now the same curl must show `"proxy_signature": "valid"`; a direct
+   call to the Cloud Run URL shows `"missing_or_invalid"`.
+
+Rollback: `proxy_signing = false` and apply.
+
+## Phase 7: deep-field light curves in the cloud
+
+`terraform apply` (with `deploy_runtime=true`) creates the on-demand job
+`spherex-deep`.  It samples `spherex_dr1_deep` visits over the whole year,
+measures the field's Gaia stars on every visit, and publishes
+`deep/<name>.json` to the snapshot bucket; `/api/deep` serves it.
+
+```powershell
+# default: North Ecliptic Pole, 200 visits
+gcloud run jobs execute spherex-deep --region us-central1 --project spherex-lens
+
+# South Ecliptic Pole (or any position inside the deep footprint)
+gcloud run jobs execute spherex-deep --region us-central1 --project spherex-lens `
+  --args="--name,SEP,--ra,90.0,--dec,-66.56,--max-exposures,200"
+
+# follow it
+gcloud run jobs executions list --job spherex-deep --region us-central1 --project spherex-lens
+```
+
+Cost: a 200-visit run is one task of 2 vCPU / 4 GiB for roughly 1-3 hours
+(mostly waiting on IRSA's cutout service), with no persistent storage beyond
+one small JSON file.  Nothing is scheduled; it runs only when executed.

@@ -11,26 +11,41 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to main content</a>
 
   <!-- ===================== top mission header ===================== -->
   <header class="chrome">
     <div class="chrome-left">
       <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="" width="22" height="22">
-      <span class="brand-name">SPHERExLens</span>
-      <span class="brand-sub">NASA/IPAC IRSA &middot; SPHEREx QR2</span>
+      <h1 class="brand-name">SPHERExLens</h1>
+      <span class="brand-sub">NASA/IPAC IRSA &middot; SPHEREx DR1</span>
     </div>
     <div class="chrome-right">
       <button id="btn-cloud-status" class="status-pill" type="button"
               aria-haspopup="dialog" aria-controls="cloud-dialog"
               title="Cloud snapshot status">
-        <span class="dot" id="status-dot"></span>
+        <span class="dot" id="status-dot" aria-hidden="true"></span>
         <span id="status-text">STANDBY &middot; NO FIELD LOADED</span>
       </button>
-      <button id="btn-guide" class="btn btn-ghost" type="button">Guide</button>
-      <button id="btn-demo" class="btn btn-ghost" type="button">Auto Demo</button>
+      <div class="segmented mode-switch" id="mode-switch" role="group"
+           aria-label="Interface mode">
+        <button class="seg active" data-mode="public" type="button" aria-pressed="true"
+                title="Plain-language verdicts and voting">Public</button>
+        <button class="seg" data-mode="expert" type="button" aria-pressed="false"
+                title="Scores, provenance and data downloads">Expert</button>
+      </div>
+      <button id="btn-accuracy" class="btn btn-ghost" type="button"
+              aria-haspopup="dialog" aria-controls="accuracy">Accuracy</button>
+      <button id="btn-deep" class="btn btn-ghost" type="button"
+              aria-haspopup="dialog" aria-controls="deep">Deep fields</button>
+      <button id="btn-guide" class="btn btn-ghost" type="button"
+              aria-haspopup="dialog" aria-controls="guide">Guide</button>
+      <button id="btn-demo" class="btn btn-ghost" type="button" aria-pressed="false">Auto Demo</button>
       <button id="btn-reset" class="btn btn-ghost" type="button">Reset</button>
     </div>
   </header>
+  <!-- screen-reader copy of the status pill (the pill itself is a button) -->
+  <p id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 
   <!-- ===================== compact horizontal control toolbar ===================== -->
   <nav class="control-bar" aria-label="Target and pipeline controls">
@@ -88,6 +103,10 @@
               data-win="win-recovery" aria-expanded="false" aria-controls="win-recovery">
         Recovery <span id="tc-recovery-sum" class="tool-badge"></span>
       </button>
+      <button type="button" id="btn-win-classify" class="btn btn-tool public-only"
+              data-win="win-classify" aria-expanded="false" aria-controls="win-classify">
+        Help classify
+      </button>
       <button id="btn-export" class="btn btn-tool" type="button"
               title="Copy share link to clipboard">Share</button>
     </div>
@@ -110,7 +129,7 @@
   </div>
 
   <!-- ===================== main scientific workspace ===================== -->
-  <main class="workspace">
+  <main class="workspace" id="main" tabindex="-1">
 
     <!-- compact 4-cell field metrics strip -->
     <section class="cards" aria-label="Field metrics">
@@ -142,6 +161,12 @@
         </div>
         <div class="card-value" id="card-baseline">--</div>
       </div>
+    </section>
+
+    <!-- which archives cover this field (payload.coverage; hidden when absent) -->
+    <section class="coverage-row" id="coverage-row" aria-labelledby="coverage-title" hidden>
+      <h2 class="coverage-title" id="coverage-title">Coverage</h2>
+      <ul class="coverage-chips" id="coverage-chips"></ul>
     </section>
 
     <!-- primary split: sky viewer + triage verdict -->
@@ -204,30 +229,35 @@
           </div>
           <div class="zoom-group">
             <button id="btn-mosaic" type="button" title="Rebuild the all-sky tiles" aria-label="Rebuild the all-sky tiles">&#8635;</button>
-            <button id="zoom-out" type="button" title="Zoom out">&minus;</button>
-            <span id="zoom-label">1.0&times;</span>
-            <button id="zoom-in" type="button" title="Zoom in">+</button>
-            <button id="zoom-fit" type="button" title="Fit to field">Fit</button>
+            <button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
+            <span id="zoom-label" aria-label="Zoom level">1.0&times;</span>
+            <button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+            <button id="zoom-fit" type="button" title="Fit to field" aria-label="Fit the map to the field">Fit</button>
           </div>
         </div>
 
         <div class="map-info" id="map-hint">run pipeline to load</div>
 
-        <div class="map-wrap" title="drag to pan &middot; wheel to zoom &middot; click a marker">
-          <canvas id="canvas-map"></canvas>
-          <div class="map-readout mono" id="map-readout">RA --&middot;--- &nbsp; Dec --&middot;--- &nbsp; --</div>
-          <div class="map-scalebar"><span id="scalebar-line"></span><span id="scalebar-text">--</span></div>
-          <div class="map-tip mono hidden" id="map-tip"></div>
-          <div id="map-loader" class="loader hidden"><div class="spinner"></div></div>
+        <div class="map-wrap" title="drag to pan &middot; wheel to zoom &middot; click a marker, click again to vet it">
+          <canvas id="canvas-map" role="img" aria-label="Field map: no field loaded yet"
+                  aria-describedby="map-summary"></canvas>
+          <div class="map-readout mono" id="map-readout" aria-hidden="true">RA --&middot;--- &nbsp; Dec --&middot;--- &nbsp; --</div>
+          <div class="map-scalebar" aria-hidden="true"><span id="scalebar-line"></span><span id="scalebar-text">--</span></div>
+          <div class="map-tip mono hidden" id="map-tip" aria-hidden="true"></div>
+          <div id="map-loader" class="loader hidden" role="status"><div class="spinner" aria-hidden="true"></div><span class="sr-only">Loading the field&hellip;</span></div>
         </div>
+        <p id="map-summary" class="sr-only">The map is a picture. Every detection on it is listed in the Detections table, where each row has a Vet button.</p>
 
-        <div class="legend">
-          <span class="legend-item"><i class="sw sw-gaia"></i> Gaia DR3</span>
-          <span class="legend-item"><i class="sw sw-vsx"></i> VSX</span>
-          <span class="legend-item"><i class="sw sw-wise"></i> AllWISE</span>
-          <span class="legend-item"><i class="sw sw-target"></i> Target / mover</span>
-          <span class="legend-item"><i class="sw sw-dipole"></i> Dipole</span>
-          <span class="legend-item"><i class="sw sw-monopole"></i> Monopole</span>
+        <div class="legend" aria-label="Map legend">
+          <span class="legend-item"><i class="sw sw-gaia" aria-hidden="true"></i> Gaia DR3</span>
+          <span class="legend-item"><i class="sw sw-vsx" aria-hidden="true"></i> VSX</span>
+          <span class="legend-item"><i class="sw sw-wise" aria-hidden="true"></i> AllWISE</span>
+          <span class="legend-item"><i class="sw sw-target" aria-hidden="true"></i> Target / mover</span>
+          <span class="legend-item"><i class="sw sw-dipole" aria-hidden="true"></i> Dipole (moved)</span>
+          <span class="legend-item"><i class="sw sw-monopole" aria-hidden="true"></i> Monopole (got brighter)</span>
+          <span class="legend-item"><i class="sw sw-fainter" aria-hidden="true"></i> Got fainter</span>
+          <span class="legend-item"><i class="sw sw-asteroid" aria-hidden="true"></i> Known asteroid</span>
+          <span class="legend-item"><i class="sw sw-newast" aria-hidden="true"></i> Possible new asteroid</span>
         </div>
       </div>
 
@@ -256,13 +286,17 @@
         </div>
         <div class="table-wrap">
           <table class="detections-table">
+            <caption class="sr-only">Detections in this field. Each row has a Vet button that opens the vetting card.</caption>
             <thead>
               <tr>
-                <th>RA</th><th>Dec</th><th title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th>Kind</th><th>Verdict</th><th>Match</th><th class="th-unit">&mu; (&Prime;/yr)</th>
+                <th scope="col">RA</th><th scope="col">Dec</th><th scope="col" title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th scope="col">Kind</th><th scope="col">Verdict</th><th scope="col">Match</th><th scope="col" class="th-unit">&mu; (&Prime;/yr)</th>
+                <th scope="col" class="expert-only" title="Machine-learning real/bogus score (calibrated probability that it is real)">ML</th>
+                <th scope="col" class="expert-only" title="Evidence score: all checks combined, 0 to 100">Evid.</th>
+                <th scope="col"><span class="sr-only">Vetting card</span></th>
               </tr>
             </thead>
             <tbody id="detections-body">
-              <tr><td colspan="7" class="empty">No detections yet</td></tr>
+              <tr><td colspan="10" class="empty">No detections yet</td></tr>
             </tbody>
           </table>
         </div>
@@ -341,7 +375,7 @@
       <div class="table-wrap">
         <table class="movers-table">
           <thead>
-            <tr><th>Object</th><th class="th-unit">&mu; (&Prime;/yr)</th><th>Shift (&Prime;)</th><th>Mag</th><th>SPHEREx</th><th>RA, Dec (now)</th></tr>
+            <tr><th scope="col">Object</th><th scope="col" class="th-unit">&mu; (&Prime;/yr)</th><th scope="col">Shift (&Prime;)</th><th scope="col">Mag</th><th scope="col">SPHEREx</th><th scope="col">RA, Dec (now)</th></tr>
           </thead>
           <tbody id="movers-body">
             <tr><td colspan="6" class="empty">Run pipeline to list expected movers</td></tr>
@@ -373,8 +407,8 @@
         <table class="objects-table">
           <thead>
             <tr>
-              <th>Verdict</th><th>RA</th><th>Dec</th><th>Mag</th>
-              <th>Catalogues</th><th>Detected</th><th title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th>Pair</th>
+              <th scope="col">Verdict</th><th scope="col">RA</th><th scope="col">Dec</th><th scope="col">Mag</th>
+              <th scope="col">Catalogues</th><th scope="col">Detected</th><th scope="col" title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th scope="col">Pair</th>
             </tr>
           </thead>
           <tbody id="objects-body">
@@ -392,12 +426,18 @@
       <div class="archive-line" id="archive-line">
         NASA/IPAC IRSA SPHEREx Level-2
       </div>
+      <div class="expert-access expert-only" id="expert-access" aria-labelledby="expert-access-title">
+        <h3 class="expert-access-title" id="expert-access-title">Expert data access</h3>
+        <dl class="prov-list" id="prov-pipeline"></dl>
+        <ul class="download-list" id="download-list"></ul>
+        <p class="hint-inline cone-note" id="cone-note"></p>
+      </div>
       <div class="table-wrap">
         <table class="sources-table">
           <thead>
             <tr>
-              <th>Epoch</th><th>Det</th><th class="th-unit">&lambda; (&micro;m)</th><th>Observation</th>
-              <th>UTC date</th><th>Pixels</th><th>Size</th><th>Archive record</th>
+              <th scope="col">Epoch</th><th scope="col">Det</th><th scope="col" class="th-unit">&lambda; (&micro;m)</th><th scope="col">Observation</th>
+              <th scope="col">UTC date</th><th scope="col">Pixels</th><th scope="col">Size</th><th scope="col">Archive record</th>
             </tr>
           </thead>
           <tbody id="sources-body">
@@ -410,7 +450,9 @@
   </main>
 
   <footer class="footer">
-    <span>SPHEREx Level-2 QR2 &middot; NASA/IPAC IRSA (Caltech) &middot; Gaia DR3, AllWISE &amp; NEOWISE &middot; AAVSO VSX (VizieR)</span>
+    <span>SPHEREx Level-2 DR1 &middot; NASA/IPAC IRSA (Caltech) &middot; Gaia DR3, AllWISE &amp; NEOWISE &middot; AAVSO VSX (VizieR)
+      &middot; <button id="btn-credits" class="link-btn" type="button"
+                      aria-haspopup="dialog" aria-controls="credits">Credits &amp; licences</button></span>
     <span class="mono" id="footer-status">idle</span>
   </footer>
 
@@ -457,20 +499,20 @@
     <div class="win-body">
       <table class="kv-table stats-table">
         <tbody>
-          <tr><th>Exposures</th><td id="stat-exp">--</td></tr>
-          <tr><th>Epochs</th><td id="stat-epochs">--</td></tr>
-          <tr><th>Baseline</th><td id="stat-baseline">--</td></tr>
-          <tr><th>Noise &sigma;<sub>1</sub></th><td id="stat-sigma">--</td></tr>
-          <tr><th>5&sigma; depth</th><td id="stat-depth">--</td></tr>
-          <tr><th>Field / pixel</th><td id="stat-fov">--</td></tr>
-          <tr><th>Gaia &middot; WISE &middot; VSX</th><td id="stat-cats">--</td></tr>
-          <tr title="Gaia stars centroided in the co-add, at the SPHEREx epoch"><th>Astrometry vs Gaia</th><td id="stat-astrometry">--</td></tr>
-          <tr title="Catalogued stars that should have moved at least one map pixel"><th>Expected movers</th><td id="stat-movers">--</td></tr>
-          <tr title="CANDIDATE, STATIC CHANGED, or a known source behaving unexpectedly"><th>Priority &#9733;</th><td id="stat-priority">--</td></tr>
-          <tr><th>Dipoles &middot; mono</th><td id="stat-kinds">--</td></tr>
-          <tr><th>Detections</th><td id="stat-detect">0</td></tr>
-          <tr><th>Unknown</th><td id="stat-unknown">0</td></tr>
-          <tr><th>SNR (max)</th><td id="stat-snr">--</td></tr>
+          <tr><th scope="row">Exposures</th><td id="stat-exp">--</td></tr>
+          <tr><th scope="row">Epochs</th><td id="stat-epochs">--</td></tr>
+          <tr><th scope="row">Baseline</th><td id="stat-baseline">--</td></tr>
+          <tr><th scope="row">Noise &sigma;<sub>1</sub></th><td id="stat-sigma">--</td></tr>
+          <tr><th scope="row">5&sigma; depth</th><td id="stat-depth">--</td></tr>
+          <tr><th scope="row">Field / pixel</th><td id="stat-fov">--</td></tr>
+          <tr><th scope="row">Gaia &middot; WISE &middot; VSX</th><td id="stat-cats">--</td></tr>
+          <tr title="Gaia stars centroided in the co-add, at the SPHEREx epoch"><th scope="row">Astrometry vs Gaia</th><td id="stat-astrometry">--</td></tr>
+          <tr title="Catalogued stars that should have moved at least one map pixel"><th scope="row">Expected movers</th><td id="stat-movers">--</td></tr>
+          <tr title="CANDIDATE, STATIC CHANGED, or a known source behaving unexpectedly"><th scope="row">Priority &#9733;</th><td id="stat-priority">--</td></tr>
+          <tr><th scope="row">Dipoles &middot; mono</th><td id="stat-kinds">--</td></tr>
+          <tr><th scope="row">Detections</th><td id="stat-detect">0</td></tr>
+          <tr><th scope="row">Unknown</th><td id="stat-unknown">0</td></tr>
+          <tr><th scope="row">SNR (max)</th><td id="stat-snr">--</td></tr>
         </tbody>
       </table>
     </div>
@@ -501,6 +543,25 @@
     </div>
   </section>
 
+  <!-- Help-classify window (public mode): GET /api/votes/queue -->
+  <section id="win-classify" class="win-dialog hidden" role="dialog"
+           aria-labelledby="win-classify-title" aria-modal="false">
+    <header class="win-titlebar" data-drag-handle>
+      <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9745;</span>
+        <span id="win-classify-title" class="win-title">Help classify</span>
+      </span>
+      <button type="button" class="win-close" data-win-close="win-classify"
+              aria-label="Close Help classify">&times;</button>
+    </header>
+    <div class="win-body">
+      <p class="classify-lead">The computer is least sure about these detections. Open one, look at the
+        pictures, and tell us if you think it is real.</p>
+      <ol id="classify-list" class="classify-list" aria-label="Detections that need a human look"></ol>
+      <p id="classify-note" class="hint-inline" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
   <!-- ============================ guide overlay ============================ -->
   <div id="guide" class="guide hidden" role="dialog" aria-modal="true"
        aria-labelledby="guide-title">
@@ -514,59 +575,89 @@
                 aria-label="Close the guide">&times;</button>
       </div>
 
-      <div class="guide-tabs" id="guide-tabs">
-        <button class="guide-tab active" data-tab="how" type="button">1 &middot; How it works</button>
-        <button class="guide-tab" data-tab="use" type="button">2 &middot; Controls</button>
-        <button class="guide-tab" data-tab="words" type="button">3 &middot; Glossary</button>
+      <div class="guide-tabs" id="guide-tabs" role="tablist" aria-label="Guide sections">
+        <button class="guide-tab active" data-tab="how" type="button" role="tab"
+                id="gtab-how" aria-controls="gpanel-how" aria-selected="true">1 &middot; How it works</button>
+        <button class="guide-tab" data-tab="use" type="button" role="tab"
+                id="gtab-use" aria-controls="gpanel-use" aria-selected="false" tabindex="-1">2 &middot; How to use it</button>
+        <button class="guide-tab" data-tab="words" type="button" role="tab"
+                id="gtab-words" aria-controls="gpanel-words" aria-selected="false" tabindex="-1">3 &middot; The words</button>
       </div>
 
-      <section class="guide-body active" data-panel="how">
+      <section class="guide-body active" data-panel="how" role="tabpanel"
+               id="gpanel-how" aria-labelledby="gtab-how" tabindex="0">
         <p class="guide-lead">
-          Detects moving and variable infrared sources across multi-epoch SPHEREx cutouts via ZOGY optimal image subtraction.
+          SPHERExLens compares pictures of the same patch of sky taken months apart and points at whatever changed:
+          a star that moved, a star that got brighter or fainter, or an asteroid passing through.
         </p>
 
         <h3>Instrument</h3>
         <p>
-          NASA's SPHEREx mission surveys the sky repeatedly across 102 spectral channels (0.75&ndash;5.0 &micro;m).
+          NASA's SPHEREx mission surveys the whole sky again and again in 102 infrared colours (0.75&ndash;5.0 &micro;m).
         </p>
 
         <h3>Pipeline Steps</h3>
         <ol class="guide-steps">
-          <li><b>Ingest:</b> Query IRSA SIA2 for SPHEREx Level-2 cutouts and cross-match catalogs (Gaia DR3, AllWISE, VSX).</li>
-          <li><b>Co-add:</b> Apply bitmask flags and stack exposures per epoch onto a common tangent-plane grid.</li>
-          <li><b>Subtract:</b> Run ZOGY optimal subtraction between epoch pairs to produce difference (D) and significance (S) images.</li>
-          <li><b>Triage:</b> Cross-match detections &gt;5&sigma;, verify proper-motion kinematics and NEOWISE history, and assign a verdict category.</li>
-          <li><b>Validate:</b> Run synthetic source injection-recovery across SNR and proper motion (&mu;) bins.</li>
+          <li><b>Ingest:</b> Fetch SPHEREx Level-2 cutouts from NASA/IPAC IRSA and the star catalogues for the field (Gaia DR3, AllWISE, VSX).</li>
+          <li><b>Co-add:</b> Throw away bad pixels and stack the exposures of each visit into one sharper picture.</li>
+          <li><b>Subtract:</b> Subtract one visit from the next (ZOGY). What is left is what changed.</li>
+          <li><b>Triage:</b> For every change above 5&sigma;, ask the catalogues &ldquo;do you know this star?&rdquo;, check whether it moves the way Gaia says it should, look at its NEOWISE history, and give it a verdict.</li>
+          <li><b>Asteroid check:</b> Ask NASA JPL (SB Identification) and the Canadian SSOIS service which known asteroids were at that spot at that time. A match gives the verdict <i>Known asteroid</i>; a moving-object signal with no match becomes <i>Possible new asteroid</i>. If the services cannot be reached the card says <i>asteroid check unavailable</i> &mdash; treat such a detection with caution.</li>
+          <li><b>Scores:</b> A machine-learning model gives each detection an <b>ML score</b> (how likely it is real). It only <i>ranks</i> detections so the best are looked at first &mdash; it never decides. The <b>evidence score</b> adds up every check (ML, motion, asteroid check, NEOSSat) into one number from 0 to 100.</li>
+          <li><b>Validate:</b> Plant fake sources in real images and count how many come back (injection-recovery); run the same pipeline on sky with nothing in it to count false alarms. The results are on the <b>Accuracy</b> page.</li>
         </ol>
 
         <h3>Map Legend</h3>
         <ul class="map-legend">
-          <li><span class="swatch-dot green"></span> <b class="lg-known">KNOWN</b>
+          <li><span class="swatch-dot green" aria-hidden="true"></span> <b class="lg-known">KNOWN</b>
             <span class="lg-desc">Matched to a catalogued star, variable, or mover.</span></li>
-          <li><span class="swatch-dot amber"></span> <b class="lg-candidate">CANDIDATE</b>
+          <li><span class="swatch-dot amber" aria-hidden="true"></span> <b class="lg-candidate">CANDIDATE</b>
             <span class="lg-desc">No catalog match within radius.</span></li>
-          <li><span class="swatch-dot red"></span> <b class="lg-target">TARGET</b>
+          <li><span class="swatch-dot teal" aria-hidden="true"></span> <b class="lg-asteroid">KNOWN ASTEROID</b>
+            <span class="lg-desc">A catalogued asteroid was at this spot at this time (diamond marker).</span></li>
+          <li><span class="swatch-dot pink" aria-hidden="true"></span> <b class="lg-newast">POSSIBLE NEW ASTEROID</b>
+            <span class="lg-desc">Behaves like an asteroid but no known one is there (diamond marker).</span></li>
+          <li><span class="swatch-dot sky" aria-hidden="true"></span> <b class="lg-fainter">GOT FAINTER</b>
+            <span class="lg-desc">A source that dimmed between visits (square with a minus sign).</span></li>
+          <li><span class="swatch-dot red" aria-hidden="true"></span> <b class="lg-target">TARGET</b>
             <span class="lg-desc">Primary field target position.</span></li>
         </ul>
       </section>
 
-      <section class="guide-body" data-panel="use">
+      <section class="guide-body" data-panel="use" role="tabpanel"
+               id="gpanel-use" aria-labelledby="gtab-use" tabindex="0" hidden>
         <ol class="guide-steps guide-steps-tall">
           <li><b>Select Field:</b> Pick a registered target from the toolbar dropdown or enter custom RA / Dec in degrees and click <i>Load field from IRSA</i>.</li>
-          <li><b>Inspect Sky Viewer:</b> Scroll to zoom, drag to pan, click markers to populate the Triage Verdict panel.</li>
+          <li><b>Coverage chips:</b> The row under the four numbers says which archives cover this field &mdash; for example <i>SPHEREx &#10003; 3 epochs &middot; NEOWISE &#10003; 23 visits &middot; NEOSSat &#10007;</i>. A &#10007; means that archive has nothing here, so its check could not help.</li>
+          <li><b>Inspect Sky Viewer:</b> Scroll to zoom, drag to pan, click a marker to fill the Triage Verdict panel. Click the same marker again (or press <i>Vet</i> in the Detections table) to open its <b>vetting card</b>.</li>
+          <li><b>Vetting card:</b> Before / difference pictures cut out around the detection, the asteroid check, NEOSSat, the ML and evidence scores with their reasons, and buttons to open the spot in WiseView, the IRSA Finder Chart, SIMBAD and Gaia at MAST.</li>
+          <li><b>Vote:</b> Under <i>Is this real?</i> choose <i>Real</i>, <i>Bogus</i> or <i>Not sure</i>. <i>Help classify</i> in the toolbar lists the detections the computer is least sure about. Votes need the live backend; on the pre-rendered site the buttons say so.</li>
+          <li><b>Public / Expert:</b> <i>Public</i> shows plain-language verdicts. <i>Expert</i> adds the ML and evidence columns, pipeline and model versions, and downloads (CSV, VOTable, per-field JSON, Simple Cone Search). Your choice is remembered on this device.</li>
+          <li><b>Accuracy:</b> The <i>Accuracy</i> button shows how often the pipeline is right, measured on planted sources and empty sky.</li>
           <li><b>Switch Layers:</b> Toggle between Co-add, Difference D, and Significance S, or switch to All-sky view.</li>
           <li><b>Replay Snapshots:</b> In the Sky Viewer toolbar, choose a previous published version from <i>Snapshot</i>, or press <i>Play</i> to step oldest to latest. Select a candidate or known object first to follow its dipole/monopole with the purple trail.</li>
           <li><b>Utility Windows:</b> Open <i>History</i>, <i>Statistics</i>, or <i>Recovery</i> from the toolbar as draggable floating panels.</li>
+          <li><b>Keyboard:</b> <kbd>Tab</kbd> moves through every control; <kbd>Esc</kbd> closes the open window; on the page <kbd>+</kbd>/<kbd>-</kbd> zoom, <kbd>0</kbd> fits, <kbd>g</kbd> grid, <kbd>d</kbd> detections.</li>
         </ol>
       </section>
 
-      <section class="guide-body" data-panel="words">
+      <section class="guide-body" data-panel="words" role="tabpanel"
+               id="gpanel-words" aria-labelledby="gtab-words" tabindex="0" hidden>
         <dl class="guide-gloss">
           <div><dt>Field</dt><dd>9&prime;&times;9&prime; cutout region (3&Prime;/px).</dd></div>
           <div><dt>Epoch</dt><dd>Grouped SPHEREx visits at a distinct observation date.</dd></div>
           <div><dt>&sigma; (sigma)</dt><dd>Significance in background noise units (&sigma;<sub>1</sub>).</dd></div>
           <div><dt>KNOWN</dt><dd>Detection matched to Gaia DR3, AllWISE, or VSX.</dd></div>
           <div><dt>CANDIDATE</dt><dd>Unmatched detection &gt;5&sigma;.</dd></div>
+          <div><dt>Known asteroid</dt><dd>JPL (and usually SSOIS) says a catalogued asteroid was right there. Expected, not a discovery.</dd></div>
+          <div><dt>Possible new asteroid</dt><dd>Seen in one visit only, moving-object-like, and no known asteroid there. Needs follow-up.</dd></div>
+          <div><dt>Got fainter</dt><dd>A monopole with a negative sign: the source was brighter in the first visit than in the second.</dd></div>
+          <div><dt>ML score</dt><dd>Machine-learning estimate (0&ndash;100%) that a detection is real. It ranks detections; it does not decide.</dd></div>
+          <div><dt>Evidence score</dt><dd>All checks combined into one 0&ndash;100 number, with each part shown.</dd></div>
+          <div><dt>NEOSSat</dt><dd>Canada's small space telescope; if it took pictures of the spot, we say whether the source shows up there too.</dd></div>
+          <div><dt>Coverage chip</dt><dd>One archive and whether it has data for this field (&#10003; yes, &#10007; no).</dd></div>
+          <div><dt>Vote</dt><dd>Your Real / Bogus / Not sure answer. Votes on the uncertain detections help train the next model.</dd></div>
+          <div><dt>Precision / recall</dt><dd>Of what we flag, how much is real / of what is real, how much we flag.</dd></div>
           <div><dt>Recovery grid</dt><dd>Synthetic injection completeness across SNR and &mu;.</dd></div>
           <div><dt>RA / Dec</dt><dd>ICRS right ascension and declination in decimal degrees.</dd></div>
         </dl>
@@ -576,6 +667,74 @@
         <span class="mono">NASA/IPAC IRSA &middot; SPHEREx Level-2 &middot; Gaia DR3 &middot; VSX</span>
         <button id="guide-close-2" class="btn btn-secondary" type="button">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============================ vetting card ============================ -->
+  <div id="vet" class="guide sheet hidden" role="dialog" aria-modal="true"
+       aria-labelledby="vet-title">
+    <div class="guide-sheet sheet-wide">
+      <div class="guide-head">
+        <div>
+          <div class="guide-kicker" id="vet-kicker">Vetting card</div>
+          <h2 id="vet-title">Detection</h2>
+        </div>
+        <div class="sheet-head-actions">
+          <button id="vet-prev" class="btn btn-secondary" type="button" aria-label="Previous detection">&lsaquo; Prev</button>
+          <button id="vet-next" class="btn btn-secondary" type="button" aria-label="Next detection">Next &rsaquo;</button>
+          <button class="win-close guide-close" type="button" data-sheet-close
+                  aria-label="Close the vetting card">&times;</button>
+        </div>
+      </div>
+      <div id="vet-body" class="sheet-body vet-body"></div>
+    </div>
+  </div>
+
+  <!-- ============================ accuracy page ============================ -->
+  <div id="accuracy" class="guide sheet hidden" role="dialog" aria-modal="true"
+       aria-labelledby="accuracy-title">
+    <div class="guide-sheet sheet-wide">
+      <div class="guide-head">
+        <div>
+          <div class="guide-kicker">SPHERExLens &middot; How good is it?</div>
+          <h2 id="accuracy-title">Accuracy</h2>
+        </div>
+        <button class="win-close guide-close" type="button" data-sheet-close
+                aria-label="Close the accuracy page">&times;</button>
+      </div>
+      <div id="accuracy-body" class="sheet-body accuracy-body" aria-live="polite" aria-busy="false"></div>
+    </div>
+  </div>
+
+  <!-- ============================ deep fields ============================ -->
+  <div id="deep" class="guide sheet hidden" role="dialog" aria-modal="true"
+       aria-labelledby="deep-title">
+    <div class="guide-sheet sheet-wide">
+      <div class="guide-head">
+        <div>
+          <div class="guide-kicker">SPHERExLens &middot; Deep fields</div>
+          <h2 id="deep-title">Deep-field light curves</h2>
+        </div>
+        <button class="win-close guide-close" type="button" data-sheet-close
+                aria-label="Close deep fields">&times;</button>
+      </div>
+      <div id="deep-body" class="sheet-body deep-body" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- ============================ credits ============================ -->
+  <div id="credits" class="guide sheet hidden" role="dialog" aria-modal="true"
+       aria-labelledby="credits-title">
+    <div class="guide-sheet">
+      <div class="guide-head">
+        <div>
+          <div class="guide-kicker">SPHERExLens &middot; Data sources</div>
+          <h2 id="credits-title">Credits &amp; licences</h2>
+        </div>
+        <button class="win-close guide-close" type="button" data-sheet-close
+                aria-label="Close credits">&times;</button>
+      </div>
+      <div id="credits-body" class="sheet-body credits-body"></div>
     </div>
   </div>
 

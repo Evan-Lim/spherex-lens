@@ -1,0 +1,1667 @@
+{
+ "pipeline": {
+  "pipeline_version": "2.0.0-dev",
+  "config_hash": "d8d398effb40"
+ },
+ "generated_utc": "2026-11-13T10:32:21Z",
+ "options": {
+  "quick": false,
+  "seed": 20261113,
+  "n_splits": 3,
+  "max_groups": null,
+  "max_per_half": null,
+  "max_per_band": null,
+  "n_trials": 20,
+  "snr_grid": [
+   3,
+   5,
+   7,
+   10,
+   15,
+   20
+  ],
+  "mu_grid": [
+   2,
+   5,
+   10,
+   20
+  ],
+  "n_boot": 1000
+ },
+ "detection_sigma_used": 6.0,
+ "s_normalisation": "pipeline",
+ "threshold": {
+  "sigma": 6.0,
+  "false_alarms_per_field": null,
+  "method": "null-test fake CANDIDATEs per field (0.86 at 5 sigma vs 0.48 at 6 sigma on 7 fields, recall equal); config.DETECTION_SIGMA",
+  "bh_fdr": {
+   "sigma_median": 2.782,
+   "sigma_range": [
+    2.372,
+    4.587
+   ],
+   "n_maps": 17,
+   "n_rejected_total": 49199,
+   "q": 0.05
+  }
+ },
+ "null_test": {
+  "n_fields": 17,
+  "n_realisations": 220,
+  "n_false": 8854,
+  "area_deg2": 3.5727,
+  "false_alarms_per_field": 66.6678,
+  "false_alarms_per_deg2": 2478.241,
+  "candidate_false_alarms_per_field": 1.6554,
+  "per_field": {
+   "Andromeda_M31": {
+    "n_realisations": 12,
+    "n_false": 242,
+    "false_alarms_per_field": 25.1282,
+    "false_alarms_per_deg2": 1111.444,
+    "n_false_candidates": 0
+   },
+   "Barnards_Star": {
+    "n_realisations": 12,
+    "n_false": 671,
+    "false_alarms_per_field": 71.9317,
+    "false_alarms_per_deg2": 3157.75,
+    "n_false_candidates": 6
+   },
+   "Betelgeuse": {
+    "n_realisations": 12,
+    "n_false": 901,
+    "false_alarms_per_field": 295.6594,
+    "false_alarms_per_deg2": 8949.899,
+    "n_false_candidates": 0
+   },
+   "Crab_M1": {
+    "n_realisations": 12,
+    "n_false": 987,
+    "false_alarms_per_field": 103.7951,
+    "false_alarms_per_deg2": 4615.04,
+    "n_false_candidates": 63
+   },
+   "Epsilon_Indi_B": {
+    "n_realisations": 18,
+    "n_false": 324,
+    "false_alarms_per_field": 24.4178,
+    "false_alarms_per_deg2": 1059.593,
+    "n_false_candidates": 28
+   },
+   "Orion_M42": {
+    "n_realisations": 12,
+    "n_false": 189,
+    "false_alarms_per_field": 25.0798,
+    "false_alarms_per_deg2": 1148.093,
+    "n_false_candidates": 0
+   },
+   "Pleiades_M45": {
+    "n_realisations": 12,
+    "n_false": 247,
+    "false_alarms_per_field": 25.6826,
+    "false_alarms_per_deg2": 1153.891,
+    "n_false_candidates": 19
+   },
+   "Proxima_Cen": {
+    "n_realisations": 12,
+    "n_false": 1238,
+    "false_alarms_per_field": 154.0194,
+    "false_alarms_per_deg2": 6749.353,
+    "n_false_candidates": 0
+   },
+   "RW_Aurigae": {
+    "n_realisations": 12,
+    "n_false": 686,
+    "false_alarms_per_field": 72.9752,
+    "false_alarms_per_deg2": 3246.313,
+    "n_false_candidates": 6
+   },
+   "R_Draconis": {
+    "n_realisations": 14,
+    "n_false": 351,
+    "false_alarms_per_field": 32.2689,
+    "false_alarms_per_deg2": 1422.629,
+    "n_false_candidates": 0
+   },
+   "Ring_M57": {
+    "n_realisations": 14,
+    "n_false": 736,
+    "false_alarms_per_field": 69.0181,
+    "false_alarms_per_deg2": 3051.55,
+    "n_false_candidates": 20
+   },
+   "SgrA_star": {
+    "n_realisations": 10,
+    "n_false": 547,
+    "false_alarms_per_field": 111.7449,
+    "false_alarms_per_deg2": 4187.048,
+    "n_false_candidates": 0
+   },
+   "Sirius": {
+    "n_realisations": 12,
+    "n_false": 497,
+    "false_alarms_per_field": 63.9213,
+    "false_alarms_per_deg2": 2755.891,
+    "n_false_candidates": 44
+   },
+   "Sombrero_M104": {
+    "n_realisations": 14,
+    "n_false": 379,
+    "false_alarms_per_field": 33.3658,
+    "false_alarms_per_deg2": 1480.581,
+    "n_false_candidates": 16
+   },
+   "TRAPPIST_1": {
+    "n_realisations": 12,
+    "n_false": 139,
+    "false_alarms_per_field": 16.1801,
+    "false_alarms_per_deg2": 716.087,
+    "n_false_candidates": 9
+   },
+   "WISE_0855": {
+    "n_realisations": 18,
+    "n_false": 343,
+    "false_alarms_per_field": 27.1549,
+    "false_alarms_per_deg2": 1189.28,
+    "n_false_candidates": 21
+   },
+   "Whirlpool_M51": {
+    "n_realisations": 12,
+    "n_false": 377,
+    "false_alarms_per_field": 40.2962,
+    "false_alarms_per_deg2": 1783.906,
+    "n_false_candidates": 25
+   }
+  },
+  "skipped": [
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 1,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D1",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D2",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D3",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D5",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "Quasar_3C273",
+    "epoch": 2,
+    "band": "SPHEREx-D6",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 1,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   },
+   {
+    "field": "SgrA_star",
+    "epoch": 2,
+    "band": "SPHEREx-D4",
+    "n_exposures": 1,
+    "reason": "< 2 exposures"
+   }
+  ],
+  "definition": "detections in a ZOGY subtraction of two random halves of one epoch+band; field = one 180x180 3\" subtraction",
+  "ci95": [
+   55.6277,
+   79.3249
+  ]
+ },
+ "injection": {
+  "recall_overall": 0.6934,
+  "ci95": [
+   0.6852,
+   0.7015
+  ],
+  "n": 12240,
+  "by_category": {
+   "brightening": {
+    "recall": 0.9667,
+    "n": 2040,
+    "n_recovered": 1972,
+    "ci95": [
+     0.958,
+     0.9736
+    ]
+   },
+   "fading": {
+    "recall": 0.9529,
+    "n": 2040,
+    "n_recovered": 1944,
+    "ci95": [
+     0.9429,
+     0.9613
+    ]
+   },
+   "mover": {
+    "recall": 0.5602,
+    "n": 8160,
+    "n_recovered": 4571,
+    "ci95": [
+     0.5494,
+     0.5709
+    ]
+   }
+  },
+  "grid": [
+   {
+    "snr": 3,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 0.8559,
+    "n": 340,
+    "n_recovered": 291,
+    "ci95": [
+     0.8146,
+     0.8892
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 0.9676,
+    "n": 340,
+    "n_recovered": 329,
+    "ci95": [
+     0.943,
+     0.9818
+    ]
+   },
+   {
+    "snr": 7,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 0.9882,
+    "n": 340,
+    "n_recovered": 336,
+    "ci95": [
+     0.9701,
+     0.9954
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 1.0,
+    "n": 340,
+    "n_recovered": 340,
+    "ci95": [
+     0.9888,
+     1.0
+    ]
+   },
+   {
+    "snr": 15,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 0.9882,
+    "n": 340,
+    "n_recovered": 336,
+    "ci95": [
+     0.9701,
+     0.9954
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 0,
+    "category": "brightening",
+    "recall": 1.0,
+    "n": 340,
+    "n_recovered": 340,
+    "ci95": [
+     0.9888,
+     1.0
+    ]
+   },
+   {
+    "snr": 3,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.85,
+    "n": 340,
+    "n_recovered": 289,
+    "ci95": [
+     0.8081,
+     0.884
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.9265,
+    "n": 340,
+    "n_recovered": 315,
+    "ci95": [
+     0.8937,
+     0.9497
+    ]
+   },
+   {
+    "snr": 7,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.9559,
+    "n": 340,
+    "n_recovered": 325,
+    "ci95": [
+     0.9285,
+     0.9731
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.9971,
+    "n": 340,
+    "n_recovered": 339,
+    "ci95": [
+     0.9835,
+     0.9995
+    ]
+   },
+   {
+    "snr": 15,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.9912,
+    "n": 340,
+    "n_recovered": 337,
+    "ci95": [
+     0.9744,
+     0.997
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 0,
+    "category": "fading",
+    "recall": 0.9971,
+    "n": 340,
+    "n_recovered": 339,
+    "ci95": [
+     0.9835,
+     0.9995
+    ]
+   },
+   {
+    "snr": 3,
+    "mu": 2,
+    "category": "mover",
+    "recall": 0.0676,
+    "n": 340,
+    "n_recovered": 23,
+    "ci95": [
+     0.0455,
+     0.0995
+    ]
+   },
+   {
+    "snr": 3,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.2235,
+    "n": 340,
+    "n_recovered": 76,
+    "ci95": [
+     0.1825,
+     0.2708
+    ]
+   },
+   {
+    "snr": 3,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.6265,
+    "n": 340,
+    "n_recovered": 213,
+    "ci95": [
+     0.5739,
+     0.6762
+    ]
+   },
+   {
+    "snr": 3,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.8382,
+    "n": 340,
+    "n_recovered": 285,
+    "ci95": [
+     0.7954,
+     0.8736
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 2,
+    "category": "mover",
+    "recall": 0.0588,
+    "n": 340,
+    "n_recovered": 20,
+    "ci95": [
+     0.0384,
+     0.0891
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.3676,
+    "n": 340,
+    "n_recovered": 125,
+    "ci95": [
+     0.3181,
+     0.4201
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.7059,
+    "n": 340,
+    "n_recovered": 240,
+    "ci95": [
+     0.6554,
+     0.7518
+    ]
+   },
+   {
+    "snr": 5,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.8882,
+    "n": 340,
+    "n_recovered": 302,
+    "ci95": [
+     0.8503,
+     0.9175
+    ]
+   },
+   {
+    "snr": 7,
+    "mu": 2,
+    "category": "mover",
+    "recall": 0.1176,
+    "n": 340,
+    "n_recovered": 40,
+    "ci95": [
+     0.0876,
+     0.1562
+    ]
+   },
+   {
+    "snr": 7,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.4382,
+    "n": 340,
+    "n_recovered": 149,
+    "ci95": [
+     0.3865,
+     0.4914
+    ]
+   },
+   {
+    "snr": 7,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.7324,
+    "n": 340,
+    "n_recovered": 249,
+    "ci95": [
+     0.6829,
+     0.7766
+    ]
+   },
+   {
+    "snr": 7,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.9618,
+    "n": 340,
+    "n_recovered": 327,
+    "ci95": [
+     0.9357,
+     0.9775
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 2,
+    "category": "mover",
+    "recall": 0.1794,
+    "n": 340,
+    "n_recovered": 61,
+    "ci95": [
+     0.1423,
+     0.2237
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.45,
+    "n": 340,
+    "n_recovered": 153,
+    "ci95": [
+     0.398,
+     0.5031
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.8029,
+    "n": 340,
+    "n_recovered": 273,
+    "ci95": [
+     0.7574,
+     0.8417
+    ]
+   },
+   {
+    "snr": 10,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.9882,
+    "n": 340,
+    "n_recovered": 336,
+    "ci95": [
+     0.9701,
+     0.9954
+    ]
+   },
+   {
+    "snr": 15,
+    "mu": 2,
+    "category": "mover",
+    "recall": 0.2,
+    "n": 340,
+    "n_recovered": 68,
+    "ci95": [
+     0.1609,
+     0.2458
+    ]
+   },
+   {
+    "snr": 15,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.4471,
+    "n": 340,
+    "n_recovered": 152,
+    "ci95": [
+     0.3951,
+     0.5002
+    ]
+   },
+   {
+    "snr": 15,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.8353,
+    "n": 340,
+    "n_recovered": 284,
+    "ci95": [
+     0.7922,
+     0.8709
+    ]
+   },
+   {
+    "snr": 15,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.9882,
+    "n": 340,
+    "n_recovered": 336,
+    "ci95": [
+     0.9701,
+     0.9954
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 2,
+    "category": "mover",
+    "recall": 0.2441,
+    "n": 340,
+    "n_recovered": 83,
+    "ci95": [
+     0.2015,
+     0.2925
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 5,
+    "category": "mover",
+    "recall": 0.4706,
+    "n": 340,
+    "n_recovered": 160,
+    "ci95": [
+     0.4182,
+     0.5237
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 10,
+    "category": "mover",
+    "recall": 0.8206,
+    "n": 340,
+    "n_recovered": 279,
+    "ci95": [
+     0.7763,
+     0.8577
+    ]
+   },
+   {
+    "snr": 20,
+    "mu": 20,
+    "category": "mover",
+    "recall": 0.9912,
+    "n": 340,
+    "n_recovered": 337,
+    "ci95": [
+     0.9744,
+     0.997
+    ]
+   }
+  ],
+  "n_fields": 18,
+  "psf_model": "epsf",
+  "snr_definition": "matched-filter SNR of the injected flux change against the noise measured on each co-add (config.EVAL_SNR_MODE)",
+  "match": "kind-correct detection within 1.5 px"
+ },
+ "answer_key": {
+  "n": 101,
+  "n_detected": 7,
+  "recall": 0.0693,
+  "by_class": {
+   "vsx_variable": 0.0693
+  },
+  "by_class_n": {
+   "vsx_variable": 101
+  },
+  "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall",
+  "ci95": [
+   0.0297,
+   0.1188
+  ]
+ },
+ "pipeline_purity_estimate": {
+  "detections_per_field": 52.722,
+  "raw_false_alarms_per_field": 66.6678,
+  "candidate_false_alarms_per_field": 1.6554,
+  "purity": null,
+  "note": "raw purity is not meaningful (both counts include catalogued-star residuals); use null_test.candidate_false_alarms_per_field"
+ },
+ "fields": [
+  {
+   "target": "Andromeda_M31",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4401,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 59,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 12.7,
+   "injection_recall": 0.6958,
+   "injection_n": 720
+  },
+  {
+   "target": "Barnards_Star",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5467,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 61,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 25.9,
+   "injection_recall": 0.7069,
+   "injection_n": 720
+  },
+  {
+   "target": "Betelgeuse",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4817,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 13,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 12.1,
+   "injection_recall": null,
+   "injection_n": 0
+  },
+  {
+   "target": "Crab_M1",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4758,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 112,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 1,
+    "n_detected": 0,
+    "recall": 0.0,
+    "by_class": {
+     "vsx_variable": 0.0
+    },
+    "by_class_n": {
+     "vsx_variable": 1
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 21.6,
+   "injection_recall": 0.7389,
+   "injection_n": 720
+  },
+  {
+   "target": "Epsilon_Indi_B",
+   "n_exposures": 36,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.9929,
+   "n_exposures_pair": {
+    "1": 12,
+    "3": 12
+   },
+   "n_detections": 5,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 7.3,
+   "injection_recall": 0.4444,
+   "injection_n": 720
+  },
+  {
+   "target": "Orion_M42",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4874,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 76,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 22,
+    "n_detected": 0,
+    "recall": 0.0,
+    "by_class": {
+     "vsx_variable": 0.0
+    },
+    "by_class_n": {
+     "vsx_variable": 22
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall",
+    "ci95": [
+     0.0,
+     0.0
+    ]
+   },
+   "seconds": 6.0,
+   "injection_recall": 0.7361,
+   "injection_n": 720
+  },
+  {
+   "target": "Pleiades_M45",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4606,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 53,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 3,
+    "n_detected": 3,
+    "recall": 1.0,
+    "by_class": {
+     "vsx_variable": 1.0
+    },
+    "by_class_n": {
+     "vsx_variable": 3
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall",
+    "ci95": [
+     1.0,
+     1.0
+    ]
+   },
+   "seconds": 6.8,
+   "injection_recall": 0.6903,
+   "injection_n": 720
+  },
+  {
+   "target": "Proxima_Cen",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5465,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 67,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 126.2,
+   "injection_recall": 0.6736,
+   "injection_n": 720
+  },
+  {
+   "target": "Quasar_3C273",
+   "n_exposures": 12,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5785,
+   "n_exposures_pair": {
+    "1": 6,
+    "2": 6
+   },
+   "n_detections": 18,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 3.3,
+   "injection_recall": 0.7625,
+   "injection_n": 720
+  },
+  {
+   "target": "RW_Aurigae",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4744,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 65,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 24.6,
+   "injection_recall": 0.6764,
+   "injection_n": 720
+  },
+  {
+   "target": "R_Draconis",
+   "n_exposures": 28,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.868,
+   "n_exposures_pair": {
+    "1": 4,
+    "3": 4
+   },
+   "n_detections": 12,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 9.2,
+   "injection_recall": 0.6389,
+   "injection_n": 720
+  },
+  {
+   "target": "Ring_M57",
+   "n_exposures": 28,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.875,
+   "n_exposures_pair": {
+    "1": 4,
+    "3": 4
+   },
+   "n_detections": 80,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 122.5,
+   "injection_recall": 0.7819,
+   "injection_n": 720
+  },
+  {
+   "target": "SgrA_star",
+   "n_exposures": 22,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.5739,
+   "n_exposures_pair": {
+    "1": 11,
+    "2": 11
+   },
+   "n_detections": 104,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 74,
+    "n_detected": 4,
+    "recall": 0.0541,
+    "by_class": {
+     "vsx_variable": 0.0541
+    },
+    "by_class_n": {
+     "vsx_variable": 74
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall",
+    "ci95": [
+     0.0135,
+     0.1081
+    ]
+   },
+   "seconds": 78.0,
+   "injection_recall": 0.7403,
+   "injection_n": 720
+  },
+  {
+   "target": "Sirius",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.46,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 44,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 21.9,
+   "injection_recall": 0.6569,
+   "injection_n": 720
+  },
+  {
+   "target": "Sombrero_M104",
+   "n_exposures": 28,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.6968,
+   "n_exposures_pair": {
+    "1": 4,
+    "3": 4
+   },
+   "n_detections": 62,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 11.3,
+   "injection_recall": 0.8167,
+   "injection_n": 720
+  },
+  {
+   "target": "TRAPPIST_1",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.4803,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 16,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 8.7,
+   "injection_recall": 0.4736,
+   "injection_n": 720
+  },
+  {
+   "target": "WISE_0855",
+   "n_exposures": 36,
+   "epochs": [
+    1,
+    2,
+    3
+   ],
+   "pair": [
+    1,
+    3
+   ],
+   "dt_years": 0.9977,
+   "n_exposures_pair": {
+    "1": 12,
+    "3": 12
+   },
+   "n_detections": 25,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 0,
+    "n_detected": 0,
+    "recall": null,
+    "by_class": {},
+    "by_class_n": {},
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 13.0,
+   "injection_recall": 0.7653,
+   "injection_n": 720
+  },
+  {
+   "target": "Whirlpool_M51",
+   "n_exposures": 24,
+   "epochs": [
+    1,
+    2
+   ],
+   "pair": [
+    1,
+    2
+   ],
+   "dt_years": 0.571,
+   "n_exposures_pair": {
+    "1": 12,
+    "2": 12
+   },
+   "n_detections": 77,
+   "psf_model": "epsf",
+   "answer_key": {
+    "n": 1,
+    "n_detected": 0,
+    "recall": 0.0,
+    "by_class": {
+     "vsx_variable": 0.0
+    },
+    "by_class_n": {
+     "vsx_variable": 1
+    },
+    "note": "vsx recall is a lower bound (a catalogued variable need not have changed between the two epochs); asteroids excluded from recall"
+   },
+   "seconds": 12.7,
+   "injection_recall": 0.7889,
+   "injection_n": 720
+  }
+ ],
+ "classifier": {
+  "precision": 0.957,
+  "recall": 0.9298,
+  "f1": 0.9432,
+  "pr_auc": 0.9871,
+  "ci95": {
+   "precision": [
+    0.7355,
+    1.0
+   ],
+   "recall": [
+    0.7967,
+    0.9975
+   ],
+   "f1": [
+    0.8302,
+    0.993
+   ],
+   "pr_auc": [
+    0.9199,
+    0.9998
+   ],
+   "method": "field bootstrap, n=500"
+  },
+  "pr_curve": [
+   [
+    1.0,
+    0.4923
+   ],
+   [
+    1.0,
+    0.4973
+   ],
+   [
+    1.0,
+    0.5512
+   ],
+   [
+    1.0,
+    0.555
+   ],
+   [
+    1.0,
+    0.5748
+   ],
+   [
+    1.0,
+    0.5751
+   ],
+   [
+    1.0,
+    0.6445
+   ],
+   [
+    0.9991,
+    0.6545
+   ],
+   [
+    0.9991,
+    0.6548
+   ],
+   [
+    0.9991,
+    0.6552
+   ],
+   [
+    0.9982,
+    0.6667
+   ],
+   [
+    0.9982,
+    0.7029
+   ],
+   [
+    0.9982,
+    0.715
+   ],
+   [
+    0.9982,
+    0.7155
+   ],
+   [
+    0.9973,
+    0.733
+   ],
+   [
+    0.984,
+    0.8147
+   ],
+   [
+    0.984,
+    0.8153
+   ],
+   [
+    0.9831,
+    0.8176
+   ],
+   [
+    0.9831,
+    0.8182
+   ],
+   [
+    0.9583,
+    0.8758
+   ],
+   [
+    0.9485,
+    0.8945
+   ],
+   [
+    0.9485,
+    0.8952
+   ],
+   [
+    0.9449,
+    0.9071
+   ],
+   [
+    0.9449,
+    0.9078
+   ],
+   [
+    0.9405,
+    0.9137
+   ],
+   [
+    0.9405,
+    0.9145
+   ],
+   [
+    0.9405,
+    0.9153
+   ],
+   [
+    0.9361,
+    0.9436
+   ],
+   [
+    0.9361,
+    0.9444
+   ],
+   [
+    0.9343,
+    0.9486
+   ],
+   [
+    0.9343,
+    0.9495
+   ],
+   [
+    0.9343,
+    0.9503
+   ],
+   [
+    0.9334,
+    0.9503
+   ],
+   [
+    0.9298,
+    0.957
+   ],
+   [
+    0.9298,
+    0.9579
+   ],
+   [
+    0.9298,
+    0.9588
+   ],
+   [
+    0.9298,
+    0.9597
+   ],
+   [
+    0.9076,
+    0.9884
+   ],
+   [
+    0.9041,
+    0.9903
+   ],
+   [
+    0.9023,
+    0.9932
+   ],
+   [
+    0.8925,
+    0.999
+   ],
+   [
+    0.8917,
+    0.999
+   ],
+   [
+    0.8694,
+    1.0
+   ],
+   [
+    0.8686,
+    1.0
+   ],
+   [
+    0.8677,
+    1.0
+   ],
+   [
+    0.8561,
+    1.0
+   ],
+   [
+    0.0,
+    1.0
+   ]
+  ],
+  "calibration": [
+   [
+    0.0224,
+    0.0194,
+    928
+   ],
+   [
+    0.1406,
+    0.2366,
+    186
+   ],
+   [
+    0.2899,
+    0.1875,
+    64
+   ],
+   [
+    0.3759,
+    0.3333,
+    3
+   ],
+   [
+    0.4,
+    0.3333,
+    12
+   ],
+   [
+    0.5624,
+    0.0,
+    3
+   ],
+   [
+    0.6322,
+    0.4559,
+    68
+   ],
+   [
+    0.7236,
+    0.6667,
+    18
+   ],
+   [
+    0.9988,
+    0.999,
+    1005
+   ]
+  ],
+  "confusion": {
+   "labels": [
+    "real",
+    "bogus"
+   ],
+   "matrix": [
+    [
+     1047,
+     79
+    ],
+    [
+     47,
+     1114
+    ]
+   ]
+  },
+  "n": 2287,
+  "n_real": 1126,
+  "n_fields": 4,
+  "split": "GroupKFold(5) by field on 14 training fields + 4 held-out fields",
+  "model_version": "rb-2026.11.13-1",
+  "heldout_by_kind": {
+   "dipole": {
+    "n": 814,
+    "n_real": 797,
+    "n_bogus": 17,
+    "precision": 1.0,
+    "recall": 1.0
+   },
+   "brightening/monopole": {
+    "n": 797,
+    "n_real": 229,
+    "n_bogus": 568,
+    "precision": 0.895,
+    "recall": 0.817
+   },
+   "fading": {
+    "n": 676,
+    "n_real": 100,
+    "n_bogus": 576,
+    "precision": 0.716,
+    "recall": 0.63
+   }
+  },
+  "caveat": "Held-out headline numbers are inflated by dipoles: injected movers are dipoles while null-test bogus examples almost never are, so 'is a dipole' alone separates them. Quote the per-kind numbers; the model's judgement of fake dipoles is untested (17 bogus dipoles)."
+ }
+}

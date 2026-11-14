@@ -238,6 +238,11 @@ statistically optimal. Two outputs come out:
 A **sigma** is a ruler for surprise: 1 sigma happens all the time by chance, 3
 sigma is unusual, **5 sigma is the standard astronomy threshold for "this is
 probably real"** (roughly a 1-in-3.5-million fluke for pure Gaussian noise).
+Real SPHEREx difference images are not pure Gaussian noise: bright stars leave
+leftovers. So this pipeline measured its own false alarms (the *null test*:
+subtract two pictures taken at the same time, where nothing can have changed)
+and uses **6 sigma**: at 5 it let through twice as many fake candidates, while
+finding no more of the planted test objects.
 
 The code then looks for two shapes in **S**:
 
@@ -399,8 +404,9 @@ The screen has two columns and nothing requires a page reload.
 ### 5.1 Top bar
 
 * **SPHERExLens** -- the project name.
-* **NEXUS // SPHEREX-QR2** -- which NASA data release you are looking at
-  (`spherex_qr2` is the second SPHEREx quick release).
+* **SPHEREx DR1** -- which NASA data release you are looking at
+  (`spherex_dr1`, SPHEREx's first full Data Release; the earlier quick
+  releases such as QR2 have been retired by the archive).
 * **Status pill** -- green `NORMAL OPS - FIELD LOADED` when data is loaded, amber
   while the pipeline runs, red if a request failed.
 * **Guide** -- opens a three-tab explainer written for someone who has never
@@ -445,7 +451,7 @@ as an unavailable tile rather than silently omitted.
 
 ### 5.3 Right column (/02) -- Command Dashboard
 
-* **Field metrics**: four cards -- detections above 5 sigma, how many are
+* **Field metrics**: four cards -- detections above the detection threshold (6 sigma), how many are
   unaccounted for, the strongest significance, and the time baseline between the
   two epochs in days.
 * **Live map**: see 5.4.
@@ -574,7 +580,7 @@ finish in 200 ms.
 
 | Chart | What it tells you |
 |---|---|
-| **Significance histogram** | A healthy subtraction is a narrow peak around zero (noise) with a long tail (real sources). Bars beyond 5 sigma are highlighted red -- those are the detections. |
+| **Significance histogram** | A healthy subtraction is a narrow peak around zero (noise) with a long tail (real sources). Bars beyond the detection threshold (6 sigma) are highlighted red -- those are the detections. |
 | **Noise per epoch** | How deep each stack is. More exposures or more bands make a shorter bar. |
 | **Detections per epoch pair** | Which time baseline found the most change (E1->E3 usually beats E1->E2). |
 | **Injection recovery** | The honesty curve: fraction of fake sources recovered vs brightness and speed. Empty until you press *Recovery Grid*. |
@@ -607,7 +613,7 @@ bar in the corner always shows how long one arcminute is at the current zoom.
 | Shown as | Meaning |
 |---|---|
 | **RA / Dec** | Sky address in hours-minutes-seconds and degrees-arcminutes-arcseconds. |
-| **Detections** | Number of 5-sigma peaks in the significance map: "how many things changed". |
+| **Detections** | Number of peaks above the 6-sigma threshold in the significance map: "how many things changed". |
 | **Unaccounted** | Detections with no catalogue match: "how many are worth a human look". |
 | **Max SNR** | The strongest peak, in sigma. 30 sigma is very loud; 5.7 is barely over the line. |
 | **Baseline** | Days between the two epochs. Longer baseline = more time for movement to accumulate. |
@@ -627,20 +633,33 @@ bar in the corner always shows how long one arcminute is at the current zoom.
 
 ## 7. Worked example: Barnard's Star, number by number
 
-The page for Barnard's Star, as built from the live archive:
+The page for Barnard's Star, built from SPHEREx Data Release 1 (v2 pipeline,
+November 2026):
 
-* **4 exposures, 2 epochs.** Two detectors (D1, near 0.94 micrometres, and D4,
-  near 3.1) in each of two visits: MJD 60918 (2025-271) and MJD 61110
-  (2026-094). That is a **192-day baseline**, just over six months.
-* **Noise sigma1 = 0.0106, sigma2 = 0.0119 MJy/sr.** The second epoch is
-  marginally noisier; inverse-variance weighting handles that automatically.
-* **12 detections above 5 sigma** (the dashboard table shows the ten strongest).
-  **4 KNOWN** (matched to a Gaia DR3 star or a VSX variable), **8 CANDIDATE**.
-* **Strongest peak: 29.5 sigma**, mean 10.8 sigma. The bright saturated star at
-  the top of the frame is also detected as a dipole: its core is masked, and a
-  small residual ring is left over -- an honest artefact, not a discovery.
-* **300 Gaia DR3 sources and 47 VSX variables** were available inside the 9'
-  field, which is what makes the triage verdicts meaningful.
+* **24 exposures, 2 epochs.** All six detectors, two exposures each, in two
+  visits: 2025.656 (MJD 60916) and 2026.203 (MJD 61115). That is a
+  **0.55-year baseline**.
+* **Noise sigma1 = 0.0059, sigma2 = 0.0066 MJy/sr**, and the real blur of the
+  telescope from the files: **6.9 arcseconds** (9.3" after the images are
+  resampled onto the common 3" grid).
+* **61 changes above 6 sigma**; the ten strongest are classified:
+  **9 KNOWN** (4 bright-star artefacts, 3 catalogued stars that changed,
+  2 known variables) and **1 CANDIDATE** (125 sigma). The machine-learning
+  score gives that candidate only 14 % "real", and its card says why
+  ("poor PSF fit", "wrong size for a point source"): it looks like an
+  imaging artefact, so it sinks to the bottom of the follow-up list.
+* **Does it see Barnard's Star move?** Honestly: *not as a clean mover*. In
+  0.55 years the star shifts **5.7 arcseconds**, less than the width of its
+  own blurred image (6.9") and its saturated core is masked. The two halves
+  of the move overlap, so the pipeline reports a strong *brightness change at
+  the star* (2,043 sigma), and the "expected movers" panel says
+  **resolvable: no**. The big rings 6 pixels around it are glare from a
+  saturated star, correctly labelled artefacts. (Version 1 called two weak
+  blobs there "KNOWN_MOVER"; they were pieces of that glare ring paired up by
+  a too-generous rule. Version 2 refuses: no star moves 66 arcseconds a year.)
+* **15,411 Gaia DR3 sources, 4,617 AllWISE sources and 43 VSX variables**
+  are inside the 15' catalogue cone, which is what makes the verdicts
+  meaningful.
 
 For comparison, **R Draconis** (a Mira variable in a crowded field) has 6
 detections and *all six* are KNOWN: every change it shows is already catalogued,
@@ -674,10 +693,23 @@ Gaia DR3 300 / VSX 47 entries cross-matched`.
   30 arcseconds", which is most often a faint star too dim for Gaia, a cosmic ray
   that slipped through, or a residual from a bright star's mask. Real follow-up
   means re-observing the position.
-* **The real cutouts carry two bands, not 102.** With two file pairs the
-  "spectrum" is four aperture measurements, so the 102-band classifier is *not*
-  run on real data -- the API returns `classification: null` rather than making
-  something up. The synthetic demo cache is what exercises the classifier.
+* **The real cutouts carry six bands with a few exposures each, not 102
+  channels.** A field has 12-36 exposures, so the target "spectrum" is 12-36
+  points; the 102-band classifier needs at least 30 well-sampled channels, so
+  on most fields the API returns `classification: null` rather than making
+  something up. The deep fields (thousands of visits) are where full spectra
+  are possible.
+* **Slow movers are not resolved.** If a star shifts less than the telescope's
+  blur (about 7 arcseconds) between the two epochs, its two halves overlap and
+  the pipeline reports a brightness change instead of a mover. Barnard's Star
+  moves 5.7" in the 0.55-year DR1 baseline: not resolvable yet.
+* **Nebulae and galaxies make fake candidates.** Their glowing gas is in no
+  star catalogue, so subtraction leftovers there look "new" (Crab Nebula: 5 per
+  null field). The ML score ranks most of them low; it does not remove them.
+* **The ML score is only as good as its examples.** Its "real" examples are
+  planted fakes and its "bogus" ones are same-epoch leftovers; real fake
+  *movers* are barely represented, so its mover scores are untested. Public
+  votes are meant to fix that.
 * **The catalogue checks are heuristics.** The brightness-dependent radii, the
   bright-star mask, the AllWISE motion threshold and the NEOWISE "variable" rule
   are tuned constants (`catalog_tools.py`, `step7_neowise.is_variable`), not
@@ -728,7 +760,7 @@ Gaia DR3 300 / VSX 47 entries cross-matched`.
 | **Proper motion** | A star's apparent movement across the sky, in arcseconds per year. |
 | **PSF** | Point spread function: the blurry shape a point of light makes. |
 | **SIA2** | IVOA "Simple Image Access v2", the web standard used to find the images. |
-| **Sigma** | A unit of statistical surprise; 5 sigma is the usual "real" threshold. |
+| **Sigma** | A unit of statistical surprise; 5 sigma is the usual "real" threshold in astronomy, and this pipeline uses 6 because its own null test showed 5 lets through twice as many fake candidates. |
 | **TAP / ADQL** | Standard query protocol and SQL dialect for astronomy databases. |
 | **Triage** | Deciding whether a detection is already known. |
 | **Variance / inverse-variance weighting** | Uncertainty squared; weighting by 1/variance favours trustworthy pixels. |
@@ -799,6 +831,82 @@ the pipeline on the actual files. Where something did not work (AllWISE, the
 102-band classifier on real data), it says so.
 
 ---
+
+## 11a. What's new in version 2, in plain words
+
+**"Could it just be an asteroid?"** Asteroids drift across the sky by
+arcminutes per hour, so in a picture taken months later one is simply gone,
+and it leaves a blob in the difference image. Version 1 called such blobs
+CANDIDATE, a false alarm. Now, for every exposure time, the site asks NASA's
+Jet Propulsion Laboratory which known asteroids were in the picture. A second,
+independent service in Canada (CADC's SSOIS) confirms where the asteroid
+should have been. A match becomes **KNOWN_ASTEROID**. If JPL cannot be reached,
+the card says **"asteroid check unavailable"** instead of pretending it passed.
+
+**Things that got fainter.** Version 1 only reported spots that got
+*brighter*. A star that faded was thrown away. Now it is reported as
+**"got fainter"**.
+
+**The real blur of the telescope.** Every SPHEREx file says exactly how a point
+of light is smeared (its *point-spread function*, about 7 arcseconds wide).
+Version 1 assumed a guessed blur; now the real one is used, so bright stars
+subtract more cleanly. The glow of sunlight scattered by dust in the solar
+system (*zodiacal light*), also stored in each file, is removed first.
+
+**How good is it, honestly?** Three tests, run on the real images:
+
+* **Null test.** Subtract two pictures taken *at the same time*. Nothing
+  real can have changed, so everything found is a false alarm. This measures
+  how often the detector cries wolf, and the detection threshold is set
+  from it.
+* **Fake objects.** Plant fake movers and fake flickering stars into the real
+  images, then check how many are found, in the right place and as the right
+  kind of thing. That is the **recall**.
+* **Known objects.** Stars that Gaia says move fast, catalogued variable
+  stars, and known asteroids: does the detector find them?
+
+The results are on the website's **Accuracy** page, with error bars. On all
+18 fields: the detector finds **69 %** of planted objects in the right place
+and as the right kind of thing: **97 %** of stars that brightened, **95 %**
+of stars that faded, **56 %** of movers (slow movers are hard: their two
+halves overlap). It produces about **1.7 fake candidates per field**, mostly
+in nebulae and galaxies, whose glowing gas is in no star catalogue; six of the
+star fields produce none. Before version 2 it found **0.2 %**: one bright
+star's leftover shrank every other signal in the map, and fading stars were
+glued to unrelated blobs as fake "movers".
+
+**The machine-learning score.** A model trained on those tests looks at about
+20 measurements of each detection (how strong, how round, how close to a
+bright star, how many masked pixels, ...) and gives a percentage: how likely
+this is a real change rather than an imaging artefact. It **only re-orders
+the list**. Tested on four fields it never saw during training, it is right
+about 90 % of the time when it calls a brightening "real" (and catches 82 %
+of them); for fading sources the figures are 72 % and 63 %. The KNOWN / CANDIDATE answer still comes from the catalogue check,
+so a scientist can always see why. Each card shows the three things that
+moved the score most, in words.
+
+**The evidence score.** One number that combines everything: the ML score, how
+strong the signal is, whether NEOWISE (2010-2024) and Gaia saw the same
+motion, the asteroid check, and (where it exists) a picture from Canada's
+NEOSSat satellite in visible light. Each part is listed with its reason,
+including the ones that could not be checked.
+
+**One click to see it yourself.** Every detection has an **Open in WiseView**
+button. It flips through 14 years of WISE infrared pictures of that exact
+spot, the same tool citizen scientists in *Backyard Worlds* use.
+
+**Help classify.** Visitors can vote *real / bogus / not sure* on uncertain
+candidates. Votes become training examples for the next model.
+
+**Deep fields.** At the two ecliptic poles SPHEREx looks at the same spot
+thousands of times a year (about 20,800 pictures of one point at the north
+pole). That makes real **light curves** (brightness over time) possible.
+There is a catch: SPHEREx's filter changes colour across the detector, so
+every visit sees a star in a *different colour*. A raw light curve would
+mix "the star changed" with "we looked in another colour". So each star's own
+average spectrum is measured first and divided out; only what is left can be
+called variability. In the first test field, exactly one of six stars came
+out variable, and Gaia independently lists that same star as variable.
 
 ## 12. Credits
 

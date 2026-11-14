@@ -1,10 +1,18 @@
 """
 step6_injection.py
 
-Injects synthetic moving sources into real SPHEREx cutouts, runs the
-full ZOGY detection pipeline, and measures the fraction of injected
-sources recovered at >5 sigma. Repeating this over a grid of signal-to-
-noise and proper motion produces the recovery curve displayed in the UI.
+Injects synthetic moving sources into real SPHEREx co-adds, runs the ZOGY
+detection pipeline, and measures the fraction recovered.  Repeating this over
+a grid of signal-to-noise and proper motion produces the recovery curve
+displayed in the UI.
+
+v2 (Phase 4.2): the test is now *strict* -- a source counts as recovered only
+if a "dipole" detection has its positive lobe within 1.5 px of the injected
+new position (the old test accepted any |S| > 5 in a 10x10 box), and every
+mover moves in a uniformly random direction (they all used to move the same
+way).  The richer evaluation -- real PSF, brightening/fading variables,
+Wilson intervals -- is spherexlens.eval.injection.run_strict_injection; this
+function keeps its original signature and return value for the dashboard.
 """
 
 import numpy as np
@@ -21,59 +29,38 @@ def inject_point_source(img, psf_sigma_px, amplitude, cx, cy):
 
 def run_injection_recovery(img1, img2, noise1, noise2, psf_sigma_px,
                            snr_grid, mu_grid, n_trials=20, seed=42,
-                           progress=None):
+                           progress=None, dt_years=0.5, pixscale_arcsec=3.0,
+                           sigma_thresh=None):
     """
-    For each (snr, mu) pair, inject n_trials synthetic sources at random
-    positions and count how many are recovered at >5 sigma.
+    For each (snr, mu) pair, inject n_trials moving sources (random position,
+    random direction) and count how many come back as a dipole whose positive
+    lobe is within 1.5 px of the injected position.
+
+    snr is the legacy peak-pixel SNR (peak = snr * noise1).  Returns
+    {(snr, mu): fraction}.
     """
-    rng = np.random.default_rng(seed)
-    results = {}
+    import config
+    from spherexlens.eval import harness
+    from spherexlens.eval.injection import run_strict_injection
 
-    ny, nx = img1.shape
-    margin = 30
-    total_cells = len(snr_grid) * len(mu_grid)
-    completed_cells = 0
+    sigma_thresh = sigma_thresh or config.DETECTION_SIGMA
+    psf = {"stamp": harness.gaussian_stamp(psf_sigma_px), "sigma_px": psf_sigma_px,
+           "fwhm_px": 2.3548 * psf_sigma_px, "model": "gaussian"}
+    s1 = float(np.nanmean(noise1)) if np.ndim(noise1) else float(noise1)
+    s2 = float(np.nanmean(noise2)) if np.ndim(noise2) else float(noise2)
 
-    for snr in snr_grid:
-        for mu in mu_grid:
-            recovered = 0
-            for trial in range(n_trials):
-                cx = rng.uniform(margin, nx - margin)
-                cy = rng.uniform(margin, ny - margin)
+    def find(S, dt, thresh, pixscale):
+        return find_detections(S, pix_scale_arcsec=pixscale, dt_years=dt,
+                               sigma_thresh=thresh)
 
-                amplitude = snr * float(np.mean(noise1))
-                shift_px = (mu * 0.5) / 3.0
-
-                i1_inj = inject_point_source(img1, psf_sigma_px, amplitude, cx, cy)
-                i2_inj = inject_point_source(img2, psf_sigma_px, amplitude,
-                                             cx + shift_px, cy + shift_px * 0.3)
-
-                try:
-                    _, S = zogy(i1_inj, i2_inj,
-                                float(np.mean(noise1)),
-                                float(np.mean(noise2)),
-                                psf_sigma_px, psf_sigma_px)
-                except Exception:
-                    continue
-
-                cyi, cxi = int(cy), int(cx)
-                window = S[max(0, cyi-5):cyi+5, max(0, cxi-5):cxi+5]
-                if window.size > 0 and np.abs(window).max() > 5.0:
-                    recovered += 1
-
-            results[(snr, mu)] = recovered / float(n_trials)
-            completed_cells += 1
-            if progress:
-                progress({
-                    "completed": completed_cells,
-                    "total": total_cells,
-                    "snr": float(snr),
-                    "mu": float(mu),
-                    "recovered": recovered,
-                    "trials": n_trials,
-                })
-
-    return results
+    res = run_strict_injection(
+        img1, img2, s1, s2, psf=psf, snr_grid=snr_grid, mu_grid=mu_grid,
+        categories=("mover",), n_trials=n_trials, seed=seed, dt_years=dt_years,
+        pixscale=pixscale_arcsec, sigma_thresh=sigma_thresh, per_image=1,
+        snr_mode="peak", margin=30, zogy_fn=zogy, find_fn=find, progress=progress,
+        normalisation="pipeline")
+    return {(c["snr"], c["mu"]): (c["n_recovered"] / float(n_trials))
+            for c in res["grid"]}
 
 
 if __name__ == "__main__":

@@ -45,6 +45,12 @@ from catalog_tools import (propagate_catalogs, harmonise_motions, target_positio
                            robust_std, CATALOG_EPOCH_MJD, GAIA_DR3_EPOCH_MJD,
                            ALLWISE_EPOCH_MJD)
 from snapshot_store import SnapshotStore
+import config
+from version import pipeline_stamp
+from spherexlens.enrich import run_enrichers
+from spherexlens.imaging import (dedup_detections, spike_hit, edge_hit,
+                                 bright_stars_on_grid, psf_sigma_px)
+from catalog_tools import bright_mask_radius
 
 app = FastAPI(title="SPHEREx Discovery Portal API")
 # B9: Gzip responses larger than 1 KB.
@@ -74,14 +80,10 @@ def _client_key(request):
     The limiter only damps abuse -- the expensive paths also have hard
     concurrency guards -- so a forged header can at worst evade the limit.
     """
-    netlify_ip = request.headers.get("x-nf-client-connection-ip", "").strip()
-    if netlify_ip:
-        return netlify_ip
-    forwarded = request.headers.get("x-forwarded-for", "")
-    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
-    if hops:
-        return hops[-1]
-    return get_remote_address(request)
+    # S8: with SPHEREX_PROXY_SECRET set, the Netlify header is trusted only
+    # on requests carrying a valid Netlify signature (X-Nf-Sign).
+    from spherexlens.http_guard import trusted_client_ip
+    return trusted_client_ip(request.headers, get_remote_address(request))
 
 
 # N6: per-visitor rate limiting (in-memory, per instance).
@@ -220,6 +222,14 @@ def _check_irsa_listing(store, entry, target):
             + "; fetching cutouts")
     return (ra, dec, rows), irsa_check, unchanged
 _LOGGER = logging.getLogger(__name__)
+
+
+def _public_error(prefix, error):
+    """Security review S7: log the real exception server-side and return a
+    message that names the step and error type only -- no paths, URLs or
+    library internals reach the browser."""
+    _LOGGER.warning("%s: %s: %s", prefix, type(error).__name__, error)
+    return f"{prefix} ({type(error).__name__}); details are in the server log."
 
 
 @asynccontextmanager
@@ -827,13 +837,17 @@ def significance_histogram(S, bins=32):
     values = values[np.isfinite(values)]
     if values.size == 0:
         return {"bins": [], "counts": [], "edges": []}
-    lo, hi = -6.0, max(6.0, float(np.percentile(values, 99.9)))
+    thr = float(config.DETECTION_SIGMA)
+    # both tails reach past the detection threshold, so fading (negative)
+    # detections are visible too, not clipped into the edge bin
+    lo, hi = -(thr + 2.0), max(thr + 2.0, float(np.percentile(values, 99.9)))
     counts, edges = np.histogram(np.clip(values, lo, hi), bins=bins,
                                  range=(lo, hi))
     return {
         "edges": [round(float(e), 2) for e in edges],
         "counts": [int(c) for c in counts],
         "n_pixels": int(values.size),
+        "threshold": thr,          # the UI highlights |S| beyond this
     }
 
 
@@ -970,7 +984,7 @@ def exposure_provenance(meta, target_wcs, npix=180):
         info.setdefault("path", path)
         info.setdefault("file", os.path.basename(path))
         info.setdefault("epoch", epoch)
-        info.setdefault("collection", meta.get("collection", "spherex_qr2"))
+        info.setdefault("collection", meta.get("collection", config.SPHEREX_COLLECTION))
 
         try:
             with fits.open(path) as hdul:
@@ -1641,7 +1655,7 @@ def list_targets(request: Request = None):
 
 
 @app.get("/api/status")
-def get_status(target: str = Query("WISE_0855")):
+def get_status(target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$")):
     store = _snapshot_store()
     if store is None:
         return {
@@ -1806,7 +1820,7 @@ def _proxy_refresh_request(endpoint, method, token=None):
 
 
 @_rate_limited_route("get", "/api/snapshot-history", "60/minute")
-def get_snapshot_history(target: str = Query("WISE_0855"),
+def get_snapshot_history(target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$"),
                          request: Request = None):
     """Retained published snapshots for one field, newest first.
 
@@ -1956,7 +1970,7 @@ def trigger_cloud_refresh(request: Request):
 
 @_rate_limited_route("get", "/api/dashboard", "30/minute")
 def get_dashboard(request: Request = None,
-                  target: str = Query("WISE_0855"),
+                  target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$"),
                   source: str = Query("cache"),
                   snapshot: str = Query("", max_length=96),
                   live_slots: int = Query(0, ge=0, le=12),
@@ -2058,7 +2072,7 @@ def get_dashboard(request: Request = None,
         except Exception as e:
             return JSONResponse(
                 status_code=502,
-                content={"error": f"IRSA listing query failed: {e}",
+                content={"error": _public_error("IRSA listing query failed", e),
                          "hint": "IRSA may be busy; retry in a minute."})
         if unchanged is not None:
             return unchanged
@@ -2076,7 +2090,7 @@ def get_dashboard(request: Request = None,
             return JSONResponse(
                 status_code=422 if isinstance(e, CoverageError) else 502,
                 content={"error": (str(e) if isinstance(e, CoverageError)
-                                   else f"Live fetch from IRSA failed: {e}"),
+                                   else _public_error("Live fetch from IRSA failed", e)),
                          "hint": "retry, or call without ?source=live to use data_cache/"}
             )
         paths = []
@@ -2159,14 +2173,20 @@ def get_dashboard(request: Request = None,
         _emit_progress("coadd", f"Co-adding {len(order)} observing epochs")
         groups = {e: [(s, b) for s, b, pe in zip(sources, bands, epochs) if pe == e]
                   for e in order}
-        stacks, noise_maps, excluded, n_bands = coadd_matched(groups, wcs, npix=npix)
+        # v2: ZODI-subtracted, quality-filtered, with each epoch's measured PSF
+        stacks, noise_maps, excluded, n_bands, coadd_extra = coadd_matched(
+            groups, wcs, npix=npix, return_psf=True)
+        psfs = coadd_extra["psfs"]
+        psf_info = coadd_extra["psf_info"]
+        exposure_quality = coadd_extra["exposure_quality"]
+        edge_map = coadd_extra["edge_map"]
         noises = {e: float(np.nanmedian(np.where(noise_maps[e] < 1e3, noise_maps[e], np.nan)))
                   for e in order}
         _emit_progress("coadd", f"Co-add complete for {len(order)} epochs")
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"error": f"Co-addition failed: {str(e)}"}
+            content={"error": _public_error("Co-addition failed", e)}
         )
 
     epoch1_files = files_by_epoch[order[0]]
@@ -2176,12 +2196,13 @@ def get_dashboard(request: Request = None,
 
     try:
         _emit_progress("subtraction", "Running ZOGY subtraction")
-        D, S = zogy(img1, img2, sigma1, sigma2, psf_sigma1=1.4, psf_sigma2=1.4)
+        D, S = zogy(img1, img2, sigma1, sigma2,
+                    psf1=psfs.get(order[0]), psf2=psfs.get(order[-1]))
         _emit_progress("subtraction", "Initial ZOGY subtraction complete")
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"error": f"ZOGY failed: {str(e)}"}
+            content={"error": _public_error("ZOGY subtraction failed", e)}
         )
 
     # consecutive pairs (E1->E2, E2->E3, ...) plus the deep pair E1->En
@@ -2203,8 +2224,10 @@ def get_dashboard(request: Request = None,
                 d_img, s_img = D, S
             else:
                 d_img, s_img = zogy(stacks[ea], stacks[eb], noises[ea],
-                                    noises[eb], 1.4, 1.4)
-            found = find_detections(s_img, pix_scale_arcsec=3.0, dt_years=0.5)
+                                    noises[eb], psf1=psfs.get(ea), psf2=psfs.get(eb))
+            found = find_detections(s_img, pix_scale_arcsec=3.0,
+                                    dt_years=baseline_years(ea, eb) or 0.5,
+                                    sigma_thresh=config.DETECTION_SIGMA)
         except Exception:
             found = []
         pair_summary.append({
@@ -2228,17 +2251,21 @@ def get_dashboard(request: Request = None,
         )
 
     # merge the same object found in several pairs, keeping the strongest
-    detections = []
-    for d in sorted(raw_detections, key=lambda d: -d["snr"]):
-        pos = d.get("pos_plus") or d.get("pos") or (0, 0)
-        if any(abs(pos[0] - (m.get("pos_plus") or m.get("pos") or (0, 0))[0]) <= 2
-               and abs(pos[1] - (m.get("pos_plus") or m.get("pos") or (0, 0))[1]) <= 2
-               for m in detections):
-            continue
-        detections.append(d)
+    # (KD-tree, config.MERGE_RADIUS_PX; records n_pairs_seen)
+    detections = dedup_detections(raw_detections)
+
+    # artefact masks: footprint edges and bright-star detector-axis crosses
+    spike_angles = coadd_extra.get("axis_angles_deg") or []
+    _bright_cache = {}
+
+    def bright_at(e):
+        if e not in _bright_cache:
+            _bright_cache[e] = bright_stars_on_grid(catalogs_at(e), wcs, npix,
+                                                    bright_mask_radius)
+        return _bright_cache[e]
 
     triaged = []
-    triage_detections = detections[:10]
+    triage_detections = detections[:config.MAX_TRIAGED_DETECTIONS]
     _emit_progress("triage", f"Classifying {len(triage_detections)} detections")
     for index, d in enumerate(triage_detections, start=1):
         ea, eb = d.get("epochs", (order[0], order[-1]))
@@ -2250,6 +2277,17 @@ def get_dashboard(request: Request = None,
         if lost:
             context["mask"] = {"bands_excluded": lost, "n_bands": n_bands}
         mask_hits = lost >= n_bands
+        lobes = [d.get(k) for k in ("pos_plus", "pos_minus", "pos") if d.get(k)]
+        n_edge = edge_hit(edge_map, lobes)
+        if n_edge:
+            context["edge"] = {"n_exposures": n_edge, "edge_px": config.EDGE_MASK_PX}
+        spike = spike_hit(lobes, bright_at(eb), spike_angles)
+        if spike:
+            context["spike"] = spike
+        fw = [psf_info.get(e, {}).get("grid_fwhm_arcsec") for e in (ea, eb)]
+        fw = [f for f in fw if f]
+        if fw:
+            context["psf_fwhm_arcsec"] = max(fw)
         if d.get("kind") == "dipole":
             (y1, x1), (y2, x2) = d["pos_plus"], d["pos_minus"]
             d["separation_arcsec"] = float(np.hypot(x1 - x2, y1 - y2) * 3.0)
@@ -2267,6 +2305,10 @@ def get_dashboard(request: Request = None,
         t = triage(d, ra, dec, npix, 3.0, catalogs_at(eb), wcs=wcs, context=context)
         t["kind"] = d["kind"]
         t["snr"] = d["snr"]
+        if d.get("sign") is not None:
+            t["sign"] = d["sign"]
+        t["n_pairs_seen"] = d.get("n_pairs_seen", 1)
+        t["pairs_seen"] = d.get("pairs_seen") or [d.get("pair")]
         t["pair"] = d.get("pair")
         t["position"] = d.get("pos_plus") or d.get("pos")
         if d.get("pos_minus"):
@@ -2275,6 +2317,13 @@ def get_dashboard(request: Request = None,
             t["proper_motion_arcsec_yr"] = d["proper_motion_arcsec_yr"]
         if context.get("delta_mag") is not None:
             t["delta_mag"] = context["delta_mag"]
+        # v2: epochs and a stable id for every detection, so enrichers
+        # (asteroids, links, ML) and votes can refer to it.  t["ra"]/t["dec"]
+        # are already set by triage (WCS, with a flat-sky fallback).
+        _py, _px = t["position"]
+        t["mjd_a"], t["mjd_b"] = epoch_mjd.get(ea), epoch_mjd.get(eb)
+        t["epochs"] = [ea, eb]
+        t["detection_id"] = f"{target}:{t.get('pair')}:{_py},{_px}"
         d["category"] = t["category"]
         triaged.append(t)
         _emit_progress(
@@ -2352,8 +2401,8 @@ def get_dashboard(request: Request = None,
         "astrometry": astrometry,
     })
 
-    _emit_progress("complete", "Dashboard processing complete")
-    return {
+    payload = {
+        "pipeline": {**pipeline_stamp(), "model_version": None},
         "target": target,
         "common": meta["meta"].get("common", target),
         "ra": ra,
@@ -2394,8 +2443,11 @@ def get_dashboard(request: Request = None,
         "catalog_counts": {k: len(v or []) for k, v in raw_catalogs.items()},
         "catalog_status": meta.get("catalog_status"),
         "epochs": [{"epoch": e, "mjd": epoch_mjd.get(e),
-                    "year": round(mjd_to_year(epoch_mjd[e]), 3) if epoch_mjd.get(e) else None}
+                    "year": round(mjd_to_year(epoch_mjd[e]), 3) if epoch_mjd.get(e) else None,
+                    "psf": {k: (psf_info.get(e) or {}).get(k)
+                            for k in ("source", "fwhm_arcsec", "grid_fwhm_arcsec")}}
                    for e in order],
+        "exposure_quality": exposure_quality,
         "target_position": {"ra": t_ra, "dec": t_dec, "x": tx, "y": ty,
                             "moving": bool(block.get("pm_ra") or block.get("pm_dec")),
                             "pm_ra": block.get("pm_ra"), "pm_dec": block.get("pm_dec")},
@@ -2407,9 +2459,32 @@ def get_dashboard(request: Request = None,
                     "target": neowise_target},
     }
 
+    # ---- v2 enrichers (spherexlens/enrich.py) -------------------------------
+    # Asteroid check, links, coverage, ML score, evidence.  Each adds fields
+    # documented in spherexlens/CONTRACT.md; a failing one is reported in
+    # payload["enrichment"] and never breaks the dashboard.
+    _emit_progress("enrich", "Running asteroid check, ML scoring and evidence")
+    enrich_ctx = {
+        "target": target, "meta": meta, "wcs": wcs, "npix": npix,
+        "pixscale_arcsec": 3.0, "ra": ra, "dec": dec,
+        "stacks": stacks, "noises": noises, "noise_maps": noise_maps,
+        "excluded": excluded, "n_bands": n_bands,
+        "epoch_order": order, "epoch_mjd": epoch_mjd,
+        "sources": sources, "bands": bands, "epochs": epochs, "mjds": mjds,
+        "raw_catalogs": raw_catalogs, "catalogs_at": catalogs_at,
+        "neowise": neowise, "block": block, "S": S, "D": D,
+        "raw_detections": detections, "live": live_mode,
+        "psfs": psfs, "psf_info": psf_info, "exposure_quality": exposure_quality,
+        "edge_map": edge_map,
+    }
+    run_enrichers(payload, enrich_ctx)
+    _emit_progress("complete", "Dashboard processing complete")
+    return payload
 
-@app.get("/api/dashboard/stream")
-async def stream_dashboard(target: str = Query("WISE_0855"),
+
+@_rate_limited_route("get", "/api/dashboard/stream", "10/minute")
+async def stream_dashboard(request: Request = None,
+                           target: str = Query("WISE_0855", max_length=80),
                            live_slots: int = Query(0, ge=0, le=12),
                            live_size: float = Query(0.2, ge=0.05, le=0.5),
                            live_epochs: str = Query(
@@ -2444,8 +2519,15 @@ def _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source="live
     groups = {e: [(s, b) for s, b, pe in zip(sources, bands, epochs) if pe == e]
               for e in (order[0], order[-1])}
     _emit_progress("coadd", "Co-adding matched recovery epochs")
-    stacks, noise_maps, _, _ = coadd_matched(groups, wcs, npix=npix)
+    stacks, noise_maps, _, _, coadd_extra = coadd_matched(groups, wcs, npix=npix,
+                                                          return_psf=True)
     _emit_progress("coadd", "Matched recovery epochs are ready")
+    # step6 injects and subtracts Gaussians: give them the measured co-add PSF
+    # width (largest of the two epochs) instead of the 1.4 px default
+    rec_fwhm = [(coadd_extra["psf_info"].get(e) or {}).get("grid_fwhm_arcsec")
+                for e in (order[0], order[-1])]
+    rec_fwhm = [f for f in rec_fwhm if f]
+    rec_sigma = psf_sigma_px(max(rec_fwhm)) if rec_fwhm else 1.4
     img1, img2 = stacks[order[0]], stacks[order[-1]]
     noise1, noise2 = noise_maps[order[0]], noise_maps[order[-1]]
     noise1 = np.where(noise1 < 1e3, noise1, np.nan)
@@ -2465,7 +2547,7 @@ def _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source="live
     results = run_injection_recovery(
         img1, img2,
         float(np.nanmedian(noise1)), float(np.nanmedian(noise2)),
-        psf_sigma_px=1.4,
+        psf_sigma_px=rec_sigma,
         snr_grid=[3, 5, 7, 10, 15, 20],
         mu_grid=[1, 2, 5, 10],
         n_trials=10,
@@ -2480,6 +2562,7 @@ def _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source="live
     return {
         "target": target,
         "grid": grid,
+        "psf_sigma_px": round(float(rec_sigma), 3),
         "source": "live" if str(source).lower() == "live" else "cache",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
@@ -2512,13 +2595,13 @@ def _meta_from_targets_registry(target):
         "paths": [],
         "epochs": [],
         "catalogs": {},
-        "collection": "spherex_qr2",
+        "collection": config.SPHEREX_COLLECTION,
     }
 
 
 @_rate_limited_route("get", "/api/recovery", "30/minute")
 def get_recovery(request: Request = None,
-                 target: str = Query("WISE_0855"), source: str = Query("cache")):
+                 target: str = Query("WISE_0855", max_length=80, pattern=r"^[A-Za-z0-9_]+$"), source: str = Query("cache")):
     """
     Run injection-recovery on the specified target and return the grid.
 
@@ -2544,7 +2627,7 @@ def get_recovery(request: Request = None,
             return JSONResponse(
                 status_code=422 if isinstance(e, CoverageError) else 502,
                 content={"error": (str(e) if isinstance(e, CoverageError)
-                                   else f"Live fetch from IRSA failed: {e}")})
+                                   else _public_error("Live fetch from IRSA failed", e))})
         sources = [c["data"] for c in cutouts]
         epochs = [c["epoch"] for c in cutouts]
         bands = exposure_bands(meta, sources, cutouts)
@@ -2592,7 +2675,7 @@ def get_recovery(request: Request = None,
         except Exception as e:
             return JSONResponse(status_code=422 if isinstance(e, CoverageError) else 502,
                                 content={"error": (str(e) if isinstance(e, CoverageError)
-                                                   else f"Live fetch from IRSA failed: {e}")})
+                                                   else _public_error("Live fetch from IRSA failed", e))})
         sources = [c["data"] for c in cutouts]
         epochs = [c["epoch"] for c in cutouts]
         bands = exposure_bands(meta, sources, cutouts)
@@ -2608,8 +2691,9 @@ def get_recovery(request: Request = None,
     return _run_recovery_pipeline(target, ra, dec, sources, epochs, bands, source=source)
 
 
-@app.get("/api/recovery/stream")
-async def stream_recovery(target: str = Query("WISE_0855"),
+@_rate_limited_route("get", "/api/recovery/stream", "10/minute")
+async def stream_recovery(request: Request = None,
+                          target: str = Query("WISE_0855", max_length=80),
                           source: str = Query(
                               "live", pattern="^(cache|live)$"),
                           result: str = _RESULT_PARAM):
@@ -2638,6 +2722,37 @@ def _thumbnail(arr, size=48):
     return np.round(blocks, 2).tolist()
 
 
+_FINGERPRINT_PATTERN = "^[0-9a-f]{0,64}$"     # step1_ingest.source_fingerprint
+_DISPLAY_NAME_UNSAFE = re.compile(r"[\x00-\x1f\x7f<>&\"'`\\]")
+
+
+def field_input_error(ra, dec, name="", size=0.2, slots=0):
+    """Why an "Open any field" request is invalid, or None (security review S1)."""
+    try:
+        ra, dec, size = float(ra), float(dec), float(size)
+    except (TypeError, ValueError):
+        return "RA, Dec and size must be numbers."
+    if (not (np.isfinite(ra) and np.isfinite(dec))
+            or not 0 <= ra <= 360 or not -90 <= dec <= 90):
+        return ("RA must be between 0 and 360 degrees and Dec between "
+                "-90 and 90 degrees.")
+    if not np.isfinite(size) or not 0.05 <= size <= config.Production.MAX_FIELD_SIZE_DEG:
+        return (f"size must be between 0.05 and "
+                f"{config.Production.MAX_FIELD_SIZE_DEG:g} degrees.")
+    if (isinstance(slots, bool) or not isinstance(slots, int)
+            or not 0 <= slots <= config.Production.MAX_LIVE_SLOTS):
+        return f"slots must be between 0 and {config.Production.MAX_LIVE_SLOTS}."
+    if not isinstance(name, str) or len(name) > config.Production.FIELD_NAME_MAX_LEN:
+        return (f"name must be at most {config.Production.FIELD_NAME_MAX_LEN} "
+                "characters.")
+    return None
+
+
+def _display_name(name):
+    """A field label safe to echo back: no control or HTML characters."""
+    return _DISPLAY_NAME_UNSAFE.sub("", str(name or "")).strip()[:80]
+
+
 @_rate_limited_route("get", "/api/field", "5/minute")
 def add_field(request: Request = None,
               ra: float = Query(...), dec: float = Query(...),
@@ -2646,12 +2761,14 @@ def add_field(request: Request = None,
               slots: int = Query(0, ge=0, le=12),
               epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
               catalogs: int = Query(1, ge=0, le=1),
-              known: str = Query("", max_length=128)):
-    if not 0 <= ra <= 360 or not -90 <= dec <= 90:
-        return JSONResponse(
-            status_code=422,
-            content={"error": "RA must be between 0 and 360 degrees and Dec between "
-                              "-90 and 90 degrees."})
+              known: str = Query("", max_length=128, pattern=_FINGERPRINT_PATTERN)):
+    error = field_input_error(ra, dec, name, size, slots)
+    if error is None and epochs not in ("firstlast", "all"):
+        error = "epochs must be 'firstlast' or 'all'."
+    if error is None and not re.fullmatch(_FINGERPRINT_PATTERN, str(known or "")):
+        error = "known must be a source fingerprint (hex)."
+    if error:
+        return JSONResponse(status_code=422, content={"error": error})
     if not FIELD_REQUEST_LIMIT.acquire(blocking=False):
         return JSONResponse(
             status_code=429,
@@ -2664,15 +2781,20 @@ def add_field(request: Request = None,
         FIELD_REQUEST_LIMIT.release()
 
 
-@app.get("/api/field/stream")
-async def stream_field(ra: float = Query(...), dec: float = Query(...),
+@_rate_limited_route("get", "/api/field/stream", "5/minute")
+async def stream_field(request: Request = None,
+                       ra: float = Query(...), dec: float = Query(...),
                        name: str = Query("", max_length=80),
                        size: float = Query(0.2, ge=0.05, le=0.5),
                        slots: int = Query(0, ge=0, le=12),
                        epochs: str = Query("firstlast", pattern="^(firstlast|all)$"),
                        catalogs: int = Query(1, ge=0, le=1),
-                       known: str = Query("", max_length=128),
+                       known: str = Query("", max_length=128,
+                                          pattern=_FINGERPRINT_PATTERN),
                        result: str = _RESULT_PARAM):
+    error = field_input_error(ra, dec, name, size, slots)
+    if error:
+        return JSONResponse(status_code=422, content={"error": error})
     return _progress_stream(
         lambda: add_field(
             ra=ra, dec=dec, name=name, size=size, slots=slots,
@@ -2733,19 +2855,32 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
     existing = load_target(safe)
     if existing is None:
         existing = _manifest_target_entry(safe)
+    safe = safe[:80]
+    existing_meta = (existing or {}).get("meta") or {}
     if (existing and
-            (float(existing["meta"]["ra"]) != ra or float(existing["meta"]["dec"]) != dec)):
+            (float(existing_meta.get("ra", float("nan"))) != ra
+             or float(existing_meta.get("dec", float("nan"))) != dec)):
         base = safe[:55]
         suffix = f"_{ra:.4f}_{dec:.4f}".replace("-", "m").replace(".", "p")
-        safe = f"{base}{suffix}"
-        while load_target(safe) is not None or _manifest_target_entry(safe) is not None:
-            safe = f"{safe[:70]}_x"
+        safe = candidate = f"{base}{suffix}"
+        # Security review S3: the old loop re-tried the same 72-character
+        # name forever once it was taken.  Numbered, bounded suffixes instead.
+        for attempt in range(1, 21):
+            if load_target(safe) is None and _manifest_target_entry(safe) is None:
+                break
+            safe = f"{candidate[:74]}_{attempt}"
+        else:
+            return JSONResponse(
+                status_code=409,
+                content={"error": "Could not find a free name for this field; "
+                                  "choose another name."})
     meta = {
         "target": safe,
-        "meta": {"ra": float(ra), "dec": float(dec), "common": name or safe,
+        "meta": {"ra": float(ra), "dec": float(dec),
+                 "common": _display_name(name) or safe,
                  "type": "Custom field"},
         "paths": [], "epochs": [], "catalogs": {},
-        "collection": "spherex_qr2", "cutout_size_deg": size,
+        "collection": config.SPHEREX_COLLECTION, "cutout_size_deg": size,
         "custom": True,
     }
     from datetime import datetime, timezone
@@ -2763,9 +2898,11 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
         try:
             rows = listing_future.result()
         except Exception as e:
+            _LOGGER.warning("IRSA listing failed for a custom field: %s: %s",
+                            type(e).__name__, str(e)[:300])
             return JSONResponse(
                 status_code=502,
-                content={"error": f"IRSA listing query failed: {e}",
+                content={"error": f"IRSA listing query failed ({type(e).__name__}).",
                          "hint": "IRSA may be busy; retry in a minute."})
         fingerprint = source_fingerprint(rows, float(ra), float(dec))
         if fingerprint == known_fingerprint:
@@ -2794,9 +2931,11 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
         listing_rows = listing_future.result()
     except Exception as e:
         meta.pop("_catalogs_future", None)
+        _LOGGER.warning("IRSA listing failed for a custom field: %s: %s",
+                        type(e).__name__, str(e)[:300])
         return JSONResponse(
             status_code=502,
-            content={"error": f"IRSA listing query failed: {e}",
+            content={"error": f"IRSA listing query failed ({type(e).__name__}).",
                      "hint": "IRSA may be busy; retry in a minute."})
     meta["_listing_rows"] = listing_rows
     _emit_progress("irsa_query", f"IRSA returned {len(listing_rows)} images for this position")
@@ -2937,8 +3076,9 @@ def live_mosaic_tile(target, thumb=48):
     return tile
 
 
-@app.get("/api/mosaic/tile/stream")
-async def stream_mosaic_tile(target: str = Query(..., max_length=80),
+@_rate_limited_route("get", "/api/mosaic/tile/stream", "60/minute")
+async def stream_mosaic_tile(request: Request = None,
+                             target: str = Query(..., max_length=80),
                              result: str = _RESULT_PARAM):
     return _progress_stream(
         lambda: live_mosaic_tile(target),
@@ -2985,5 +3125,12 @@ def get_mosaic(request: Request = None,
                "Set SPHEREX_SNAPSHOT_BUCKET to the GCS bucket name."
     )
 
+
+# v2 subsystems add their endpoints as routers in spherexlens/routes/; they
+# must be included before the catch-all static mount below.
+from spherexlens.routes import all_routers  # noqa: E402
+
+for _router in all_routers():
+    app.include_router(_router)
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

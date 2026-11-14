@@ -1,0 +1,527 @@
+{
+ "target": "Pleiades_M45",
+ "generated_utc": "2026-11-13T09:15:07Z",
+ "tables": [
+  "neowiser_p1bs_psd",
+  "allwise_p3as_mep"
+ ],
+ "detection_radius_arcsec": 8.0,
+ "positions": [
+  {
+   "label": "Pleiades (M45)",
+   "kind": "target",
+   "ra": 56.75,
+   "dec": 24.116667,
+   "n_exposures": 28,
+   "visits": [
+    {
+     "mjd": 56895.537,
+     "n": 1,
+     "ra": 56.7490529,
+     "dec": 24.1170816,
+     "source": "neowise",
+     "year": 2014.65,
+     "w1": 16.312,
+     "w1_err": 0.102,
+     "w2": 15.016,
+     "w2_err": 0.4994
+    },
+    {
+     "mjd": 57257.569,
+     "n": 3,
+     "ra": 56.7491908,
+     "dec": 24.1164933,
+     "source": "neowise",
+     "year": 2015.642,
+     "w1": 16.168,
+     "w1_err": 0.1906,
+     "w2": 15.279,
+     "w2_err": 0.0929
+    },
+    {
+     "mjd": 57423.256,
+     "n": 5,
+     "ra": 56.7504289,
+     "dec": 24.1167828,
+     "source": "neowise",
+     "year": 2016.095,
+     "w1": 16.355,
+     "w1_err": 0.1983,
+     "w2": 14.883,
+     "w2_err": 0.332
+    },
+    {
+     "mjd": 57621.242,
+     "n": 1,
+     "ra": 56.7512201,
+     "dec": 24.117729,
+     "source": "neowise",
+     "year": 2016.637,
+     "w1": 16.582,
+     "w1_err": 0.5434,
+     "w2": 14.9,
+     "w2_err": 0.3875
+    },
+    {
+     "mjd": 57988.468,
+     "n": 2,
+     "ra": 56.750157200000004,
+     "dec": 24.11791755,
+     "source": "neowise",
+     "year": 2017.643,
+     "w1": 16.555,
+     "w1_err": 0.4165,
+     "w2": 14.378,
+     "w2_err": 0.2687
+    },
+    {
+     "mjd": 58352.669,
+     "n": 3,
+     "ra": 56.7491605,
+     "dec": 24.116486,
+     "source": "neowise",
+     "year": 2018.64,
+     "w1": 16.58,
+     "w1_err": 0.2515,
+     "w2": 14.96,
+     "w2_err": 0.1966
+    },
+    {
+     "mjd": 58876.014,
+     "n": 2,
+     "ra": 56.75027935,
+     "dec": 24.11710655,
+     "source": "neowise",
+     "year": 2020.073,
+     "w1": 15.662,
+     "w1_err": 0.2842,
+     "w2": 14.8435,
+     "w2_err": 0.102
+    },
+    {
+     "mjd": 59084.301,
+     "n": 2,
+     "ra": 56.750544399999995,
+     "dec": 24.1170915,
+     "source": "neowise",
+     "year": 2020.643,
+     "w1": 16.216,
+     "w1_err": 0.102,
+     "w2": 14.359,
+     "w2_err": 0.3685
+    },
+    {
+     "mjd": 59243.133,
+     "n": 1,
+     "ra": 56.7486995,
+     "dec": 24.1165248,
+     "source": "neowise",
+     "year": 2021.078,
+     "w1": 16.754,
+     "w1_err": 0.102,
+     "w2": 14.553,
+     "w2_err": 0.2668
+    },
+    {
+     "mjd": 59448.733,
+     "n": 1,
+     "ra": 56.7501384,
+     "dec": 24.1168615,
+     "source": "neowise",
+     "year": 2021.641,
+     "w1": 16.567,
+     "w1_err": 0.4574,
+     "w2": 14.456,
+     "w2_err": 0.3735
+    },
+    {
+     "mjd": 59815.459,
+     "n": 1,
+     "ra": 56.750714,
+     "dec": 24.1178453,
+     "source": "neowise",
+     "year": 2022.645,
+     "w1": 15.867,
+     "w1_err": 0.2807,
+     "w2": 14.964,
+     "w2_err": 0.4464
+    },
+    {
+     "mjd": 59971.373,
+     "n": 5,
+     "ra": 56.7513821,
+     "dec": 24.1173351,
+     "source": "neowise",
+     "year": 2023.072,
+     "w1": 15.933,
+     "w1_err": 0.2645,
+     "w2": 14.65,
+     "w2_err": 0.1956
+    },
+    {
+     "mjd": 60338.727,
+     "n": 1,
+     "ra": 56.7512128,
+     "dec": 24.1178828,
+     "source": "neowise",
+     "year": 2024.077,
+     "w1": 16.165,
+     "w1_err": 0.3196,
+     "w2": 14.976,
+     "w2_err": 0.3506
+    }
+   ],
+   "summary": {
+    "n_visits": 4,
+    "n_visits_all": 13,
+    "w1": {
+     "n_visits": 4,
+     "mean": 16.263,
+     "saturated": false,
+     "amplitude": 0.647,
+     "rms": 0.238,
+     "chi2_red": 1.2,
+     "years": [
+      2015.64,
+      2023.07
+     ],
+     "trend_mag_per_yr": -0.0312,
+     "trend_err": 0.0406
+    },
+    "w2": {
+     "n_visits": 4,
+     "mean": 15.119,
+     "saturated": false,
+     "amplitude": 0.629,
+     "rms": 0.225,
+     "chi2_red": 3.29,
+     "years": [
+      2015.64,
+      2023.07
+     ],
+     "trend_mag_per_yr": -0.0837,
+     "trend_err": 0.0283
+    },
+    "variable": false,
+    "pm_ra_masyr": 708.6,
+    "pm_dec_masyr": 342.0,
+    "pm_ra_err": 532.6,
+    "pm_dec_err": 174.0,
+    "pm_total_masyr": 786.9,
+    "pm_err_masyr": 485.6,
+    "pm_significant": false
+   }
+  },
+  {
+   "label": "det0",
+   "kind": "detection",
+   "ra": 56.819396307986935,
+   "dec": 24.128317987899777,
+   "n_exposures": 25,
+   "visits": [
+    {
+     "mjd": 55240.342,
+     "n": 12,
+     "ra": 56.8190788,
+     "dec": 24.1282245,
+     "source": "allwise_mep",
+     "year": 2010.119,
+     "w1": 7.458,
+     "w1_err": 0.0222,
+     "w2": 7.487,
+     "w2_err": 0.022
+    },
+    {
+     "mjd": 55430.763,
+     "n": 12,
+     "ra": 56.8190788,
+     "dec": 24.1282245,
+     "source": "allwise_mep",
+     "year": 2010.64,
+     "w1": 7.442,
+     "w1_err": 0.0232,
+     "w2": 7.481,
+     "w2_err": 0.0209
+    },
+    {
+     "mjd": 59448.145,
+     "n": 1,
+     "ra": 56.8191416,
+     "dec": 24.1280728,
+     "source": "neowise",
+     "year": 2021.639,
+     "w1": 7.409,
+     "w1_err": 0.0262,
+     "w2": 7.493,
+     "w2_err": 0.0233
+    }
+   ],
+   "summary": {
+    "n_visits": 2,
+    "n_visits_all": 3,
+    "w1": {
+     "n_visits": 2,
+     "mean": 7.45,
+     "saturated": true,
+     "amplitude": 0.016,
+     "rms": 0.008,
+     "chi2_red": 0.25,
+     "years": [
+      2010.12,
+      2010.64
+     ]
+    },
+    "w2": {
+     "n_visits": 2,
+     "mean": 7.484,
+     "saturated": false,
+     "amplitude": 0.006,
+     "rms": 0.003,
+     "chi2_red": 0.04,
+     "years": [
+      2010.12,
+      2010.64
+     ]
+    },
+    "variable": false
+   }
+  },
+  {
+   "label": "det1",
+   "kind": "detection",
+   "ra": 56.813898100839666,
+   "dec": 24.08915372572013,
+   "n_exposures": 3,
+   "visits": [
+    {
+     "mjd": 58352.408,
+     "n": 2,
+     "ra": 56.8132498,
+     "dec": 24.0895529,
+     "source": "neowise",
+     "year": 2018.639,
+     "w1": 16.3635,
+     "w1_err": 0.102,
+     "w2": 14.8575,
+     "w2_err": 0.102
+    },
+    {
+     "mjd": 59084.268,
+     "n": 1,
+     "ra": 56.8116176,
+     "dec": 24.0893537,
+     "source": "neowise",
+     "year": 2020.643,
+     "w1": 15.137,
+     "w1_err": 0.201,
+     "w2": 14.878,
+     "w2_err": 0.102
+    }
+   ],
+   "summary": {
+    "n_visits": 0,
+    "n_visits_all": 2,
+    "w1": {
+     "n_visits": 0
+    },
+    "w2": {
+     "n_visits": 0
+    },
+    "variable": false
+   }
+  },
+  {
+   "label": "det2",
+   "kind": "detection",
+   "ra": 56.82944722376665,
+   "dec": 24.139146442841565,
+   "n_exposures": 25,
+   "visits": [
+    {
+     "mjd": 55240.342,
+     "n": 12,
+     "ra": 56.8306604,
+     "dec": 24.1389924,
+     "source": "allwise_mep",
+     "year": 2010.119,
+     "w1": 7.6095,
+     "w1_err": 0.0219,
+     "w2": 7.609,
+     "w2_err": 0.0221
+    },
+    {
+     "mjd": 55430.763,
+     "n": 12,
+     "ra": 56.8306604,
+     "dec": 24.1389924,
+     "source": "allwise_mep",
+     "year": 2010.64,
+     "w1": 7.5865,
+     "w1_err": 0.0251,
+     "w2": 7.613,
+     "w2_err": 0.0205
+    },
+    {
+     "mjd": 59084.726,
+     "n": 1,
+     "ra": 56.8307514,
+     "dec": 24.1388746,
+     "source": "neowise",
+     "year": 2020.644,
+     "w1": 7.576,
+     "w1_err": 0.0276,
+     "w2": 7.614,
+     "w2_err": 0.0239
+    }
+   ],
+   "summary": {
+    "n_visits": 2,
+    "n_visits_all": 3,
+    "w1": {
+     "n_visits": 2,
+     "mean": 7.6,
+     "saturated": true,
+     "amplitude": 0.023,
+     "rms": 0.011,
+     "chi2_red": 0.48,
+     "years": [
+      2010.12,
+      2010.64
+     ]
+    },
+    "w2": {
+     "n_visits": 2,
+     "mean": 7.611,
+     "saturated": false,
+     "amplitude": 0.004,
+     "rms": 0.002,
+     "chi2_red": 0.02,
+     "years": [
+      2010.12,
+      2010.64
+     ]
+    },
+    "variable": false
+   }
+  },
+  {
+   "label": "det3",
+   "kind": "detection",
+   "ra": 56.83035883910695,
+   "dec": 24.136645970377103,
+   "n_exposures": 0,
+   "visits": [],
+   "summary": {
+    "n_visits": 0,
+    "n_visits_all": 0,
+    "w1": {
+     "n_visits": 0
+    },
+    "w2": {
+     "n_visits": 0
+    },
+    "variable": false
+   }
+  },
+  {
+   "label": "det4",
+   "kind": "detection",
+   "ra": 56.66781482611794,
+   "dec": 24.13664500366141,
+   "n_exposures": 5,
+   "visits": [
+    {
+     "mjd": 57064.185,
+     "n": 1,
+     "ra": 56.668397,
+     "dec": 24.1359624,
+     "source": "neowise",
+     "year": 2015.112,
+     "w1": 16.95,
+     "w1_err": 0.102,
+     "w2": 13.917,
+     "w2_err": 0.2548
+    },
+    {
+     "mjd": 57621.504,
+     "n": 1,
+     "ra": 56.6669159,
+     "dec": 24.1359448,
+     "source": "neowise",
+     "year": 2016.638,
+     "w1": 15.342,
+     "w1_err": 0.4025,
+     "w2": 15.208,
+     "w2_err": 0.102
+    },
+    {
+     "mjd": 57787.261,
+     "n": 1,
+     "ra": 56.6687375,
+     "dec": 24.1367351,
+     "source": "neowise",
+     "year": 2017.092,
+     "w1": 16.7,
+     "w1_err": 0.102,
+     "w2": 14.101,
+     "w2_err": 0.2957
+    },
+    {
+     "mjd": 58147.086,
+     "n": 2,
+     "ra": 56.6677224,
+     "dec": 24.137952300000002,
+     "source": "neowise",
+     "year": 2018.077,
+     "w1": 16.3415,
+     "w1_err": 0.102,
+     "w2": 12.217,
+     "w2_err": 0.102
+    }
+   ],
+   "summary": {
+    "n_visits": 0,
+    "n_visits_all": 4,
+    "w1": {
+     "n_visits": 0
+    },
+    "w2": {
+     "n_visits": 0
+    },
+    "variable": false
+   }
+  },
+  {
+   "label": "det5",
+   "kind": "detection",
+   "ra": 56.745435937189626,
+   "dec": 24.08666693501275,
+   "n_exposures": 1,
+   "visits": [
+    {
+     "mjd": 59242.806,
+     "n": 1,
+     "ra": 56.745478,
+     "dec": 24.0844456,
+     "source": "neowise",
+     "year": 2021.077,
+     "w1": 16.77,
+     "w1_err": 0.102,
+     "w2": 13.862,
+     "w2_err": 0.2697
+    }
+   ],
+   "summary": {
+    "n_visits": 0,
+    "n_visits_all": 1,
+    "w1": {
+     "n_visits": 0
+    },
+    "w2": {
+     "n_visits": 0
+    },
+    "variable": false
+   }
+  }
+ ]
+}
