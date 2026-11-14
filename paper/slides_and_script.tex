@@ -94,7 +94,7 @@ showing on-demand fetching.
 
 Every code metric and detection count in this deck is verified directly against the current runtime
 modules (\code{step1}--\code{step7}, support modules, \code{app.py}, \code{static/}) and the live
-Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard}, \code{/api/recovery}).
+Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard}, \code{/api/recovery}, \code{/api/snapshot-history}).
 
 {\footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -125,12 +125,12 @@ Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard}, \code{/api/r
 15 & Theory V: triage & epoch propagation, 10--120\arcsec{} cone, 6 classes & 0:55 & \checkmark \\
 16 & Theory VI: spectral diagnosis & $\mathrm{CH_4}$, $\mathrm{H_2O}$, NIR slope + channel gate & 0:45 & -- \\
 17 & Validation: injection--recovery & measured 24-cell matrix, noise gap & 0:55 & \checkmark \\
-18 & Implementation I: Python \& backend & LOC by module, backend flow & 1:05 & \checkmark \\
-19 & Implementation II: architecture \& hosting & Cloud Run split, Netlify, GCS & 0:55 & \checkmark \\
-20 & Implementation III: frontend \& UI/UX & wireframe, canvas, offline stack & 0:45 & -- \\
+18 & Implementation I: Python \& backend & LOC by module (7\,212 total), backend flow & 1:05 & \checkmark \\
+19 & Implementation II: architecture \& hosting & Cloud Run split, Netlify, GCS snapshot chain & 0:55 & \checkmark \\
+20 & Implementation III: frontend \& UI/UX & wireframe, canvas, snapshot history replay & 0:45 & -- \\
 21 & Results I: eighteen fields & stacked detections, 109 across 18 fields & 1:05 & \checkmark \\
 22 & Results II: the candidates & scatter + epoch-propagation fix & 1:00 & -- \\
-23 & \textbf{Live demonstration} & current HDS UI map, six numbered moves & 1:30 & \checkmark \\
+23 & \textbf{Live demonstration} & current HDS UI map, snapshot replay, 6 moves & 1:30 & \checkmark \\
 24 & Conclusion, contributions, Q\&A & three pillars, references & 0:50 & \checkmark \\
 \midrule
 \multicolumn{3}{@{}l}{\textbf{Full route}} & \textbf{21:40} & \\
@@ -147,7 +147,7 @@ Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard}, \code{/api/r
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
 \item SPHERExLens: finding what changed in NASA's SPHEREx all-sky survey
 \item 18 fields \;\textbullet\; 246 archive cutouts \;\textbullet\; 109 detections, 99 explained (91\%)
-\item A codebase you can inspect: seven stages, 7\,082 runtime Python lines, one browser app
+\item A codebase you can inspect: seven stages, 7\,212 runtime Python lines, one browser app
 \item The honest number: two fields produce no detections (one quiet nebula, one band-mismatch), and the system says so
 \end{itemize}
 
@@ -176,7 +176,7 @@ the two headline numbers set large beside them.
   \draw[good,thick] (6.4,0.5) rectangle (9.6,2.1);
   \node at (8.0,1.55) {\LARGE\bfseries 99 / 10};
   \node[font=\scriptsize] at (8.0,0.85) {known / candidate};
-  \node[anchor=west,font=\scriptsize,text=muted,text width=5.6cm] at (10.4,1.30) {18 fields, 246 archive cutouts, 7-stage pipeline (7\,082\,LOC Python)};
+  \node[anchor=west,font=\scriptsize,text=muted,text width=5.6cm] at (10.4,1.30) {18 fields, 246 archive cutouts, 7-stage pipeline (7\,212\,LOC Python)};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Good morning. NASA's SPHEREx satellite photographs the whole sky in a hundred
@@ -545,8 +545,8 @@ was dropped earlier as single-visit in QR2. That refusal is recorded, not papere
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
 \item Seven stages: ingest, co-add, subtract, triage, diagnose, validate, NEOWISE history (2\,397\,LOC)
 \item Shared science \& cloud core: \code{catalog_tools}, \code{live_ingest}, \code{snapshot_store}, \code{cloud_refresh}
-\item Contract between stages: local \code{_meta.json} OR immutable GCS SHA-256 snapshot bundles
-\item Serving layer: \code{app.py} (2\,859\,LOC FastAPI + SSE) and browser workspace (\code{static/}, 6\,982\,LOC)
+\item Contract between stages: local \code{_meta.json} OR immutable GCS SHA-256 snapshot chain
+\item Serving layer: \code{app.py} (2\,989\,LOC FastAPI + SSE) and browser workspace (\code{static/}, 7\,611\,LOC)
 \end{itemize}
 
 \textbf{Figure / diagram.} Top: stages 1--7 in two clean rows. Bottom: the metadata/GCS contract on the
@@ -567,11 +567,11 @@ left, shared support core and serving stack in the centre/right, with verified l
   \node[b] (s7) at (5.2,4.0) {\textbf{7\; NEOWISE}\\ 14-yr IR TAP\\ \scriptsize 402 lines};
   \draw[ar] (s1) -- (s2); \draw[ar] (s2) -- (s3); \draw[ar] (s3) -- (s4);
   \draw[ar] (s4) -- (s5); \draw[ar] (s5) -- (s6); \draw[ar] (s6) -- (s7);
-  \node[c] (cache) at (1.5,4.0) {\textbf{Snapshot / Cache}\\ \code{current.json} $\to$ SHA-256\\ \scriptsize or \code{<Target>_meta.json}};
+  \node[c] (cache) at (1.5,4.0) {\textbf{Snapshot Chain}\\ \code{current.json} $\to$ SHA-256\\ \scriptsize \code{previous_manifest} chain};
   \draw[ar] (s1) -- (cache);
   \node[w] (sup) at (2.1,1.1) {\textbf{Shared Core (5 modules)}\\ \scriptsize \code{catalog_tools} (442), \code{live_ingest} (330)\\ \code{snapshot_store} (318), \code{cloud_refresh} (523), \code{export_static} (213)};
-  \node[s] (api) at (7.0,1.1) {\textbf{FastAPI (\code{app.py})}\\ snapshot + live SSE\\ \scriptsize 2\,859 lines};
-  \node[s] (ui) at (11.2,1.1) {\textbf{Browser UI (\code{static/})}\\ canvas + IndexedDB/SW\\ \scriptsize 6\,982 lines};
+  \node[s] (api) at (7.0,1.1) {\textbf{FastAPI (\code{app.py})}\\ snapshot + live SSE\\ \scriptsize 2\,989 lines};
+  \node[s] (ui) at (11.2,1.1) {\textbf{Browser UI (\code{static/})}\\ canvas + history/SW\\ \scriptsize 7\,611 lines};
   \draw[ar] (cache.south) -- ++(0,-0.45) -| (api.north);
   \draw[ar] (sup) -- (api);
   \draw[ar] (api) -- (ui);
@@ -586,8 +586,8 @@ fourteen-year NEOWISE light curves. Four shared libraries -- \code{catalog_tools
 FastAPI server, and the twelve-hour Cloud Run refresh job.\par
 Stage one writes the metadata contract, either \code{_meta.json} on disk or immutable SHA-256 blobs in
 Google Cloud Storage pointed to by \code{current.json}. Underneath sits \code{app.py} at two thousand
-eight hundred and fifty-nine lines, serving either pre-computed snapshots or live streaming runs to a
-six-thousand-nine-hundred-line browser workspace. That architecture is detailed in slides seventeen
+nine hundred and eighty-nine lines, serving either pre-computed snapshots or live streaming runs to a
+seven-thousand-six-hundred-line browser workspace. That architecture is detailed in slides seventeen
 to nineteen.
 
 \newpage
@@ -1018,10 +1018,10 @@ a brightness change, not a mover.
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item Seven stage scripts (2\,397 lines), five support modules (1\,826), and \code{app.py} (2\,859): 7\,082 runtime Python lines
+\item Seven stage scripts (2\,397 lines), five support modules (1\,826), and \code{app.py} (2\,989): 7\,212 runtime Python lines
 \item Cross-epoch mask matching (\code{coadd_matched}) and custom SIP WCS inversion prevent asymmetric artefacts
-\item Content-addressed GCS snapshots (\code{snapshot_store.py}) + zero-disk \code{BytesIO} IRSA streaming (\code{live_ingest.py})
-\item Critical review: \code{app.py} is a 2\,859-line monolith; \code{FIELD_REGISTRY} is per-instance RAM (cap 8)
+\item Content-addressed GCS snapshots (\code{snapshot_store.py}) + \code{previous_manifest} backward chain (\code{/api/snapshot-history})
+\item Critical review: \code{app.py} is a 2\,989-line monolith; \code{FIELD_REGISTRY} is per-instance RAM (cap 8)
 \end{itemize}
 
 \textbf{Figure / diagram.} Left: lines of code across all 13 runtime Python modules. Right: FastAPI execution
@@ -1036,7 +1036,7 @@ paths (cached snapshot reads vs.\ SSE live streaming with parallel catalogue que
   % Top-left: pgfplots xbar of all 13 runtime Python modules
   \begin{scope}[shift={(0.3,2.55)}]
     \begin{axis}[width=6.6cm,height=5.15cm,xbar,bar width=5pt,xmin=0,xmax=3550,
-      title={\textbf{\scriptsize Runtime Python Modules (7\,082 LOC)}},
+      title={\textbf{\scriptsize Runtime Python Modules (7\,212 LOC)}},
       title style={yshift=-4pt,text=ink},
       xlabel={lines of code},xlabel style={font=\scriptsize,yshift=2pt},
       symbolic y coords={{step6\_injection},{step3\_zogy},{step5\_spectrum},{export\_static},{step2\_coadd},{snapshot\_store},{live\_ingest},{step4\_triage},{step7\_neowise},{catalog\_tools},{cloud\_refresh},{step1\_ingest},{app.py}},
@@ -1047,7 +1047,7 @@ paths (cached snapshot reads vs.\ SSE live streaming with parallel catalogue que
       (93,{step6\_injection}) (117,{step3\_zogy}) (198,{step5\_spectrum})
       (213,{export\_static}) (294,{step2\_coadd}) (318,{snapshot\_store})
       (330,{live\_ingest}) (349,{step4\_triage}) (402,{step7\_neowise})
-      (442,{catalog\_tools}) (523,{cloud\_refresh}) (944,{step1\_ingest}) (2859,{app.py})};
+      (442,{catalog\_tools}) (523,{cloud\_refresh}) (944,{step1\_ingest}) (2989,{app.py})};
     \end{axis}
   \end{scope}
 
@@ -1055,12 +1055,12 @@ paths (cached snapshot reads vs.\ SSE live streaming with parallel catalogue que
   \draw[rule,thick,fill=white,rounded corners=2pt] (8.1,1.75) rectangle (16.5,7.90);
   \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (8.25,7.82) {Backend Execution Paths (\texttt{app.py} + workers)};
 
-  \node[wn,text width=7.6cm] (fast) at (12.3,7.00) {\textbf{FastAPI} (12 endpoints, \texttt{slowapi} IP key, \texttt{GZip})};
+  \node[wn,text width=7.6cm] (fast) at (12.3,7.00) {\textbf{FastAPI} (13 endpoints, \texttt{slowapi} IP key, \texttt{GZip})};
 
   % Left sub-branch: Snapshot read path
-  \node[gn,text width=3.5cm] (mc) at (10.18,5.94) {\texttt{\_MANIFEST\_CACHE}\\ 10\,s TTL (\texttt{current.json})};
-  \node[gn,text width=3.5cm] (oc) at (10.18,4.68) {\texttt{\_OBJECT\_CACHE}\\ 256\,MB SHA-256 LRU};
-  \node[bx,text width=3.5cm] (gcs) at (10.18,3.42) {\texttt{\_snapshot\_mode()}\\ \texttt{auto}: GCS bucket $\to$ API};
+  \node[gn,text width=3.6cm] (mc) at (10.18,5.94) {\texttt{\_MANIFEST\_CACHE} (10\,s)\\ \texttt{\_snapshot\_chain()} traversal};
+  \node[gn,text width=3.6cm] (oc) at (10.18,4.68) {\texttt{\_OBJECT\_CACHE} (256\,MB)\\ immutable SHA-256 LRU};
+  \node[bx,text width=3.6cm] (gcs) at (10.18,3.42) {\texttt{/snapshot-history} (chain)\\ \texttt{/dashboard?snapshot=}};
   \draw[ar] (fast.south -| mc) -- (mc);
   \draw[ar] (mc) -- (oc);
   \draw[ar] (oc) -- (gcs);
@@ -1084,22 +1084,22 @@ paths (cached snapshot reads vs.\ SSE live streaming with parallel catalogue que
      \texttt{cloud\_refresh.py} writes SHA-256 blobs under a 30-min heartbeat \texttt{refresh.lock}, swaps \texttt{current.json} by generation, GC after 48\,h.};
   \node[bd,text width=5.1cm,anchor=south west] at (11.2,0.0)
     {\textbf{Critical Audit (Open Debt)}\\
-     \texttt{app.py} (2\,859 lines) couples routing \& science; \texttt{FIELD\_REGISTRY} is RAM-only (max 8); \texttt{step6} uses flat mean noise.};
+     \texttt{app.py} (2\,989 lines) couples routing \& science; \texttt{FIELD\_REGISTRY} is RAM-only (max 8); \texttt{step6} uses flat mean noise.};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Turning to the Python backend. What started as six small stage scripts has grown
 into seven pipeline stages -- adding \code{step7_neowise} for fourteen-year infrared light curves -- plus
-five shared infrastructure modules and a FastAPI service in \code{app.py}, totalling seven thousand and
-eighty-two lines of runtime Python. Every stage remains independently importable and testable, backed by
+five shared infrastructure modules and a FastAPI service in \code{app.py}, totalling seven thousand two
+hundred and twelve lines of runtime Python. Every stage remains independently importable and testable, backed by
 eighteen hundred lines of coverage and snapshot tests.\par
 Look at the execution diagram on the right. \code{app.py} serves two very different workloads: fast
 snapshot reads hit a ten-second manifest cache and a two-hundred-and-fifty-six megabyte immutable LRU cache
-before ever touching Google Cloud Storage, and fall back transparently to the deployed API when a developer
-laptop lacks bucket credentials. Live requests take the right branch: \code{live_ingest} streams FITS
-cutouts into \code{BytesIO} on four threads while a parallel catalogue pool fetches Gaia, AllWISE and VSX,
-pushing stage updates over server-sent events and packing the multi-megabyte result as gzip-base64.\par
-Critically, three engineering debts stand out in the code: \code{app.py} at nearly twenty-nine hundred
-lines mixes HTTP routing with pipeline orchestration, custom fields live only in a per-instance eight-slot
+before ever touching Google Cloud Storage, while \code{_snapshot_chain()} walks the \code{previous_manifest}
+pointers to serve retained versions via \code{/api/snapshot-history} and historical dashboards without pipeline re-execution.
+Live requests take the right branch: \code{live_ingest} streams FITS cutouts into \code{BytesIO} on four threads while
+a parallel catalogue pool fetches Gaia, AllWISE and VSX, pushing stage updates over server-sent events.\par
+Critically, three engineering debts stand out in the code: \code{app.py} at nearly three thousand lines
+mixes HTTP routing with pipeline orchestration, custom fields live only in a per-instance eight-slot
 RAM registry, and \code{step6} still injects against mean variance rather than local residuals.
 
 \newpage
@@ -1110,9 +1110,9 @@ RAM registry, and \code{step6} still injects against mean variance rather than l
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
 \item Split Cloud Run backend (B4 fix): \code{spherex-lens-api} (concurrency 80) isolates reads from \code{spherex-lens-live} (concurrency 1)
-\item Dual-path frontend connection beats Netlify's 26\,s proxy limit: \code{/live-api/*} rewrites vs.\ direct CORS SSE streams
-\item Cloud Scheduler triggers a 12-hour Cloud Run Job that publishes content-addressed snapshots to private GCS
-\item Portable alternatives: single-container Docker (\code{fly.toml}, \code{render.yaml}) and pure static export (\code{export_static.py})
+\item Dual-path frontend routing: \code{/live-api/*} rewrites for snapshot history vs.\ direct CORS SSE for live cutouts
+\item Cloud Scheduler triggers 12-h Cloud Run Job: updates GCS snapshots and retains 48-h\\ \code{previous_manifest} backward chain
+\item Zero-cost time-lapse: immutable historical dashboards served directly without re-querying IRSA or pipeline rerun
 \end{itemize}
 
 \textbf{Figure / diagram.} Top: end-to-end hosting and connection topology across Netlify, Cloud Run, Cloud Storage, and IRSA.
@@ -1127,17 +1127,17 @@ Bottom left: frontend URL routing decision logic. Bottom right: deployment shape
   ar/.style={-{Stealth[length=4.5pt]},draw=slate,thick}]
 
   % Main topology box
-  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,2.60) rectangle (16.5,7.65);
-  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.15,7.58) {Production Architecture: Netlify Static Edge + Dual Cloud Run + Private GCS (Terraform)};
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,2.60) rectangle (16.5,7.75);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.15,7.66) {Production Architecture: Netlify Static Edge + Dual Cloud Run + Private GCS (Terraform)};
 
   % Tier 1: Browser / Netlify CDN
-  \node[bx,text width=3.0cm] (cdn) at (1.75,6.25) {\textbf{Netlify CDN (\texttt{site/})}\\ \texttt{index.html}, \texttt{app.js}, \texttt{sw.js}\\ \texttt{Cache-Control} + headers};
-  \node[sl,text width=3.0cm] (br) at (1.75,4.00) {\textbf{Browser Client}\\ Static shell (1.6\,MB)\\ + \texttt{spx-data-v1} SW cache};
+  \node[bx,text width=3.0cm] (cdn) at (1.75,6.05) {\textbf{Netlify CDN (\texttt{site/})}\\ \texttt{index.html}, \texttt{app.js}, \texttt{sw.js}\\ \texttt{Cache-Control} + headers};
+  \node[sl,text width=3.0cm] (br) at (1.75,3.85) {\textbf{Browser Client}\\ Static shell (1.6\,MB)\\ + \texttt{spx-data-v1} SW cache};
   \draw[ar] (cdn) -- (br);
 
   % Tier 2: Dual Cloud Run Services
-  \node[gn,text width=4.3cm] (api) at (7.75,6.40) {\textbf{\texttt{spherex-lens-api} (Snapshot)}\\ concurrency=80, max=3, 30\,s, 2\,GiB\\ \texttt{/targets}, \texttt{/dashboard}, \texttt{/mosaic}};
-  \node[wn,text width=4.3cm] (live) at (7.75,4.00) {\textbf{\texttt{spherex-lens-live} (Pipeline)}\\ concurrency=1, max=6, 900\,s, 2\,GiB\\ SSE \texttt{/stream}, \texttt{/field}, \texttt{POST /refresh}};
+  \node[gn,text width=4.3cm] (api) at (7.75,6.05) {\textbf{\texttt{spherex-lens-api} (Snapshot)}\\ concurrency=80, max=3, 30\,s, 2\,GiB\\ \texttt{/targets}, \texttt{/dashboard}, \texttt{/mosaic}\\ \texttt{/snapshot-history} (48\,h chain)};
+  \node[wn,text width=4.3cm] (live) at (7.75,3.85) {\textbf{\texttt{spherex-lens-live} (Pipeline)}\\ concurrency=1, max=6, 900\,s, 2\,GiB\\ SSE \texttt{/stream}, \texttt{/field}, \texttt{POST /refresh}};
 
   % Arrows Browser -> Cloud Run
   \draw[ar,good] (br.north east) -- node[pos=0.52,above,sloped,font=\tiny,text=good] {\texttt{/live-api/*} ($<26$\,s)} (api.west);
@@ -1145,30 +1145,30 @@ Bottom left: frontend URL routing decision logic. Bottom right: deployment shape
   \draw[ar,slate,dotted] (br.south east) -- node[pos=0.50,below,font=\tiny,text=slate] {\texttt{POST /refresh}} (live.south west);
 
   % Tier 3: GCP Refresh, Secret Manager, GCS & External Archives
-  \node[sl,text width=3.45cm] (gcs) at (14.55,6.45) {\textbf{Private GCS Bucket}\\ \texttt{current.json} pointer\\ \texttt{manifests/}, \texttt{snapshots/}};
-  \node[bx,text width=3.45cm] (job) at (14.55,4.85) {\textbf{Cloud Run Job (4\,GiB)}\\ \texttt{cloud\_refresh.py} (24\,h max)\\ $\uparrow$ Cloud Scheduler (12\,h)};
-  \node[bd,text width=3.45cm] (ext) at (14.55,3.28) {\textbf{IRSA / Gaia / VSX}\\ + Secret Manager token};
+  \node[sl,text width=3.45cm] (gcs) at (14.55,6.35) {\textbf{Private GCS Bucket}\\ \texttt{current.json} $\to$ \texttt{manifests/}\\ \texttt{previous\_manifest} (48\,h GC)};
+  \node[bx,text width=3.45cm] (job) at (14.55,4.50) {\textbf{Cloud Run Job (4\,GiB)}\\ \texttt{cloud\_refresh.py} (24\,h max)\\ $\uparrow$ Cloud Scheduler (12\,h)};
+  \node[bd,text width=3.45cm] (ext) at (14.55,3.05) {\textbf{IRSA / Gaia / VSX}\\ + Secret Manager token};
 
   \draw[ar,good] (api.east) -- node[above,font=\tiny,text=good] {RO} (gcs.west);
-  \draw[ar,accent] (job.north) -- node[right,font=\tiny,text=accent] {RW} (gcs.south);
+  \draw[ar,accent] (job.north) -- node[midway,left=2pt,font=\tiny,text=accent] {RW} (gcs.south);
   \draw[ar,slate] (live.east) -- node[below,sloped,font=\tiny,text=slate] {SIA2/TAP} (ext.west);
   \draw[ar,slate,dashed] (job.south) -- (ext.north);
   \draw[ar,bad,dotted] (live.north east) -- node[above,sloped,font=\tiny,text=bad] {invoke job} (job.west);
 
   % Bottom-left: Frontend connection router
-  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,0.0) rectangle (8.05,2.42);
-  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.15,2.34) {Frontend Connection Routing (\texttt{app.js})};
-  \node[sl,text width=1.95cm,font=\tiny] (r0) at (1.18,0.96) {\texttt{STATIC\_MODE}?\\ \texttt{body[data-mode]}};
-  \node[gn,text width=2.10cm] (r1) at (4.05,1.42) {\texttt{/live-api/*}\\ cached reads};
-  \node[wn,text width=2.10cm] (r2) at (4.05,0.48) {\texttt{data-live-api}\\ direct SSE stream};
-  \node[bx,text width=1.90cm] (r3) at (6.90,0.96) {Pure Static\\ \texttt{api/*.json}\\ (live off)};
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,0.0) rectangle (8.05,2.35);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.15,2.26) {Frontend Connection Routing (\texttt{app.js})};
+  \node[sl,text width=1.95cm,font=\tiny] (r0) at (1.18,0.92) {\texttt{STATIC\_MODE}?\\ \texttt{body[data-mode]}};
+  \node[gn,text width=2.15cm,font=\tiny] (r1) at (4.00,1.32) {\texttt{/live-api/*}\\ snapshots \&\\ history chain};
+  \node[wn,text width=2.10cm,font=\tiny] (r2) at (4.00,0.48) {\texttt{data-live-api}\\ direct SSE stream};
+  \node[bx,text width=1.90cm,font=\tiny] (r3) at (6.95,0.92) {Pure Static\\ \texttt{api/*.json}\\ (live off)};
   \draw[ar] (r0.east) -- (r1.west);
   \draw[ar] (r0.east) -- (r2.west);
-  \draw[ar,dashed] (r1.east) -- node[pos=0.52,below,sloped,font=\tiny,text=slate] {no proxy} (r3.north west);
+  \draw[ar,dashed] (r1.east) -- node[pos=0.45,above,sloped,font=\tiny,text=slate,inner sep=0.5pt] {no proxy} (r3.west);
 
   % Bottom-right: Deployment shapes
-  \draw[rule,thick,fill=white,rounded corners=2pt] (8.35,0.0) rectangle (16.5,2.42);
-  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (8.50,2.34) {Hosting \& Local Parity Shapes};
+  \draw[rule,thick,fill=white,rounded corners=2pt] (8.35,0.0) rectangle (16.5,2.35);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (8.50,2.26) {Hosting \& Local Parity Shapes};
   \node[gn,text width=2.30cm] at (9.68,0.92) {\textbf{Netlify + GCP}\\ Static CDN + 2 Cloud\\ Run services + Job};
   \node[bx,text width=2.30cm] at (12.42,0.92) {\textbf{Fly / Render}\\ Single \texttt{Dockerfile}\\ 1\,GiB, auto-sleep};
   \node[sl,text width=2.30cm] at (15.16,0.92) {\textbf{Local Dev}\\ \texttt{run-local.ps1} ADC\\ or \texttt{SNAPSHOT\_API}};
@@ -1183,8 +1183,9 @@ Connecting the Netlify static frontend to that backend uses a split route for th
 snapshot reads go through Netlify's same-origin \code{/live-api} rewrite, whereas long SSE streams bypass
 Netlify's twenty-six-second proxy cap and connect directly to \code{spherex-lens-live} via an explicit CORS
 allowlist. Every twelve hours, Cloud Scheduler runs a four-gigabyte Cloud Run Job that validates updated
-fields and atomically swaps \code{current.json} in a private bucket, while \code{fly.toml}, \code{render.yaml},
-and \code{run-local.ps1} keep single-container and laptop parity simple.
+fields, atomically swaps \code{current.json} in a private bucket, and retains a forty-eight-hour \code{previous_manifest}
+chain for zero-cost time-lapse replay, while \code{fly.toml}, \code{render.yaml}, and \code{run-local.ps1} keep
+single-container and laptop parity simple.
 
 \newpage
 
@@ -1192,15 +1193,16 @@ and \code{run-local.ps1} keep single-container and laptop parity simple.
 \slidehead{19}{Implementation III: frontend engine and UI/UX}{0:45}
 
 \textbf{On the slide.}
-\begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
-\item 6\,982 lines of zero-build vanilla web code (\code{app.js} 4\,260, \code{style.css} 1\,902, \code{index.html} 638, \code{sw.js} 182)
+\begin{itemize}[leftmargin=1.4em,itemsep=1.5pt,topsep=1.5pt]
+\item 7\,611 lines of zero-build vanilla web code (\code{app.js} 4\,768, \code{style.css} 1\,979, \code{index.html} 652, \code{sw.js} 212)
 \item NASA HDS dark-slate mission UI: top chrome, horizontal toolbar, telemetry strip, 4 KPIs, split viewer + verdict
 \item Two-stage \code{<canvas>} engine: offscreen 0.5--99.5\% stretch/LUT rasteriser + 5 pan/zoom vector overlays
-\item Offline-first \code{sw.js} (SHA-256 verified \code{spx-data-v1}) + 200\,MB IndexedDB history + honest UI disabling
+\item \textbf{Snapshot History \& Motion Playback}: 2.5\,s time-lapse, frozen stretch lock, purple motion trail across snapshots
+\item Offline-first \code{sw.js} (\code{spx-data-v1}, 8-frame history cache quota) + 200\,MB IndexedDB + honest UI guards
 \end{itemize}
 
-\textbf{Figure / diagram.} Left: wireframe of the current mission-control layout. Top right: two-stage canvas
-rendering pipeline. Bottom right: client-side offline cache, IndexedDB history, and capability guard stack.
+\textbf{Figure / diagram.} Left: wireframe with Snapshot playback controls and purple motion trail.
+Top right: two-stage canvas pipeline. Bottom right: Snapshot motion engine, offline cache, and capability guards.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
   bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3pt,font=\scriptsize,rounded corners=2pt},
@@ -1231,7 +1233,16 @@ rendering pipeline. Bottom right: client-side offline cache, IndexedDB history, 
   % Primary split: Sky Viewer + Triage Verdict
   \draw[accent,thick,fill=accent2!70] (0.14,3.18) rectangle (5.38,5.20);
   \node[anchor=north,font=\scriptsize\bfseries,text=accent] at (2.76,5.12) {Sky Viewer (\texttt{<canvas>})};
-  \node[font=\tiny,text=slate,align=center] at (2.76,4.20) {Field / All-sky \;\textbullet\; Co-add / Diff $D$ / Sig $S$\\ Linear / Asinh / Log \;\textbullet\; 6 LUT ramps\\ Pan/zoom ($0.35\times$--$12\times$), cursor readout};
+  % Snapshot controls bar right above/inside viewer
+  \node[draw=purple!80!black,fill=white,rounded corners=1pt,font=\tiny,inner sep=2pt] (snapbar) at (2.76,4.52)
+    {Snapshot: latest $\blacktriangledown$ \;\textbar\; \textcolor{good}{\textbf{$\blacktriangleright$ Play (2.5\,s)}}};
+  % Canvas interior with purple motion trail
+  \draw[purple,thick,dashed] (1.30,3.65) -- (2.35,3.85) -- (3.50,3.70);
+  \fill[purple!60] (1.30,3.65) circle (1.8pt);
+  \fill[purple!60] (2.35,3.85) circle (1.8pt);
+  \fill[purple] (3.50,3.70) circle (2.5pt);
+  \node[font=\fontsize{5.5}{6.5}\selectfont,text=purple!90!black] at (2.40,4.08) {purple motion trail ($t_0 \to t_1 \to t_2$)};
+  \node[font=\fontsize{5}{6}\selectfont,text=muted] at (2.40,3.35) {frozen $0.5\text{--}99.5\%$ intensity stretch};
 
   \draw[good,thick,fill=good2!60] (5.52,3.18) rectangle (8.61,5.20);
   \node[anchor=north,font=\scriptsize\bfseries,text=good] at (7.06,5.12) {Triage Verdict};
@@ -1252,43 +1263,59 @@ rendering pipeline. Bottom right: client-side offline cache, IndexedDB history, 
   \node[font=\tiny,text=ink,text width=8.2cm,align=center] at (4.37,0.50) {\textbf{Floating Draggable Windows \& Modals}: Research History \;\textbullet\; 14-row Statistics \;\textbar\; Recovery Grid \;\textbar\; 3-tab Guide \;\textbar\; 18-field Cloud Dialog};
 
   % Top-right: Two-Stage Canvas Pipeline
-  \draw[rule,thick,fill=white,rounded corners=2pt] (9.02,4.05) rectangle (16.5,7.55);
-  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (9.16,7.47) {Two-Stage Canvas Engine (\texttt{app.js})};
+  \draw[rule,thick,fill=white,rounded corners=2pt] (9.02,4.10) rectangle (16.5,7.55);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (9.16,7.44) {Two-Stage Canvas Engine (\texttt{app.js})};
 
-  \node[sl,text width=1.45cm] (c1) at (9.94,6.46) {$180\times180$\\ float grid};
-  \node[bx,text width=2.15cm] (c2) at (12.16,6.46) {0.5--99.5\% clip\\ linear/asinh/log};
-  \node[gn,text width=2.45cm] (c3) at (14.98,6.46) {256-LUT (6 ramps)\\ Offscreen canvas};
+  \node[sl,text width=1.45cm] (c1) at (9.94,6.55) {$180\times180$\\ float grid};
+  \node[bx,text width=2.15cm] (c2) at (12.16,6.55) {0.5--99.5\% clip\\ linear/asinh/log};
+  \node[gn,text width=2.45cm] (c3) at (14.98,6.55) {256-LUT (6 ramps)\\ Offscreen canvas};
   \draw[ar] (c1) -- (c2); \draw[ar] (c2) -- (c3);
 
-  \node[wn,text width=7.0cm] (c4) at (12.76,5.42) {\textbf{Composite} (\texttt{draw()}, smooth iff $<3\times$)};
+  \node[wn,text width=7.0cm] (c4) at (12.76,5.52) {\textbf{Composite} (\texttt{draw()}, smooth iff $<3\times$)};
   \draw[ar] (c3.south) -- (c4.north -| c3);
 
-  \node[sl,text width=7.0cm,align=center] (c5) at (12.76,4.48) {\textbf{5 Vector Overlays}: 1\arcmin{} grid, Gaia/WISE/VSX,\\ movers, dipole/monopole, RA/Dec crosshair};
+  \node[sl,text width=7.0cm,align=center] (c5) at (12.76,4.52) {\textbf{5 Vector Overlays}: 1\arcmin{} grid, Gaia/WISE/VSX,\\ movers, dipole/monopole, RA/Dec crosshair};
   \draw[ar] (c4) -- (c5);
 
-  % Bottom-right: Client Persistence, UX Guardrails & Audit
-  \draw[rule,thick,fill=white,rounded corners=2pt] (9.02,0.0) rectangle (16.5,3.85);
-  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (9.16,3.77) {Offline Stack, UX Guardrails \& Audit};
+  % Bottom-right: Snapshot History & Motion Playback Pipeline + Offline Stack
+  \draw[rule,thick,fill=white,rounded corners=2pt] (9.02,0.0) rectangle (16.5,3.92);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (9.16,3.81) {Snapshot History Playback \& Offline Stack};
 
-  \node[gn,text width=3.35cm] (sw) at (10.86,2.88) {\textbf{\texttt{sw.js}} (\texttt{spx-data-v1})\\ SHA-256 + index diff};
-  \node[bx,text width=3.35cm] (idb) at (14.66,2.88) {\textbf{IndexedDB} (200\,MB)\\ \texttt{spx-history} + JSON};
-  \node[wn,text width=7.0cm] (ux) at (12.76,1.82) {\textbf{Honest UI (\texttt{syncBackendUi})}: disables \texttt{Fresh IRSA} \& \texttt{Load field} when offline or static; keeps History};
-  \node[bd,text width=7.0cm] (aud) at (12.76,0.65) {\textbf{Critical Audit}: \texttt{app.js} (4\,260 lines) is an unbundled monolith with shared \texttt{state}; splitting ES modules would ease testing.};
+  % Dedicated visual pipeline for Snapshot History & Time-Lapse Motion Engine
+  \node[draw=purple!80!black,thick,fill=purple!8,text width=7.0cm,rounded corners=2pt,align=left,font=\tiny,inner sep=2.5pt] (playeng) at (12.76,2.45)
+    {\textbf{Time-Lapse Motion Engine} (\texttt{app.js}, 2.5\,s/frame):\\
+     \textbullet\ \textbf{Playback}: steps oldest $\to$ newest via \texttt{previous\_manifest}\\
+     \textbullet\ \textbf{Scale Lock}: frame-1 $0.5\text{--}99.5\%$ stretch frozen for flux comparison\\
+     \textbullet\ \textbf{Purple Trail}: tracks dipole/monopole centroids (${\le}24$ epochs)};
+
+  % Client persistence & rate limit guard
+  \node[gn,text width=3.35cm,font=\fontsize{5.5}{6.5}\selectfont] (sw) at (10.86,1.25)
+    {\textbf{\texttt{sw.js} Cache (\texttt{spx-data-v1})}\\
+     prunes history to 8 frames;\\
+     offline instant re-play};
+
+  \node[bx,text width=3.35cm,font=\fontsize{5.5}{6.5}\selectfont] (uxg) at (14.66,1.25)
+    {\textbf{Capability \& Rate Guards}\\
+     pacing $<30$\,req/min; auto-disabled\\
+     in Fresh IRSA / offline modes};
+
+  % Audit note at the bottom
+  \node[bd,text width=7.0cm,font=\fontsize{5.5}{6.5}\selectfont,align=left,inner sep=2pt] at (12.76,0.40)
+    {\textbf{Critical Audit}: \texttt{app.js} grew to 4\,768 LOC (total frontend 7\,611 LOC); shared global \texttt{state}.};
 \end{tikzpicture}}
 
-\textbf{Spoken script.} The front end is six thousand nine hundred and eighty-two lines of zero-build vanilla
-HTML, CSS and JavaScript, styled in a dark-slate NASA Horizon Design System palette. Notice how the layout
-evolved from a simple sidebar into a mission-control console: a compact top chrome with a live cloud
-status pill, a single-row control bar, a telemetry strip, four metric cards, and the primary split between
-the sky viewer and the triage verdict panel, followed by diagnostics, SED and NEOWISE light curves,
-expected movers, provenance links, and three draggable floating tool windows.\par
-Under the hood, the sky viewer uses a two-stage canvas pipeline: each one-hundred-and-eighty-pixel layer
-is clipped, stretched in linear, asinh or log space, and baked into an offscreen canvas through one of six
-lookup tables before interactive pan, zoom and five vector overlays composite on top. Finally, the service
-worker verifies SHA-256 headers for offline snapshots alongside a two-hundred-megabyte IndexedDB research
-history, while \code{syncBackendUi} explicitly disables and labels controls that require a live server --
-though refactoring the four-thousand-two-hundred-line \code{app.js} monolith into ES modules remains clear
-technical debt.
+\textbf{Spoken script.} The front end is seven thousand six hundred and eleven lines of zero-build vanilla
+HTML, CSS and JavaScript in a dark-slate NASA Horizon Design System palette. Notice the mission-control
+console layout: a compact top chrome, horizontal toolbar, telemetry strip, four KPI cards, and the primary
+split between the sky viewer and triage verdict, backed by four diagnostic charts, SED light curves, and
+draggable floating utility windows.\par
+Under the hood, the two-stage canvas clips and stretches pixel layers into an offscreen buffer before
+vector overlays composite on top. The newest feature is the Snapshot History and Motion Playback engine:
+above the map, a version dropdown lists retained manifests, while Play animates them oldest to latest
+at two-and-a-half seconds per frame. Crucially, it locks the first frame's intensity stretch so flux changes
+are directly comparable, and paints a purple dashed trail tracing the object's centroid displacement across visits.
+Finally, the Service Worker enforces an eight-frame cache quota for instant offline replay under a thirty-read-per-minute
+safety cap, while modularising the forty-seven-hundred-line \code{app.js} monolith remains open engineering debt.
 
 \newpage
 
@@ -1407,11 +1434,12 @@ yet claimed as new discoveries.
 \slidehead{22}{Live demonstration}{1:30}
 
 \textbf{On the slide.}
-\begin{itemize}[leftmargin=1.4em,itemsep=2pt,topsep=2pt]
+\begin{itemize}[leftmargin=1.4em,itemsep=1.5pt,topsep=1.5pt]
 \item Open the browser app (\code{site/index.html} or deployed URL) at 100\% zoom, Barnard's Star loaded
-\item \textbf{1} select Barnard's Star in the top \code{Target} bar + \code{Run Pipeline} \;\textbullet\; \textbf{2} click the $36.2\sigma$ dipole (\code{KNOWN_MOVER})
+\item \textbf{1} select Barnard's Star in top \code{Target} bar + \code{Run Pipeline} \;\textbullet\; \textbf{2} click $36.2\sigma$ dipole (\code{KNOWN_MOVER})
 \item \textbf{3} switch canvas layers inside Sky Viewer: \code{Co-add} $\to$ \code{Diff D} $\to$ \code{Sig S}
-\item \textbf{4} toggle \code{All-sky} mosaic, jump to Crab Nebula (\code{M1}, 5/5 \code{KNOWN}) \;\textbullet\; \textbf{5} open floating \code{Recovery} window \;\textbullet\; \textbf{6} open \code{Guide}
+\item \textbf{4} press \textbf{Play} on Snapshot toolbar: 2.5\,s time-lapse, frozen stretch \& \textbf{purple motion trail}
+\item \textbf{5} toggle \code{All-sky} mosaic, jump to Crab Nebula (\code{M1}, 5/5 \code{KNOWN}) \;\textbullet\; \textbf{6} open \code{Guide} \& \code{Recovery}
 \end{itemize}
 
 \textbf{Figure / diagram.} Map of the actual horizontal mission UI with the six numbered callouts placed
@@ -1441,21 +1469,27 @@ directly beside the exact DOM controls so nothing has to be hunted for on stage.
   \node[draw=rule,fill=white,font=\tiny,inner sep=2.5pt] at (10.6,6.95) {History};
   \node[draw=rule,fill=white,font=\tiny,inner sep=2.5pt] at (12.1,6.95) {Statistics};
   \node[chip,font=\tiny] (rec) at (13.8,6.95) {Recovery};
-  \node[cb,right=2pt of rec] {5};
   \node[draw=rule,fill=white,font=\tiny,inner sep=2.5pt] at (15.4,6.95) {Share};
 
   % Sky Viewer (left 62%)
   \node[pan,minimum width=9.6cm,minimum height=4.4cm] (map) at (5.0,4.15) {};
   \node[anchor=north west,font=\scriptsize\bfseries] at (0.35,6.25) {Sky Viewer};
-  \node[cb] at (3.20,6.05) {4};
-  \node[chip,font=\tiny] (skybtn) at (4.55,6.05) {Field \textbar\ All-sky};
-  \node[chip,font=\tiny] (lay) at (7.65,6.05) {Co-add \textbar\ Diff D \textbar\ Sig S};
+  \node[chip,font=\tiny] (skybtn) at (4.00,6.05) {Field \textbar\ All-sky};
+  \node[cb,left=2pt of skybtn] {5};
+  \node[chip,font=\tiny] (lay) at (7.25,6.05) {Co-add \textbar\ Diff D \textbar\ Sig S};
   \node[cb,right=2pt of lay] {3};
-  \fill[bad] (4.7,4.0) circle (0.14);
-  \fill[good] (5.3,4.25) circle (0.14);
-  \draw[-{Stealth[length=4pt]},thick,slate] (4.82,4.06) -- (5.18,4.20);
-  \node[font=\tiny,text=slate] at (5.0,3.55) {36.2$\sigma$ dipole (\code{KNOWN_MOVER})};
-  \node[cb] at (4.1,4.35) {2};
+  % Snapshot history control in viewer toolbar
+  \node[draw=purple!80!black,fill=purple!10,font=\tiny,inner sep=2pt,rounded corners=1.5pt] (snap) at (5.0,5.48) {Snapshot: latest $\blacktriangledown$ \;\textbar\; \textcolor{good}{$\blacktriangleright$ Play (2.5\,s)}};
+  \node[cb,right=3pt of snap] {4};
+  % Canvas interior: dipole with purple motion trail
+  \draw[purple,thick,dashed] (4.0,3.85) -- (4.65,4.02) -- (5.35,4.22);
+  \fill[purple!70] (4.0,3.85) circle (0.10);
+  \fill[bad] (4.65,4.02) circle (0.14);
+  \fill[good] (5.35,4.22) circle (0.14);
+  \draw[-{Stealth[length=4pt]},thick,slate] (4.78,4.06) -- (5.22,4.18);
+  \node[font=\tiny,text=purple!90!black] at (5.0,3.52) {purple motion trail across retained snapshots};
+  \node[font=\tiny,text=slate] at (5.0,3.15) {36.2$\sigma$ dipole (\code{KNOWN_MOVER})};
+  \node[cb] at (3.5,4.25) {2};
 
   % Triage Verdict Sidebar (right)
   \node[pan,minimum width=5.8cm,minimum height=4.4cm] (verd) at (13.1,4.15) {};
@@ -1471,20 +1505,27 @@ directly beside the exact DOM controls so nothing has to be hunted for on stage.
   \node[pan,minimum width=9.6cm,minimum height=1.55cm,font=\scriptsize] (tab) at (5.0,0.95)
     {\textbf{Detections \;\textbullet\; Expected Movers \;\textbullet\; Catalogue \;\textbullet\; Provenance}};
   \node[pan,minimum width=5.8cm,minimum height=1.55cm,align=left,text width=5.4cm,font=\tiny] (steps) at (13.1,0.95)
-    {\textbf{the six demo moves:} \textbf{1} pick Barnard's Star \;\textbullet\; \textbf{2} click $36.2\sigma$ dipole (\code{KNOWN_MOVER}) \;\textbullet\; \textbf{3} Co-add/Diff D/Sig S \;\textbullet\; \textbf{4} All-sky $\to$ Crab M1 \;\textbullet\; \textbf{5} floating Recovery window \;\textbullet\; \textbf{6} open Guide};
+    {\textbf{the six demo moves:}\\
+     \textbf{1} Barnard's Star \;\textbullet\;
+     \textbf{2} click $36.2\sigma$ dipole (\code{KNOWN_MOVER})\\
+     \textbf{3} Co-add/Diff/Sig \;\textbullet\;
+     \textbf{4} \textbf{Snapshot Play} (purple trail)\\
+     \textbf{5} All-sky $\to$ Crab M1 \;\textbullet\;
+     \textbf{6} open Guide \& Recovery};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} I would like to show this working live rather than describe it, so the browser
 app is already open in the second tab backed by the published Cloud Run snapshot.\par
-Step one: in the top horizontal control bar, choose Barnard's Star and click Run Pipeline. Step two:
-hover and click the bright thirty-six-point-two-sigma dipole in the Sky Viewer -- red lobe where the
-star used to be, green where it moved -- and watch the right-hand Triage Verdict panel identify it as
-\code{KNOWN_MOVER}, matched after propagating Gaia's proper motion.\par
-Step three: toggle the viewer buttons across Co-add, Diff D, and Sig S to inspect every numerical layer.
-Step four: switch to All-sky mosaic and jump to the Crab Nebula -- five detections, all five explained.
-Step five: click Recovery in the toolbar to pop open the floating twenty-four-cell completeness window.
-Step six: click Guide in the header to show the non-specialist reference drawer. If the network hiccups,
-IndexedDB already caches the snapshots offline, or we move smoothly to the report fallback.
+Step one: in the top control bar, select Barnard's Star and click Run Pipeline. Step two: hover and
+click the bright thirty-six-point-two-sigma dipole in the Sky Viewer -- red lobe where the star was,
+green where it moved -- and see the Triage Verdict panel identify it as \code{KNOWN_MOVER} from Gaia's
+propagated proper motion. Step three: switch across Co-add, Diff D, and Sig S to inspect the calibrated layers.\par
+Step four: in the Sky Viewer toolbar, press Play on the Snapshot control. The engine steps through retained
+snapshots oldest to latest at two-and-a-half seconds per frame, locking the intensity stretch and drawing a
+purple trail connecting the dipole centroids across epochs -- turning static frames into continuous motion.
+Step five: toggle All-sky mosaic and jump to the Crab Nebula. Step six: open Recovery to inspect the
+twenty-four-cell grid, and Guide for reference. If the network hiccups, the Service Worker serves cached
+history frames offline.
 
 \newpage
 % -------------------------------------------------------------- SLIDE 23 ---
@@ -1495,7 +1536,7 @@ IndexedDB already caches the snapshots offline, or we move smoothly to the repor
 \item \textbf{Works}: ZOGY on matched co-adds gives a calibrated $5\sigma$ map; triage explains 91\% (99/109) with epoch propagation \& NEOWISE
 \item \textbf{Honest}: two fields return no usable detections (\code{M42}, \code{Sgr A*}), completeness stays unmeasured, monolith debt remains
 \item \textbf{Next}: raw-cutout local-noise injection, empirical PSF / SFFT, $\ge 30$-band real spectra, split \code{app.py}/\code{app.js}
-\item Artefact: 7 stages + 5 support modules (7\,082\,LOC Python) + 6\,982\,LOC UI, Netlify PWA + Dual Cloud Run + GCS
+\item Artefact: 7 stages + 5 support modules (7\,212\,LOC Python) + 7\,611\,LOC UI, Netlify PWA + Dual Cloud Run + GCS
 \end{itemize}
 
 \textbf{Figure / diagram.} Three pillars -- works, honest, next -- with the artefact listed underneath and
@@ -1510,7 +1551,7 @@ a compact reference strip at the bottom.
   \node[p] (c) at (14.2,2.6) {\Large\bfseries NEXT\\[5pt] \footnotesize raw local-noise injection\\
       empirical PSF / SFFT\\ split \code{app.py}/\code{app.js}, 102 bands};
   \node[draw=accent,thick,fill=accent2,align=center,inner sep=6pt,text width=16.2cm,font=\footnotesize] at (8.4,-0.2)
-    {artefact: 7\,082\,LOC Python + 6\,982\,LOC UI \;\textbullet\; Netlify PWA + Cloud Run + GCS 12\,h snapshots \;\textbullet\;
+    {artefact: 7\,212\,LOC Python + 7\,611\,LOC UI \;\textbullet\; Netlify PWA + Cloud Run + GCS 12\,h snapshots \;\textbullet\;
      18 fields, 246 cutouts traceable to IRSA};
   \node[align=left,text width=16.2cm,font=\scriptsize,text=muted,anchor=north west] at (0.3,-0.9)
     {\textbf{references:} Alard \& Lupton 1998 \;\textbullet\; Bramich 2008 \;\textbullet\;
@@ -1551,7 +1592,8 @@ $|S|>5\sigma$ ($2N^2\Phi(-5)$); observed detections reach $8\text{--}44\sigma$, 
 limit is quoted while \code{step6} uses scalar mean noise.
 \item[``Could this scale to the whole sky?''] CPU could: under 1.5\,s per field times 1.8 million
 nine-arcminute fields is tractable on cloud workers. The IRSA cutout service is the bottleneck, which is
-why Cloud Run runs 12-hour incremental fingerprint checks and publishes immutable GCS snapshots.
+why Cloud Run runs 12-hour incremental fingerprint checks, publishes immutable GCS snapshots, and chains
+\code{previous_manifest} for 48-hour client history replay without extra compute.
 \item[``Why ZOGY rather than SFFT?''] ZOGY is closed form and its null distribution is analytic, making
 the false-positive budget explicit (slide twelve). SFFT handles space-based PSF variation even better and
 is listed as next work alongside an empirical PSF.
@@ -1566,7 +1608,7 @@ is listed as next work alongside an empirical PSF.
 \item A screen recording of the demo on the desktop, as the fallback file.
 \item This document open at page 23 (Slide 22), the screen map, so callouts match the live browser UI.
 \item Numbers on the tip of the tongue: 18 fields, 246 cutouts, 109 detections, 99 explained (91\%),
-10 unexplained, 2 empty fields (\code{M42}, \code{Sgr A*}), 0.0186 false pixels per frame.
+10 unexplained, 2 empty fields (\code{M42}, \code{Sgr A*}), 7\,212 Python LOC, 7\,611 UI LOC, 0.0186 false pixels per frame.
 \end{itemize}
 
 \end{document}

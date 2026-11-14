@@ -35,15 +35,18 @@ added to the scheduled snapshot.
 - Dashboard, recovery, mosaic and target-list objects are content-addressed.
   The worker validates the outputs before replacing `current.json`; generation
   preconditions and a refresh lock prevent partial or concurrent publication.
-  A successful publication retains the current and previous 48 hours of
-  manifests and referenced objects (long enough for in-flight API requests),
-  then removes older unreferenced objects from this dedicated bucket. The
-  dashboard's **Snapshot history** control walks the same retained
-  `previous_manifest` chain through `/api/snapshot-history`, so it never lists a
-  version whose dashboard was already garbage-collected. Increase
-  `SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS` (for example `336` for a week) to
-  keep a longer playback history; the API and the refresh job must use the same
-  value. `SPHEREX_SNAPSHOT_HISTORY_LIMIT` caps how many manifests are listed.
+  A successful publication retains the current and previous **14 days** of
+  manifests and referenced objects (336 h by default), then removes older
+  unreferenced objects from this dedicated bucket. The dashboard's **Snapshot
+  history** control walks the same retained `previous_manifest` chain through
+  `/api/snapshot-history`, so it never lists a version whose dashboard was
+  already garbage-collected. Set `SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS`
+  (e.g. `168` for a week or `720` for a month) on **both** the API service and
+  the refresh job; Terraform exposes the same pair as
+  `snapshot_history_hours` / `snapshot_history_limit`.
+  `SPHEREX_SNAPSHOT_HISTORY_LIMIT` caps how many manifests are listed.
+  Longer retention only affects how many *published* versions can be replayed;
+  a Fresh IRSA run computes a new result but is never added to history.
 
 The first run is a full bootstrap of all fields and can be slow. Later runs
 still check IRSA every 12 hours, but only changed fields incur cutout download
@@ -246,7 +249,8 @@ env var and two APIs in `main.tf`):
 | `google_billing_budget.monthly` | Optional: created only when `budget_amount > 0` and `billing_account` is set. Alerts at 50/90/100 % and at a forecast of 100 %. **Budgets alert; they do not cap spend.** |
 
 New variables (`terraform.tfvars`): `alert_email`, `billing_account`,
-`budget_amount`, `votes_retention_days` (see `terraform.tfvars.example`).
+`budget_amount`, `votes_retention_days`, `snapshot_history_hours`,
+`snapshot_history_limit` (see `terraform.tfvars.example`).
 
 New API routes served by the same image: `POST /api/votes`,
 `GET /api/votes/queue`, `GET /api/candidates.csv`,
@@ -352,6 +356,61 @@ if that risk is unacceptable.
 
 Cloud Storage is in `us-central1`, and the API and worker use the same region.
 No cloud resource is created until you run Terraform with your own project.
+
+## Troubleshooting: “history unavailable” or 504 on /live-api
+
+If the site’s Snapshot dropdown says **history unavailable**, test the API
+directly:
+
+```bash
+curl -sS -m 40 https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api/health
+curl -sS -m 40 https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api/targets
+```
+
+If `/api/health` says:
+
+```json
+"snapshot": {"status": "forwarded", "detail": "reads go to the deployed snapshot API"}
+```
+
+the snapshot API service is forwarding to **itself** (its `SPHEREX_SNAPSHOT_API`
+default is its own URL).  Each forwarded request recurses until Cloud Run’s
+30 s timeout, so `/api/targets` and `/api/snapshot-history` return 504.  The
+uptime check keeps an instance warm, so it does not necessarily clear on its
+own.
+
+The current code refuses self-forwarding and forces bucket mode.  On an older
+running revision, restart the API in bucket mode without rebuilding:
+
+```bash
+gcloud run services update spherex-lens-api \
+  --project spherex-lens --region us-central1 \
+  --update-env-vars SPHEREX_SNAPSHOT_SOURCE=bucket
+
+gcloud run services update spherex-lens-live \
+  --project spherex-lens --region us-central1 \
+  --update-env-vars SPHEREX_SNAPSHOT_SOURCE=bucket
+```
+
+Add the retention settings in the same update if you want 14 days of history:
+
+```bash
+gcloud run services update spherex-lens-api \
+  --project spherex-lens --region us-central1 \
+  --update-env-vars SPHEREX_SNAPSHOT_SOURCE=bucket,SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS=336,SPHEREX_SNAPSHOT_HISTORY_LIMIT=48
+
+gcloud run jobs update spherex-refresh \
+  --project spherex-lens --region us-central1 \
+  --update-env-vars SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS=336,SPHEREX_SNAPSHOT_HISTORY_LIMIT=48
+```
+
+Then confirm:
+
+```bash
+curl -sS -m 40 'https://spherex-lens-api-m6cqoypnxa-uc.a.run.app/api/snapshot-history?target=WISE_0855' | head -c 300
+```
+
+and finally upload `site/` (or `site.zip`) to Netlify.
 
 ## S8 signed Netlify proxy (stops forged visitor IPs)
 

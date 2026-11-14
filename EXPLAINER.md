@@ -677,12 +677,12 @@ E1     D1   0.939        2025W35_2A_0611_2 (TM)  2025-09-27  117x117   5.0 MB  I
 ```
 
 Clicking the observation id opens the parent file at
-`https://irsa.ipac.caltech.edu/ibe/data/spherex/qr2/level2/...` -- the actual
+`https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/...` -- the actual
 70 MB Level-2 product the cutout was carved from. From there you can inspect the
 same data the website used, with the same headers, in any FITS viewer.
 
 The archive line above the table summarises the chain:
-`IRSA SIA2 - collection spherex_qr2 - 4 cutouts - 0.050 MJy/sr 5-sigma depth -
+`IRSA SIA2 - collection spherex_dr1 - 4 cutouts - 0.050 MJy/sr 5-sigma depth -
 Gaia DR3 300 / VSX 47 entries cross-matched`.
 
 ---
@@ -821,9 +821,10 @@ Yes -- put cutouts in `data_cache/`, write a `<Target>_meta.json` with `paths`,
 schema.
 
 **Where are the charts?**
-`figures/` holds the charts made from the synthetic cache, `figures_real/` the
-same charts made from the real cutouts, and `site/figures/` ships them with the
-static build. `python make_figures.py` regenerates them.
+`figures/` holds the committed charts made from the synthetic cache,
+`site/figures/` ships the real-run charts with the static build, and
+`figures_real/` is an optional output for a populated real-cutout cache.
+`python make_figures.py` regenerates them.
 
 **Is any of this invented?**
 No invented data: the numbers in this document were read off the actual output of

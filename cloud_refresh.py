@@ -26,7 +26,7 @@ COLLECTION = _config.SPHEREX_COLLECTION
 SIZE_DEG = float(os.environ.get("SPHEREX_CUTOUT_SIZE_DEG", "0.2"))
 CATALOG_REFRESH_DAYS = int(os.environ.get("SPHEREX_CATALOG_REFRESH_DAYS", "7"))
 PREVIOUS_SNAPSHOT_RETENTION_HOURS = int(
-    os.environ.get("SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS", "48"))
+    os.environ.get("SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS", "336"))
 
 
 def _utcnow():
@@ -307,7 +307,9 @@ def _referenced_objects(store, manifest, pointer):
                 and (created_at is None or created_at < cutoff)):
             break
         objects.add(manifest_object)
-        objects.update({current["mosaic"], current["targets_object"]})
+        for shared in ("mosaic", "targets_object"):
+            if current.get(shared):
+                objects.add(current[shared])
         for entry in current.get("targets", {}).values():
             for key in ("dashboard", "recovery", "neowise_object", "meta_object"):
                 if entry.get(key):

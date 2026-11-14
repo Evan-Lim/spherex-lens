@@ -231,6 +231,14 @@ resource "google_cloud_run_v2_service" "api" {
         value = local.refresh_schedule_utc_h
       }
       env {
+        name  = "SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS"
+        value = tostring(var.snapshot_history_hours)
+      }
+      env {
+        name  = "SPHEREX_SNAPSHOT_HISTORY_LIMIT"
+        value = tostring(var.snapshot_history_limit)
+      }
+      env {
         name = "SPHEREX_REFRESH_OPERATOR_TOKEN"
         value_source {
           secret_key_ref {
@@ -347,6 +355,14 @@ resource "google_cloud_run_v2_service" "live_api" {
         value = local.refresh_schedule_utc_h
       }
       env {
+        name  = "SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS"
+        value = tostring(var.snapshot_history_hours)
+      }
+      env {
+        name  = "SPHEREX_SNAPSHOT_HISTORY_LIMIT"
+        value = tostring(var.snapshot_history_limit)
+      }
+      env {
         name = "SPHEREX_REFRESH_OPERATOR_TOKEN"
         value_source {
           secret_key_ref {
@@ -415,12 +431,24 @@ resource "google_cloud_run_v2_job" "refresh" {
           value = google_storage_bucket.snapshots.name
         }
         env {
+          name  = "SPHEREX_SNAPSHOT_SOURCE"
+          value = "bucket"
+        }
+        env {
           name  = "SPHEREX_CACHE"
           value = "/tmp/spherex-data"
         }
         env {
           name  = "SPHEREX_CATALOG_REFRESH_DAYS"
           value = "7"
+        }
+        env {
+          name  = "SPHEREX_PREVIOUS_SNAPSHOT_RETENTION_HOURS"
+          value = tostring(var.snapshot_history_hours)
+        }
+        env {
+          name  = "SPHEREX_SNAPSHOT_HISTORY_LIMIT"
+          value = tostring(var.snapshot_history_limit)
         }
       }
     }
