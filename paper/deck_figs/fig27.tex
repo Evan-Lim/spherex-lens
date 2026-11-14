@@ -1,0 +1,102 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize]
+\begin{axis}[width=16.6cm,height=6.6cm,
+  ybar stacked,bar width=9pt,ymin=0,ymax=12.5,ylabel={Detections ($|S|\ge 6.0\sigma$)},
+  ylabel style={font=\scriptsize},
+  symbolic x coords={{Brd},{EpsInd},{W0855},{RWA},{RDra},{M31},{M42},{M45},{M1},{M51},{M104},{M57},{SgrA},{3C273},{Bete},{Sir},{Prox},{TRAPP}},
+  xtick=data,x tick label style={rotate=50,anchor=east,font=\tiny},
+  tick label style={font=\tiny,text=slate},axis line style={slate},
+  grid=major,grid style={rule!70},enlarge x limits=0.04,
+  legend style={font=\tiny,draw=rule,at={(0.5,-0.28)},anchor=north,legend columns=2},
+  after end axis/.code={
+    \draw[rule,dashed,thick] (rel axis cs:0.28,0) -- (rel axis cs:0.28,1.05);
+    \node[font=\tiny\bfseries,text=muted,anchor=south] at (rel axis cs:0.14,1.06) {Five Brief Targets (27 detections)};
+    \node[font=\tiny\bfseries,text=muted,anchor=south] at (rel axis cs:0.64,1.06) {Thirteen Famous Benchmarks (82 detections)};
+  }]
+\addplot[fill=good!50,draw=good] coordinates {
+  ({Brd},2) ({EpsInd},6) ({W0855},8) ({RWA},5) ({RDra},6) ({M31},10) ({M42},0) ({M45},4) ({M1},5)
+  ({M51},6) ({M104},10) ({M57},10) ({SgrA},0) ({3C273},4) ({Bete},1) ({Sir},10) ({Prox},4) ({TRAPP},8)
+};
+\addlegendentry{KNOWN (99) --- proper motion, variable, asteroid, or optical artefact}
+\addplot[fill=warn!55,draw=warn] coordinates {
+  ({Brd},0) ({EpsInd},3) ({W0855},2) ({RWA},0) ({RDra},0) ({M31},0) ({M42},0) ({M45},2) ({M1},0)
+  ({M51},0) ({M104},0) ({M57},0) ({SgrA},0) ({3C273},1) ({Bete},0) ({Sir},0) ({Prox},0) ({TRAPP},2)
+};
+\addlegendentry{CANDIDATE (10) --- unexplained at $6.0\sigma$ threshold}
+\end{axis}
+\end{tikzpicture}
+\end{document}

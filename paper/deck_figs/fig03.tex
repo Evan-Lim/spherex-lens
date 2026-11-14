@@ -1,0 +1,114 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  kn/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  as/.style={draw=purple,thick,fill=purple2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  ca/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
+
+  \node[bx] (pix) at (1.4,4.6) {$180\times 180$ Pixels\\$32\,400$ values of $|S|$};
+  \node[bx] (thr) at (4.8,4.6) {Threshold\\$|S|\ge 6.0\sigma$};
+  \node[bx] (set) at (8.2,4.6) {Candidate Set $\mathcal{C}$\\109 Detections};
+
+  \node[kn,text width=3.4cm] (known) at (12.4,6.05) {\textbf{99 KNOWN}\\Catalogue / artefact};
+  \node[as,text width=3.4cm] (ast) at (12.4,4.55) {\textbf{KNOWN ASTEROID}\\JPL Horizons / SSOIS};
+  \node[ca,text width=3.4cm] (cand) at (12.4,3.05) {\textbf{10 CANDIDATE}\\Unexplained residuals};
+
+  \draw[ar] (pix) -- (thr);
+  \draw[ar] (thr) -- (set);
+  \draw[ar] (set.east) -- ++(0.5,0) |- (known.west);
+  \draw[ar] (set.east) -- (ast.west);
+  \draw[ar] (set.east) -- ++(0.5,0) |- (cand.west);
+
+  % 4 constraint cards
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (1.9,1.1)
+    {\textbf{Public Data Only}\\[2pt]
+     IRSA SPHEREx DR1 cutouts, Gaia DR3, AllWISE, VSX, JPL Horizons. Zero private data.};
+
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (6.0,1.1)
+    {\textbf{Cryptographic Provenance}\\[2pt]
+     Content-addressed SHA-256 snapshots in Cloud Storage; 14-day history replay chain.};
+
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (10.1,1.1)
+    {\textbf{Physical Honesty}\\[2pt]
+     ``No change'' strictly distinguished from ``no data'' or mismatched detector arrays (e.g.\ Sgr A*).};
+
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (14.2,1.1)
+    {\textbf{Cloud \& Laptop Parity}\\[2pt]
+     Sub-second FFTs; headless execution in 12-hour batch Cloud Run jobs or single laptop.};
+\end{tikzpicture}
+\end{document}

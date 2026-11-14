@@ -1,0 +1,119 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize]
+  % Sky distribution on the left
+  \begin{scope}
+    \begin{axis}[width=8.4cm,height=5.2cm,
+      xlabel={RA (deg)},ylabel={Dec (deg)},xmin=-10,xmax=370,ymin=-80,ymax=80,
+      xlabel style={font=\scriptsize},ylabel style={font=\scriptsize},
+      grid=both,grid style={rule!70},axis line style={slate},
+      tick label style={font=\scriptsize,text=slate},
+      legend style={font=\tiny,draw=rule,at={(0.5,-0.48)},anchor=north,legend columns=3}]
+    \addplot[only marks,mark=*,mark size=2.6pt,good] coordinates {
+      (269.45,4.77) (331.10,-56.80) (76.96,30.40) (248.17,66.75) (133.76,-7.24)};
+    \addlegendentry{Brief Targets (5)}
+    \addplot[only marks,mark=triangle*,mark size=2.8pt,accent] coordinates {
+      (10.68,41.27) (56.75,24.12) (83.63,22.01) (202.47,47.20) (190.00,-11.62)
+      (283.40,33.03) (187.28,2.05) (217.37,-62.67) (88.79,7.41) (101.28,-16.72) (346.63,-5.04)};
+    \addlegendentry{Famous Benchmarks (11)}
+    \addplot[only marks,mark=x,mark size=3.4pt,bad,line width=1pt] coordinates {
+      (83.82,-5.39) (266.42,-29.01)};
+    \addlegendentry{Empty / Refused (2)}
+    \end{axis}
+  \end{scope}
+
+  % Ingestion workflow on the right
+  \begin{scope}[shift={(9.6,0.3)}]
+    \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=center,inner sep=4pt,text width=3.8cm] (sia) at (2.0,4.2)
+      {\textbf{Dual Ingest Path}\\ \scriptsize SIA2 Cone Search OR AWS S3};
+    \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=center,inner sep=4pt,text width=3.8cm] (cut) at (2.0,2.7)
+      {\textbf{Cutout Retrieval}\\ \scriptsize $0.2^\circ$ stream or disk cache};
+    \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=4pt,text width=3.8cm] (acc) at (2.0,1.2)
+      {\textbf{Cutout Acceptance}\\ \scriptsize $\ge 12$\,px margin, $<50\%$ bad};
+
+    \draw[-{Stealth[length=6pt]},thick,slate] (sia) -- (cut);
+    \draw[-{Stealth[length=6pt]},thick,slate] (cut) -- (acc);
+
+    \node[right,font=\tiny,text=muted,align=left] at (4.0,4.2) {SHA-256 hash\\ fingerprint};
+    \node[right,font=\tiny,text=muted,align=left] at (4.0,2.7) {Parallel TAP\\ Gaia/WISE/VSX};
+    \node[right,font=\tiny,text=muted,align=left] at (4.0,1.2) {Retry backoff\\ Fail-don't-fake};
+
+    \node[draw=bad,thick,fill=bad2,rounded corners=2pt,align=left,inner sep=4pt,text width=5.8cm,font=\tiny] at (2.8,-0.5)
+      {\textbf{Coverage honesty:}\\
+       Orion M42 has zero $6\sigma$ detections; Sgr A* is refused because Epoch 1 has D1 and Epoch 2 only D2; LMC was dropped due to single-visit coverage.};
+  \end{scope}
+\end{tikzpicture}
+\end{document}

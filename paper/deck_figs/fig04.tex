@@ -1,0 +1,115 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  card/.style={draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=5pt,text width=3.5cm}]
+
+  \node[card] (a) at (1.9,4.4) {
+    {\large\bfseries 1. Calibration}\par\vspace{2pt}
+    {\scriptsize Is $S$ unit-variance where nothing changed?}\par\vspace{4pt}
+    \textcolor{good}{\textbf{\checkmark\ Answered: Yes}}\par
+    \tiny Robust $S/(1.4826\cdot\mathrm{MAD})$ normalisation on DR1 co-adds.
+  };
+
+  \node[card] (b) at (6.0,4.4) {
+    {\large\bfseries 2. Morphology}\par\vspace{2pt}
+    {\scriptsize Can dipoles be told from monopoles at $3\arcsec$?}\par\vspace{4pt}
+    \textcolor{good}{\textbf{\checkmark\ Answered: Yes}}\par
+    \tiny Physical kinematic separation $\le \mu_{\mathrm{max}}\Delta t$ and $\le 2\times$ lobe ratio.
+  };
+
+  \node[card] (c) at (10.1,4.4) {
+    {\large\bfseries 3. Identity}\par\vspace{2pt}
+    {\scriptsize What fraction is in existing catalogues?}\par\vspace{4pt}
+    \textcolor{good}{\textbf{\checkmark\ Answered: 91\%}}\par
+    \tiny 99 of 109 detections explained by Gaia, AllWISE, VSX, or artefacts.
+  };
+
+  \node[card] (d) at (14.2,4.4) {
+    {\large\bfseries 4. Completeness}\par\vspace{2pt}
+    {\scriptsize What did we miss, and is it measured?}\par\vspace{4pt}
+    \textcolor{good}{\textbf{\checkmark\ Answered: 69.3\%}}\par
+    \tiny Measured across 12{,}240 strict injections on 18 DR1 fields.
+  };
+
+  % Out of scope banner
+  \node[draw=slate,thick,fill=white,rounded corners=2pt,align=left,inner sep=6pt,text width=15.4cm,font=\scriptsize] at (8.05,1.5)
+    {\textbf{Explicit scope boundaries, stated up front rather than discovered by a reviewer:}\\
+     \textbullet\ Sub-pixel crowded-field PSF photometry in the Galactic Centre (Sgr A* is intentionally refused)\\
+     \textbullet\ Unfiltered streaming alert distribution (SPHERExLens is an inspectable discovery portal, not a broker)\\
+     \textbullet\ Densely sampled short-cadence light curves on arbitrary fields (addressed specifically in Deep Fields §7)\\
+     \textbullet\ Absolute arcsecond astrometry below the $6.2\arcsec$ telescope PSF blur};
+\end{tikzpicture}
+\end{document}

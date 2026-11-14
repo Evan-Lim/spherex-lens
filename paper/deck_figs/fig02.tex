@@ -1,0 +1,115 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize]
+  \foreach \x/\lab in {0/{Visit 1 ($t_1$)}, 4.1/{Visit 2 ($t_2=t_1+\Delta t$)}, 8.2/{Difference ($D$)}, 12.3/{Flaring Monopole}}{
+    \draw[rule,thick,fill=white,rounded corners=2pt] (\x,3.0) rectangle (\x+3.8,6.4);
+    \node[above=2pt,font=\scriptsize\bfseries,text=ink] at (\x+1.9,6.4) {\lab};
+  }
+  % Stationary stars
+  \foreach \x/\y in {0.5/5.8, 1.2/3.8, 3.2/5.9, 3.3/3.4, 0.9/4.7, 3.2/4.8}{
+    \fill[slate!50] (\x,\y) circle (0.06);
+    \fill[slate!50] (\x+4.1,\y) circle (0.06);
+    \fill[slate!20] (\x+8.2,\y) circle (0.06);
+  }
+  % Moving source
+  \fill[good] (1.4,4.7) circle (0.13);
+  \fill[good] (4.1+2.3,4.7) circle (0.13);
+  \draw[-{Stealth[length=4pt]},thick,good] (4.1+1.55,4.7) -- (4.1+2.15,4.7);
+  \fill[bad] (8.2+1.4,4.7) circle (0.14);
+  \fill[good] (8.2+2.3,4.7) circle (0.14);
+  \node[anchor=north,font=\tiny,text=muted] at (8.2+1.85,4.45) {dipole ($\mathbf{s}\Delta_{\mathrm{px}}$)};
+
+  % Fading source in Difference panel
+  \fill[warn] (2.8,3.9) circle (0.12);
+  \fill[bad] (8.2+2.8,3.9) circle (0.13);
+  \node[anchor=north,font=\tiny,text=bad] at (8.2+2.8,3.65) {negative lobe};
+
+  % Flaring source in 4th panel
+  \fill[warn] (12.3+1.9,4.7) circle (0.24);
+  \node[anchor=north,font=\tiny,text=warn] at (12.3+1.9,4.2) {positive monopole};
+  \node[anchor=north,font=\tiny,text=muted] at (12.3+1.9,3.75) {flaring accretion / SN};
+
+  % Captions
+  \node[anchor=north,font=\tiny,text=muted] at (1.9,2.85) {baseline sky};
+  \node[anchor=north,font=\tiny,text=muted] at (4.1+1.9,2.85) {kinematic displacement};
+  \node[anchor=north,font=\tiny,text=muted] at (8.2+1.9,2.85) {dipole + fading residual};
+
+  % Systematics warning box
+  \node[draw=bad,thick,fill=bad2,rounded corners=2pt,align=left,inner sep=6pt,text width=15.4cm,font=\scriptsize] at (8.05,1.25)
+    {\textbf{What survives raw subtraction, and why subtraction alone is not discovery:}\\
+     Point-spread function variations between spacecraft roll angles, sub-pixel detector flat-field errors, astrometric jitter, and zodiacal gradients survive subtraction as structured residuals. These instrumental false alarms outnumber genuine astrophysical changes by up to $1000\times$. The scientific task is therefore statistical calibration and multi-wavelength triage.};
+\end{tikzpicture}
+\end{document}

@@ -54,8 +54,16 @@
 \newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
 
 % slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
 \newcommand{\slidehead}[3]{%
-  {\large\bfseries Slide #1 --- #2}\hfill{\large\bfseries #3}\par
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
   \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
 
 % figure wrapper: sized to fit cleanly without overflowing margins
@@ -176,8 +184,8 @@ and the live Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard},
   \node[anchor=north,font=\tiny,text=muted] at (8.2+2.1,4.55) {dipole};
   \fill[bad] (12.3+1.8,4.8) circle (0.15);
   \fill[good] (12.3+2.4,4.8) circle (0.15);
-  \node[anchor=north,font=\tiny\bfseries,text=good] at (12.3+2.4,4.55) {$+6.8\sigma$};
-  \node[anchor=north,font=\tiny\bfseries,text=bad] at (12.3+1.8,4.55) {$-6.2\sigma$};
+  \node[anchor=east,font=\tiny\bfseries,text=bad] at (12.3+1.76,4.55) {$-6.2\sigma$};
+  \node[anchor=west,font=\tiny\bfseries,text=good] at (12.3+2.36,4.55) {$+6.8\sigma$};
 
   % Fading source (monopole negative, newly handled in v2)
   \fill[warn] (2.9,4.0) circle (0.12);
@@ -201,7 +209,7 @@ and the live Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard},
 
   \draw[good,thick,fill=good2,rounded corners=2pt] (4.1,0.5) rectangle (7.9,2.3);
   \node[text=good] at (6.0,1.7) {\LARGE\bfseries 1.66};
-  \node[font=\scriptsize\bfseries,text=ink] at (6.0,1.15) {Null False Candidates/Field};
+  \node[font=\scriptsize\bfseries,text=ink] at (6.0,1.15) {Null False Candidates};
   \node[font=\tiny,text=muted] at (6.0,0.78) {0 in 6 star fields ($6.0\sigma$)};
 
   \draw[warn,thick,fill=warn2,rounded corners=2pt] (8.2,0.5) rectangle (12.0,2.3);
@@ -212,7 +220,7 @@ and the live Cloud Run snapshot API (\code{/api/targets}, \code{/api/dashboard},
   \draw[slate,thick,fill=white,rounded corners=2pt] (12.3,0.5) rectangle (16.1,2.3);
   \node[text=ink] at (14.2,1.7) {\LARGE\bfseries 21.4k};
   \node[font=\scriptsize\bfseries,text=ink] at (14.2,1.15) {Runtime Python Lines};
-  \node[font=\tiny,text=muted] at (14.2,0.78) {7 modular subsystems + REST API};
+  \node[font=\tiny,text=muted] at (14.2,0.78) {7 subsystems + REST API};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} Good morning. NASA's SPHEREx satellite photographs the entire sky across one hundred and two infrared colours, repeating its all-sky survey every six months. In this presentation, I address the fundamental challenge of time-domain astrophysics: given multiple visits to the same patch of sky, can we rigorously determine what changed, confirm genuine physical variability and proper motion, and remain scientifically transparent about what we cannot resolve?
@@ -292,19 +300,19 @@ Yet, raw subtraction is never a discovery on its own. As illustrated by the warn
 \textbf{Figure / diagram.} Set-theoretic workflow tracking 32,400 raw pixels through quality masking, inverse-variance co-addition, ZOGY convolution, 6.0-sigma thresholding, and multi-tier triage into KNOWN, ASTEROID, CANDIDATE, and ARTIFACT categories, with four constraint cards underneath.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=4pt,text width=2.6cm,rounded corners=2pt},
-  kn/.style={draw=good,thick,fill=good2,align=center,inner sep=4pt,text width=2.6cm,rounded corners=2pt},
-  as/.style={draw=purple,thick,fill=purple2,align=center,inner sep=4pt,text width=2.6cm,rounded corners=2pt},
-  ca/.style={draw=warn,thick,fill=warn2,align=center,inner sep=4pt,text width=2.6cm,rounded corners=2pt},
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  kn/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  as/.style={draw=purple,thick,fill=purple2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  ca/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
   ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
 
-  \node[bx] (pix) at (1.4,4.2) {$180\times 180$ Pixels\\$32\,400$ values of $|S|$};
-  \node[bx] (thr) at (4.8,4.2) {Threshold\\$|S|\ge 6.0\sigma$};
-  \node[bx] (set) at (8.2,4.2) {Candidate Set $\mathcal{C}$\\109 Detections};
+  \node[bx] (pix) at (1.4,4.6) {$180\times 180$ Pixels\\$32\,400$ values of $|S|$};
+  \node[bx] (thr) at (4.8,4.6) {Threshold\\$|S|\ge 6.0\sigma$};
+  \node[bx] (set) at (8.2,4.6) {Candidate Set $\mathcal{C}$\\109 Detections};
 
-  \node[kn] (known) at (12.2,5.2) {\textbf{99 KNOWN}\\Catalogue or Artefact};
-  \node[as] (ast) at (12.2,4.2) {\textbf{KNOWN ASTEROID}\\JPL Horizons / SSOIS};
-  \node[ca] (cand) at (12.2,3.2) {\textbf{10 CANDIDATE}\\Unexplained Residuals};
+  \node[kn,text width=3.4cm] (known) at (12.4,6.05) {\textbf{99 KNOWN}\\Catalogue / artefact};
+  \node[as,text width=3.4cm] (ast) at (12.4,4.55) {\textbf{KNOWN ASTEROID}\\JPL Horizons / SSOIS};
+  \node[ca,text width=3.4cm] (cand) at (12.4,3.05) {\textbf{10 CANDIDATE}\\Unexplained residuals};
 
   \draw[ar] (pix) -- (thr);
   \draw[ar] (thr) -- (set);
@@ -313,19 +321,19 @@ Yet, raw subtraction is never a discovery on its own. As illustrated by the warn
   \draw[ar] (set.east) -- ++(0.5,0) |- (cand.west);
 
   % 4 constraint cards
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=5pt,text width=3.4cm,font=\scriptsize] at (1.9,1.3)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (1.9,1.1)
     {\textbf{Public Data Only}\\[2pt]
      IRSA SPHEREx DR1 cutouts, Gaia DR3, AllWISE, VSX, JPL Horizons. Zero private data.};
 
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=5pt,text width=3.4cm,font=\scriptsize] at (6.0,1.3)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (6.0,1.1)
     {\textbf{Cryptographic Provenance}\\[2pt]
      Content-addressed SHA-256 snapshots in Cloud Storage; 14-day history replay chain.};
 
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=5pt,text width=3.4cm,font=\scriptsize] at (10.1,1.3)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (10.1,1.1)
     {\textbf{Physical Honesty}\\[2pt]
      ``No change'' strictly distinguished from ``no data'' or mismatched detector arrays (e.g.\ Sgr A*).};
 
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=5pt,text width=3.4cm,font=\scriptsize] at (14.2,1.3)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=3.4cm,font=\scriptsize] at (14.2,1.1)
     {\textbf{Cloud \& Laptop Parity}\\[2pt]
      Sub-second FFTs; headless execution in 12-hour batch Cloud Run jobs or single laptop.};
 \end{tikzpicture}}
@@ -423,26 +431,26 @@ Equally important are the non-goals listed at the bottom: we do not claim sub-pi
   }
 
   % Sketch 1: Kernel fitting
-  \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,2.0) rectangle (4.6,4.3);
-  \node[anchor=north west,font=\tiny\bfseries,text=accent] at (0.35,4.18) {1998--2008: Kernel Fitting};
-  \draw[slate,dashed,thick] plot[smooth] coordinates {(0.6,2.4) (1.5,3.6) (2.4,3.9) (3.3,3.0) (4.2,2.4)};
-  \draw[accent,thick] plot[smooth] coordinates {(0.6,2.4) (1.7,3.3) (2.4,4.0) (3.1,3.2) (4.2,2.4)};
-  \node[anchor=north,font=\tiny,text=muted,text width=4.2cm,align=center] at (2.4,2.35) {Kernel estimated from brightest stars; vulnerable to crowding and nebular gas.};
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,1.75) rectangle (4.6,4.75);
+  \node[anchor=north west,font=\tiny\bfseries,text=accent] at (0.35,4.62) {1998--2008: Kernel Fitting};
+  \draw[slate,dashed,thick] plot[smooth] coordinates {(0.6,2.6) (1.5,3.6) (2.4,3.9) (3.3,3.0) (4.2,2.6)};
+  \draw[accent,thick] plot[smooth] coordinates {(0.6,2.6) (1.7,3.3) (2.4,4.0) (3.1,3.2) (4.2,2.6)};
+  \node[anchor=north,font=\tiny,text=muted,text width=4.2cm,align=center] at (2.4,2.45) {Kernel estimated from brightest stars; vulnerable to crowding and nebular gas.};
 
   % Sketch 2: ZOGY closed-form
-  \draw[rule,thick,fill=white,rounded corners=2pt] (5.2,2.0) rectangle (9.6,4.3);
-  \node[anchor=north west,font=\tiny\bfseries,text=good] at (5.35,4.18) {2016: ZOGY Proper Subtraction};
-  \draw[good,thick] plot[smooth] coordinates {(5.6,2.4) (6.6,3.4) (7.4,4.0) (8.2,3.4) (9.2,2.4)};
-  \draw[bad,thick,dashed] plot[smooth] coordinates {(5.6,2.4) (6.6,3.4) (7.4,4.0) (8.2,3.4) (9.2,2.4)};
-  \node[anchor=north,font=\tiny,text=muted,text width=4.2cm,align=center] at (7.4,2.35) {Closed-form Fourier division using known PSFs; no kernel ever fitted.};
+  \draw[rule,thick,fill=white,rounded corners=2pt] (5.2,1.75) rectangle (9.6,4.75);
+  \node[anchor=north west,font=\tiny\bfseries,text=good] at (5.35,4.62) {2016: ZOGY (closed form)};
+  \draw[good,thick] plot[smooth] coordinates {(5.6,2.6) (6.6,3.4) (7.4,4.0) (8.2,3.4) (9.2,2.6)};
+  \draw[bad,thick,dashed] plot[smooth] coordinates {(5.6,2.6) (6.6,3.4) (7.4,4.0) (8.2,3.4) (9.2,2.6)};
+  \node[anchor=north,font=\tiny,text=muted,text width=4.2cm,align=center] at (7.4,2.45) {Closed-form Fourier division using known PSFs; no kernel ever fitted.};
 
   % Decision box
-  \draw[good,thick,fill=good2,rounded corners=2pt] (10.2,2.0) rectangle (16.2,4.3);
-  \node[anchor=north west,font=\scriptsize\bfseries,text=good] at (10.4,4.15) {Why ZOGY for SPHERExLens?};
-  \node[anchor=north west,font=\tiny,text=ink,text width=5.6cm,align=left] at (10.4,3.80) {
-    \textbullet\ \textbf{Analytic Null Distribution}: Significance map $S \sim \mathcal{N}(0,1)$ by construction where the sky is constant.\\[2pt]
-    \textbullet\ \textbf{Provable Threshold}: Gaussian tails yield exact statistical false-alarm budgets ($2N^2\Phi(-\tau)$).\\[2pt]
-    \textbullet\ \textbf{Computational Speed}: Exactly two 2D-FFTs per epoch pair ($<0.6$\,s per $180^2$ cutout).
+  \draw[good,thick,fill=good2,rounded corners=2pt] (10.2,1.75) rectangle (16.2,4.75);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=good] at (10.4,4.6) {Why ZOGY for SPHERExLens?};
+  \node[anchor=north west,font=\tiny,text=ink,text width=5.6cm,align=left] at (10.4,4.25) {
+    \textbullet\ \textbf{Analytic Null}: Significance $S \sim \mathcal{N}(0,1)$ where sky is constant.\\[3pt]
+    \textbullet\ \textbf{Provable Threshold}: Gaussian tails yield exact false-alarm budgets ($2N^2\Phi(-\tau)$).\\[3pt]
+    \textbullet\ \textbf{Speed}: Exactly two 2D-FFTs per epoch pair ($<0.6$\,s per $180^2$ cutout).
   };
 \end{tikzpicture}}
 
@@ -545,17 +553,17 @@ The gap we fill is not reinventing a subtraction equation; it is delivering a tr
   }
 
   % 6 FITS HDU boxes below
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=4pt,text width=2.3cm] at (1.3,1.6)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=3.5pt,text width=2.3cm] at (1.3,1.3)
     {\textbf{IMAGE}\\ \tiny Calibrated flux\\ (MJy/sr)};
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=4pt,text width=2.3cm] at (4.0,1.6)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=3.5pt,text width=2.3cm] at (4.0,1.3)
     {\textbf{FLAGS}\\ \tiny 32-bit bitmask\\ (14 bad bits)};
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=4pt,text width=2.3cm] at (6.7,1.6)
-    {\textbf{VARIANCE}\\ \tiny Per-pixel $\sigma^2$\\ noise plane};
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=4pt,text width=2.3cm] at (9.4,1.6)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=3.5pt,text width=2.3cm] at (6.7,1.3)
+    {\textbf{VARIANCE}\\[2pt] \tiny Per-pixel variance\\ noise plane};
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=3.5pt,text width=2.3cm] at (9.4,1.3)
     {\textbf{WCS-WAVE}\\ \tiny Pixel-to-$\lambda$\\ lookup table};
-  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=4pt,text width=2.4cm] at (12.15,1.6)
+  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=3.5pt,text width=2.4cm] at (12.15,1.3)
     {\textbf{EPSF (v2)}\\ \tiny 21$\times$21 zone\\ empirical PSF};
-  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=4pt,text width=2.4cm] at (14.9,1.6)
+  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=3.5pt,text width=2.4cm] at (14.9,1.3)
     {\textbf{ZODI (v2)}\\ \tiny Solar zodiacal\\ light background};
 \end{tikzpicture}}
 
@@ -703,34 +711,34 @@ A critical engineering design choice was the establishment of an immutable JSON 
 \textbf{Figure / diagram.} Multi-tier archive ingestion waterfall showing automatic fallback cascades for Gaia, asteroid cross-checks, and CSA NEOSSat optical validation, with an operating mode comparison table below.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=4pt,text width=3.3cm,rounded corners=2pt},
-  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=4pt,text width=3.3cm,rounded corners=2pt},
-  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=4pt,text width=3.3cm,rounded corners=2pt},
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,text width=3.3cm,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,text width=3.3cm,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,text width=3.3cm,rounded corners=2pt},
   ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
 
   % Gaia 3-tier cascade
-  \node[bx] (g1) at (2.0,5.6) {\textbf{Gaia DR3 Primary}\\ IPAC IRSA TAP};
-  \node[wn] (g2) at (2.0,4.1) {\textbf{Secondary Mirror}\\ STScI MAST TAP};
-  \node[gn] (g3) at (2.0,2.6) {\textbf{Tertiary Fallback}\\ CDS VizieR Mirrors};
+  \node[bx] (g1) at (2.0,6.2) {\textbf{Gaia DR3 Primary}\\ IPAC IRSA TAP};
+  \node[wn] (g2) at (2.0,4.8) {\textbf{Secondary Mirror}\\ STScI MAST TAP};
+  \node[gn] (g3) at (2.0,3.4) {\textbf{Tertiary Fallback}\\ CDS VizieR Mirrors};
   \draw[ar] (g1) -- node[right,font=\tiny,text=bad] {timeout} (g2);
   \draw[ar] (g2) -- node[right,font=\tiny,text=bad] {timeout} (g3);
 
   % Asteroid Ephemeris
-  \node[bx] (ast1) at (7.4,5.6) {\textbf{JPL Horizons}\\ Small-Body Ident API};
-  \node[gn] (ast2) at (7.4,4.1) {\textbf{JPL SBDB}\\ Orbital Telemetry};
-  \node[bx] (ast3) at (7.4,2.6) {\textbf{CADC SSOIS}\\ Geometric Cross-check};
+  \node[bx] (ast1) at (7.4,6.2) {\textbf{JPL Horizons}\\ Small-Body Ident API};
+  \node[gn] (ast2) at (7.4,4.8) {\textbf{JPL SBDB}\\ Orbital Telemetry};
+  \node[bx] (ast3) at (7.4,3.4) {\textbf{CADC SSOIS}\\ Geometric Cross-check};
   \draw[ar] (ast1) -- node[right,font=\tiny,text=good] {match} (ast2);
-  \draw[ar] (ast1) -- node[right,font=\tiny,text=slate] {validate} (ast3);
+  \draw[ar] (ast2) -- node[right,font=\tiny,text=slate] {validate} (ast3);
 
   % Optical confirmation & Links
-  \node[bx] (neo1) at (12.8,5.6) {\textbf{CSA NEOSSat}\\ CADC TAP Query};
-  \node[gn] (neo2) at (12.8,4.1) {\textbf{\code{neossat_clean.py}}\\ Dark / Flat / Bias Clean};
-  \node[bx] (lnk) at (12.8,2.6) {\textbf{External Visualisers}\\ WiseView / IRSA Finder};
+  \node[bx] (neo1) at (12.8,6.2) {\textbf{CSA NEOSSat}\\ CADC TAP Query};
+  \node[gn] (neo2) at (12.8,4.8) {\textbf{\code{neossat_clean.py}}\\ Dark / Flat / Bias Clean};
+  \node[bx] (lnk) at (12.8,3.4) {\textbf{External Visualisers}\\ WiseView / IRSA Finder};
   \draw[ar] (neo1) -- (neo2);
   \draw[ar] (neo2) -- (lnk);
 
   % Operating mode comparison table below
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=5pt,text width=15.4cm,font=\scriptsize] at (7.4,0.7)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=15.4cm,font=\scriptsize] at (7.4,0.7)
     {\textbf{Dual Ingestion Modes Compared:}\\
      \begin{tabular}{@{}p{2.3cm}p{5.7cm}p{6.3cm}@{}}
      \toprule
@@ -770,7 +778,7 @@ Finally, the comparison table at the bottom highlights our dual execution modes:
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   % Flag census on left
   \begin{scope}
-    \begin{axis}[width=7.4cm,height=4.8cm,xbar,bar width=7pt,xmin=0,xmax=24,
+    \begin{axis}[width=7.2cm,height=4.4cm,xbar,bar width=7pt,xmin=0,xmax=24,
       xlabel={\% of pixels flagged in raw cutouts},xlabel style={font=\scriptsize},
       symbolic y coords={{SUR (cosmics)},{saturation},{hot/cold},{outlier},{persistence},{SOURCE (bit 21)}},
       ytick=data,tick label style={font=\tiny,text=slate},axis line style={slate},
@@ -784,8 +792,8 @@ Finally, the comparison table at the bottom highlights our dual execution modes:
   \end{scope}
 
   % Pixel grid on right
-  \begin{scope}[shift={(8.4,0.4)}]
-    \node[anchor=south west,font=\scriptsize\bfseries,text=ink] at (0,3.9) {Cross-Epoch Mask Matching (\texttt{coadd\_matched})};
+  \begin{scope}[shift={(8.4,0.9)}]
+    \node[anchor=south west,font=\scriptsize\bfseries,text=ink] at (0,3.35) {Cross-Epoch Mask Matching (\texttt{coadd\_matched})};
     \foreach \i in {0,...,5}{\foreach \j in {0,...,4}{
       \pgfmathsetmacro{\m}{int(mod(\i*7+\j*3,10))}
       \ifnum\m<3 \def\cc{bad!30}\else\def\cc{good!25}\fi
@@ -794,11 +802,11 @@ Finally, the comparison table at the bottom highlights our dual execution modes:
     \node[font=\tiny,text=bad,anchor=west] at (3.9,2.6) {14 bad bits $\Rightarrow w=0$};
     \node[font=\tiny,text=good,anchor=west] at (3.9,1.8) {Kept bits $\Rightarrow w_k=1/\tilde{V}_k$};
     \node[font=\tiny,text=slate,anchor=west] at (3.9,1.0) {Stack: $\sigma_C^2 = (\sum w_k)^{-1}$};
-
-    \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=left,inner sep=4pt,text width=7.2cm,font=\tiny] at (3.6,-0.4)
-      {\textbf{Asymmetric Mask Hole Elimination:}\\
-       If an optical spike or bad pixel is masked in Epoch 2, \code{coadd_matched} zeroes that band at $(x,y)$ in Epoch 1 as well. This prevents missing-flux holes from impersonating real moving dipoles (e.g.\ TRAPPIST-1).};
   \end{scope}
+
+  \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=left,inner sep=4pt,text width=15.2cm,font=\tiny] at (8.1,-1.35)
+    {\textbf{Asymmetric Mask Hole Elimination:}\\
+     If an optical spike or bad pixel is masked in Epoch 2, \code{coadd_matched} zeroes that band at $(x,y)$ in Epoch 1 as well. This prevents missing-flux holes from impersonating real moving dipoles (e.g.\ TRAPPIST-1).};
 \end{tikzpicture}}
 
 \textbf{Spoken script.} The credibility of any difference-imaging pipeline is won or lost in pixel preprocessing. Every raw SPHEREx Level-2 cutout arrives accompanied by a thirty-two-bit quality mask. In \code{step2_coadd}, fourteen severe defect bits---including cosmic ray hits, detector saturation, hot and cold pixels, non-functional channels, persistence from previous slews, and statistical outliers---are zeroed out.
@@ -812,8 +820,8 @@ Before co-addition, each exposure undergoes sigma-clipped median background subt
 
 \textbf{On the slide.}
 \begin{itemize}[leftmargin=1.4em,itemsep=1.5pt,topsep=1.5pt]
-\item Fourier-domain optimal subtraction: $\hat{D} = \frac{\hat{P}_1 \hat{I}_2 - \hat{P}_2 \hat{I}_1}{\sqrt{\sigma_1^2 |\hat{P}_2|^2 + \sigma_2^2 |\hat{P}_1|^2 + 10^{-30}}}$
-\item Matched-filter score statistic: $\hat{S} = \frac{\hat{D} \overline{\hat{P}_D}}{\sqrt{\sigma_1^2 + \sigma_2^2}}$, where $\hat{P}_D = \frac{\hat{P}_1 \hat{P}_2}{\sqrt{\sigma_1^2 |\hat{P}_2|^2 + \sigma_2^2 |\hat{P}_1|^2}}$
+\item Fourier-domain optimal subtraction: $\hat{D} = (\hat{P}_1 \hat{I}_2 - \hat{P}_2 \hat{I}_1) / \sqrt{\sigma_1^2 |\hat{P}_2|^2 + \sigma_2^2 |\hat{P}_1|^2}$
+\item Matched-filter score: $\hat{S} = \hat{D} \overline{\hat{P}_D} / \sqrt{\sigma_1^2 + \sigma_2^2}$, with transient PSF $\hat{P}_D = \hat{P}_1 \hat{P}_2 / \sqrt{\sigma_1^2 |\hat{P}_2|^2 + \sigma_2^2 |\hat{P}_1|^2}$
 \item Empirical PSF in v2: Extracted from DR1 \code{EPSF} extension using 21$\times$21 detector zones indexed by cutout WCS coordinates
 \item Unit-variance property: $S(\mathbf{x}) \sim \mathcal{N}(0, 1)$ in stationary regions; real transients sit in extreme tails
 \end{itemize}
@@ -887,7 +895,7 @@ The second equation transforms this optimal difference into a matched-filter sig
       ymode=log,xmin=2.5,xmax=6.5,ymin=1e-5,ymax=1e4,
       grid=both,grid style={rule!70},axis line style={slate},
       tick label style={font=\tiny,text=slate},
-      legend style={font=\tiny,draw=rule,at={(0.98,0.98)},anchor=north east}]
+      legend style={font=\tiny,draw=rule,at={(0.04,0.06)},anchor=south west}]
     \addplot[thick,accent,mark=none] coordinates {
       (2.5,402.4) (2.8,165.6) (3.0,87.5) (3.4,21.8) (3.8,4.68)
       (4.0,2.05) (4.4,0.35) (4.8,0.052) (5.0,0.0186) (5.4,0.0021)
@@ -998,41 +1006,41 @@ To prevent false pairings, version two enforces two strict kinematic guardrails.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   % Left side: Before v2 failure modes
-  \draw[bad,thick,fill=bad2,rounded corners=2pt] (0.2,2.0) rectangle (7.8,6.4);
+  \draw[bad,thick,fill=bad2,rounded corners=2pt] (0.2,1.6) rectangle (7.8,6.4);
   \node[anchor=north west,font=\scriptsize\bfseries,text=bad] at (0.4,6.2) {Before v2: Three Fatal Defects (0.2\% Recall)};
 
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.8cm,font=\tiny] at (4.0,5.0) {
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=2.5pt,text width=6.8cm,font=\tiny] at (4.0,5.2) {
     \textbf{1. Global Rescaling Deflation:}\\
     $S \leftarrow S/\mathrm{std}(S)$ divided by the sample standard deviation. A single bright star residual inflated $\mathrm{std}(S)$, deflating every other real detection below $5\sigma$.
   };
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.8cm,font=\tiny] at (4.0,3.7) {
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=2.5pt,text width=6.8cm,font=\tiny] at (4.0,3.85) {
     \textbf{2. Unconstrained 75\arcsec{} Dipole Pairing:}\\
     Any negative dip was paired with any positive peak within 75\arcsec. Real fading stars were glued to unrelated noise and mislabelled as fake movers.
   };
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.8cm,font=\tiny] at (4.0,2.6) {
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=2.5pt,text width=6.8cm,font=\tiny] at (4.0,2.45) {
     \textbf{3. Fixed 3\arcmin{} Bright-Star Mask:}\\
     Failed on 1st-magnitude stars. The halo of $\epsilon$ Indi A bled past 3\arcmin, spawning 44 false candidate detections.
   };
 
   % Right side: After v2 Decision A fixes
-  \draw[good,thick,fill=good2,rounded corners=2pt] (8.4,2.0) rectangle (16.0,6.4);
+  \draw[good,thick,fill=good2,rounded corners=2pt] (8.4,1.6) rectangle (16.0,6.4);
   \node[anchor=north west,font=\scriptsize\bfseries,text=good] at (8.6,6.2) {Decision A: The Calibrated Detector (69.3\% Recall)};
 
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.8cm,font=\tiny] at (12.2,5.0) {
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=2.5pt,text width=6.8cm,font=\tiny] at (12.2,5.2) {
     \textbf{1. Robust MAD Scaling (\code{step3_zogy.py}):}\\
     Normalized by median absolute deviation: $S / (1.4826 \cdot \mathrm{MAD})$. Resistant to outliers; bright residuals no longer suppress faint transients.
   };
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.8cm,font=\tiny] at (12.2,3.7) {
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=2.5pt,text width=6.8cm,font=\tiny] at (12.2,3.85) {
     \textbf{2. Physical Kinematic Pairing (\code{config.py}):}\\
     Separation bounded by realistic stellar motion ($\Delta \le \mu_{\mathrm{max}}\Delta t$) and flux ratio $\le 2.0\times$. Fading stars cleanly become negative monopoles.
   };
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.8cm,font=\tiny] at (12.2,2.6) {
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=2.5pt,text width=6.8cm,font=\tiny] at (12.2,2.45) {
     \textbf{3. Exponential Dynamic Masks (\code{catalog_tools.py}):}\\
     Mask radius grows exponentially with infrared brightness up to 10\arcmin. Eliminates all 44 false candidates around $\epsilon$ Indi A.
   };
 
   % Bottom hero recovery comparison
-  \node[draw=slate,thick,fill=white,rounded corners=2pt,align=center,inner sep=5pt,text width=15.4cm,font=\scriptsize] at (8.1,0.9)
+  \node[draw=slate,thick,fill=white,rounded corners=2pt,align=center,inner sep=4pt,text width=15.4cm,font=\scriptsize] at (8.1,0.75)
     {\textbf{Measured Scientific Impact Across 18 DR1 Benchmark Fields:}\\
      Planted objects recovered strictly: \textbf{surged from 0.2\% to 69.3\%} \;\textbullet\;
      Brightenings: \textbf{96.7\%} \;\textbullet\;
@@ -1064,21 +1072,21 @@ The result was transformative: strict recovery leaped from point two percent to 
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   % Left side: Null test concept
-  \begin{scope}[shift={(0.2,0.4)}]
-    \draw[rule,thick,fill=white,rounded corners=2pt] (0,1.8) rectangle (6.2,5.8);
-    \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.2,5.6) {Split-Epoch Null Test Scheme};
+  \begin{scope}[shift={(0.2,1.2)}]
+    \draw[rule,thick,fill=white,rounded corners=2pt] (0,1.4) rectangle (6.2,5.2);
+    \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.2,5.0) {Split-Epoch Null Test Scheme};
 
-    \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=center,inner sep=3pt,text width=5.4cm,font=\tiny] at (3.1,4.6)
+    \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=center,inner sep=2.5pt,text width=5.4cm,font=\tiny] at (3.1,4.2)
       {\textbf{Single Epoch Exposures ($t_1$)}\\
        $N \ge 2$ exposures within same orbit pass};
 
-    \node[draw=slate,fill=white,rounded corners=2pt,align=center,inner sep=2pt,font=\tiny] (h1) at (1.6,3.4) {Half A ($E_{1a}$)};
-    \node[draw=slate,fill=white,rounded corners=2pt,align=center,inner sep=2pt,font=\tiny] (h2) at (4.6,3.4) {Half B ($E_{1b}$)};
+    \node[draw=slate,fill=white,rounded corners=2pt,align=center,inner sep=2pt,font=\tiny] (h1) at (1.6,3.1) {Half A ($E_{1a}$)};
+    \node[draw=slate,fill=white,rounded corners=2pt,align=center,inner sep=2pt,font=\tiny] (h2) at (4.6,3.1) {Half B ($E_{1b}$)};
 
-    \draw[-{Stealth[length=4pt]},thick] (3.1,4.2) -| (h1);
-    \draw[-{Stealth[length=4pt]},thick] (3.1,4.2) -| (h2);
+    \draw[-{Stealth[length=4pt]},thick] (3.1,3.8) -| (h1);
+    \draw[-{Stealth[length=4pt]},thick] (3.1,3.8) -| (h2);
 
-    \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=3pt,text width=5.4cm,font=\tiny] (sub) at (3.1,2.3)
+    \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=2.5pt,text width=5.4cm,font=\tiny] (sub) at (3.1,2.0)
       {\textbf{ZOGY Null Subtraction}\\
        $\Delta t = 0 \implies$ Zero true sky change\\
        Every detection is an instrumental false alarm};
@@ -1088,22 +1096,21 @@ The result was transformative: strict recovery leaped from point two percent to 
   \end{scope}
 
   % Right side: pgfplots bar chart of null false candidates per field
-  \begin{scope}[shift={(6.8,0.4)}]
-    \begin{axis}[width=9.6cm,height=5.8cm,xbar,bar width=5pt,xmin=0,xmax=68,
+  \begin{scope}[shift={(8.6,1.2)}]
+    \begin{axis}[width=7.4cm,height=4.4cm,xbar,bar width=5.5pt,xmin=0,xmax=68,
       xlabel={False CANDIDATEs per field (after full triage)},xlabel style={font=\scriptsize},
-      symbolic y coords={{Crab M1},{Sirius},{EpsInd},{M51},{W0855},{M57},{M45},{M104},{TRAPP},{RWA},{Barnard},{Betelgeuse},{M31},{M42},{Prox Cen},{R Dra},{Sgr A*}},
-      ytick=data,tick label style={font=\fontsize{5}{6}\selectfont,text=slate},axis line style={slate},
+      symbolic y coords={{Crab M1},{Sirius},{EpsInd},{M51},{W0855},{M57},{M45},{M104},{TRAPP},{RWA},{Barnard},{6 Star Fields}},
+      ytick=data,tick label style={font=\tiny,text=slate},axis line style={slate},
       grid=major,grid style={rule!70},nodes near coords,nodes near coords style={font=\tiny,text=slate},
       enlarge y limits=0.08]
     \addplot[fill=warn!50,draw=warn] coordinates {
       (63,{Crab M1}) (44,{Sirius}) (28,{EpsInd}) (25,{M51}) (21,{W0855}) (20,{M57}) (19,{M45})
-      (16,{M104}) (9,{TRAPP}) (6,{RWA}) (6,{Barnard}) (0,{Betelgeuse}) (0,{M31}) (0,{M42})
-      (0,{Prox Cen}) (0,{R Dra}) (0,{Sgr A*})
+      (16,{M104}) (9,{TRAPP}) (6,{RWA}) (6,{Barnard}) (0,{6 Star Fields})
     };
     \end{axis}
   \end{scope}
 
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=15.6cm,font=\tiny] at (8.1,0.4)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=3.5pt,text width=15.4cm,font=\tiny] at (8.1,-0.55)
     {\textbf{Triage Filter Efficiency:} Across 220 split-epoch realisations, 8\,854 raw false positive peaks were detected. Triage vetoes (catalogues, mask holes, bright-star halos) reduced this by 97.5\% down to 1.66 false candidates/field. Zero false candidates in six uncrowded star fields.};
 \end{tikzpicture}}
 
@@ -1128,8 +1135,8 @@ Now look at the horizontal bar chart on the right: after multi-wavelength catalo
 
 \figbox{\begin{tikzpicture}[font=\footnotesize]
   % Heatmap on left
-  \begin{scope}
-    \begin{axis}[width=7.6cm,height=5.2cm,
+  \begin{scope}[shift={(0.2,1.6)}]
+    \begin{axis}[width=7.6cm,height=4.0cm,
       view={0}{90},colormap={rec}{color=(white) color=(accent2) color=(good)},
       colorbar,colorbar style={font=\tiny,width=0.25cm},
       xlabel={Proper Motion $\mu$ [arcsec/yr]},ylabel={Injected SNR},
@@ -1150,14 +1157,14 @@ Now look at the horizontal bar chart on the right: after multi-wavelength catalo
   \end{scope}
 
   % Bar chart on right
-  \begin{scope}[shift={(8.4,0.3)}]
-    \begin{axis}[width=8.0cm,height=4.8cm,ybar,bar width=9pt,ymin=0,ymax=115,
+  \begin{scope}[shift={(8.4,1.6)}]
+    \begin{axis}[width=8.0cm,height=4.0cm,ybar,bar width=8.5pt,ymin=0,ymax=135,
       ylabel={Strict Recovery Rate (\%)},ylabel style={font=\scriptsize},
       symbolic x coords={{Brightening},{Fading},{Movers},{Overall}},
       xtick=data,tick label style={font=\scriptsize,text=slate},axis line style={slate},
       grid=major,grid style={rule!70},nodes near coords={\pgfmathprintnumber\pgfplotspointmeta\%},
       nodes near coords style={font=\tiny\bfseries,text=slate},
-      legend style={font=\tiny,draw=rule,at={(0.03,0.96)},anchor=north west}]
+      legend style={font=\tiny,draw=rule,at={(0.5,1.02)},anchor=south,legend columns=2}]
     \addplot[fill=bad!35,draw=bad] coordinates {
       ({Brightening},0.2) ({Fading},0.0) ({Movers},0.2) ({Overall},0.2)
     };
@@ -1169,7 +1176,7 @@ Now look at the horizontal bar chart on the right: after multi-wavelength catalo
     \end{axis}
   \end{scope}
 
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=15.4cm,font=\tiny] at (8.0,-0.35)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=3.5pt,text width=15.4cm,font=\tiny] at (8.0,-0.35)
     {\textbf{Strict Criteria:} An injection counts as recovered only if it falls within 1.5 pixels of ground truth \emph{and} reproduces the exact morphological class. Fading and brightening transients reach $>95\%$ recovery above $7\sigma$; slow movers ($\mu \le 2''/\mathrm{yr}$) have lower recall (56\%) due to PSF overlap blurring the dipole.};
 \end{tikzpicture}}
 
@@ -1214,25 +1221,26 @@ Look at the heatmap on the left and the comparison bars on the right. For bright
   \draw[purple,thick,fill=purple2!40,rounded corners=2pt] (1.0,1.2) rectangle (14.6,3.6);
   \node[anchor=north west,font=\scriptsize\bfseries,text=purple!90!black] at (1.2,3.45) {Triage Card: Asteroid Verification Panel (Live Production UI)};
 
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.0cm,font=\tiny] at (3.4,2.2) {
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.1cm,font=\tiny] at (3.3,2.2) {
     \textbf{Designation:} 433 Eros (1898 DQ)\\
     \textbf{Orbit Class:} Amor (NEO)\\
     \textbf{Visual Mag:} $V = 14.2$\,mag\\
     \textbf{Separation:} $3.8\arcsec$ from peak
   };
 
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.0cm,font=\tiny] at (7.8,2.2) {
-    \textbf{Ephemeris Source:} JPL Horizons\\
-    \textbf{Positional Uncertainty:} $0.4\arcsec$\\
-    \textbf{CADC SSOIS Status:} Confirmed\\
-    \textbf{SSOIS Separation:} $1.9\arcsec$
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.1cm,font=\tiny] at (7.8,2.2) {
+    \textbf{Ephemeris:} JPL Horizons\\
+    \textbf{Position $\sigma$:} $0.4\arcsec$\\
+    \textbf{CADC SSOIS:} Confirmed\\
+    \textbf{SSOIS separation:} $1.9\arcsec$
   };
 
-  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.0cm,font=\tiny] at (12.2,2.2) {
-    \textbf{Status Verdict:}\\
-    \textcolor{purple!90!black}{\textbf{\code{KNOWN_ASTEROID}}}\\[2pt]
-    \href{https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html}{\tiny [JPL SBDB Tool]} \;\textbullet\;
-    \href{https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/ssois/}{\tiny [CADC SSOIS]}
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.1cm,font=\tiny] at (12.3,2.2) {
+    \textbf{Status Verdict:}\\[2pt]
+    {\scriptsize\textcolor{purple!90!black}{\textbf{\code{KNOWN_ASTEROID}}}}\\[3pt]
+    {\fontsize{5}{6}\selectfont
+     \href{https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html}{[JPL SBDB Tool]}\\[1pt]
+     \href{https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/ssois/}{[CADC SSOIS]}}
   };
 
   \node[draw=bad,thick,fill=bad2,rounded corners=2pt,align=left,inner sep=3pt,text width=15.4cm,font=\tiny] at (7.8,0.4)
@@ -1266,45 +1274,45 @@ If an asteroid matches, the detection is classified as \code{KNOWN_ASTEROID}, pr
   ar/.style={-{Stealth[length=5pt]},draw=slate,thick}]
 
   % Left panel: Astrometric Epoch Propagation Geometry
-  \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,2.0) rectangle (7.6,6.4);
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,1.7) rectangle (7.6,6.4);
   \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.4,6.2) {Proper-Motion Epoch Propagation};
 
-  \fill[accent] (1.6,4.6) circle (0.12);
-  \node[font=\scriptsize\bfseries,text=accent,below] at (1.6,4.4) {Gaia J2016.0};
+  \fill[accent] (1.7,4.6) circle (0.12);
+  \node[font=\tiny\bfseries,text=accent,below] at (1.7,4.45) {Gaia J2016.0};
 
-  \fill[good] (6.0,4.6) circle (0.12);
-  \node[font=\scriptsize\bfseries,text=good,below] at (6.0,4.4) {SPHEREx 2026.1};
+  \fill[good] (5.9,4.6) circle (0.12);
+  \node[font=\tiny\bfseries,text=good,below] at (5.9,4.45) {SPHEREx 2026.1};
 
   % Unpropagated cone (miss)
-  \draw[bad,dashed,thick] (1.6,4.6) circle (0.8);
-  \node[font=\tiny,text=bad,above] at (1.6,5.4) {Naive cone: MISS};
+  \draw[bad,dashed,thick] (1.7,4.6) circle (0.8);
+  \node[font=\tiny,text=bad,above] at (1.7,5.4) {Naive cone: MISS};
 
   % Propagated cone (hit)
-  \draw[good,thick] (6.0,4.6) circle (0.8);
-  \node[font=\tiny,text=good,above] at (6.0,5.4) {Propagated: HIT};
+  \draw[good,thick] (5.9,4.6) circle (0.8);
+  \node[font=\tiny,text=good,above] at (5.9,5.4) {Propagated: HIT};
 
   \draw[-{Stealth[length=6pt]},thick,good] (1.8,4.8) -- node[above,font=\tiny,text=good] {$10.4\arcsec/\mathrm{yr} \times 9.8\,\mathrm{yr} \approx 102\arcsec$} (5.8,4.8);
 
-  \node[font=\tiny,text=muted,align=left,text width=6.8cm] at (4.0,2.8) {
+  \node[font=\tiny,text=muted,align=left,text width=6.6cm] at (4.0,2.65) {
     \textbf{The Barnard's Star Bug Resolved:}\\
-    At $10.4\arcsec/\mathrm{yr}$, Barnard's Star displaced by $\sim 94\arcsec$ between Gaia DR3 and SPHEREx DR1. Naive matching missed it, branding the star an unexplained CANDIDATE. In \code{catalog_tools.py}, \code{propagate_catalogs()} moves coordinates to exposure MJD, identifying it cleanly as \code{KNOWN_MOVER}.
+    At $10.4\arcsec/\mathrm{yr}$, Barnard's Star is displaced by $\sim 94\arcsec$ between Gaia DR3 and SPHEREx DR1. Naive matching missed it, branding the star an unexplained CANDIDATE. In \code{catalog_tools.py}, \code{propagate_catalogs()} moves coordinates to exposure MJD, identifying it cleanly as \code{KNOWN_MOVER}.
   };
 
   % Right panel: 6-Class Triage Tree
-  \draw[rule,thick,fill=white,rounded corners=2pt] (8.2,2.0) rectangle (16.0,6.4);
+  \draw[rule,thick,fill=white,rounded corners=2pt] (8.2,1.45) rectangle (16.0,6.4);
   \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (8.4,6.2) {Six-Category Multi-Tier Triage Flow};
 
-  \node[m] (in) at (12.1,5.3) {\textbf{Detection Coordinate}\\ Propagate Gaia/AllWISE to MJD};
+  \node[m,text width=3.8cm] (in) at (12.1,4.9) {\textbf{Detection Coordinate}\\ Propagate Gaia/AllWISE to MJD};
 
-  \node[k] (km) at (12.1,4.2) {\textbf{\code{KNOWN_MOVER} / \code{VARIABLE}}\\ Gaia match or VSX/NEOWISE curve};
-  \node[m] (art) at (12.1,3.1) {\textbf{\code{BRIGHT_STAR} / \code{MASK_ARTEFACT}}\\ $G \le 7$, $W1 \le 5.5$, or matched hole};
-  \node[c] (can) at (12.1,2.0) {\textbf{\code{CANDIDATE} (Unexplained)}\\ Survives all multi-wavelength vetoes};
+  \node[k,text width=3.3cm] (km) at (10.1,3.6) {\textbf{\code{KNOWN_MOVER}}\\ \tiny Gaia match + motion\\ \textbf{\code{VARIABLE}} \tiny (VSX)};
+  \node[m,text width=3.3cm] (art) at (14.1,3.6) {\textbf{\code{BRIGHT_STAR}}\\ \tiny $G \le 7$, $W1 \le 5.5$ halo\\ \textbf{\code{MASK_ARTEFACT}}};
+  \node[c,text width=4.0cm] (can) at (12.1,2.4) {\textbf{\code{CANDIDATE} (Unexplained)}\\ \tiny Survives all multi-wavelength vetoes};
 
-  \draw[ar] (in) -- (km);
-  \draw[ar] (in) -- ++(1.8,0) |- (art);
-  \draw[ar] (in) -- ++(-1.8,0) |- (can);
+  \draw[ar] (in) -| (km);
+  \draw[ar] (in) -| (art);
+  \draw[ar] (in) -- (can);
 
-  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=4pt,text width=15.4cm,font=\scriptsize] at (8.1,0.9)
+  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=3.5pt,text width=15.4cm,font=\scriptsize] at (8.1,0.65)
     {\textbf{Triage Verdict Performance Across 18 Fields:} 99 of 109 detections (91\%) explained by catalogued astrometry, stellar variability, or optical artefacts, leaving exactly 10 candidate residuals for scientific follow-up.};
 \end{tikzpicture}}
 
@@ -1328,21 +1336,21 @@ Furthermore, match radii scale dynamically with stellar magnitude: expanding fro
 \textbf{Figure / diagram.} Machine learning pipeline: 22 engineered features passing into an isotonically calibrated Histogram Gradient Boosting Classifier, with a bar chart on the right showing held-out precision and recall broken down honestly by detection kind.
 
 \figbox{\begin{tikzpicture}[font=\footnotesize,
-  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3pt,text width=2.4cm,rounded corners=2pt},
-  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=3pt,text width=2.6cm,rounded corners=2pt},
-  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3pt,text width=2.6cm,rounded corners=2pt},
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=2.5pt,text width=2.0cm,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=2.5pt,text width=2.0cm,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=2.5pt,text width=2.15cm,rounded corners=2pt},
   ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
 
   % ML Pipeline Flow on Left
-  \begin{scope}[shift={(0.2,1.1)}]
-    \node[bx] (f) at (1.2,3.8) {\textbf{22 Features}\\ \tiny SNR, $\chi^2$, ellipticity,\\ FWHM, mask frac};
-    \node[wn] (m) at (4.2,3.8) {\textbf{HistGradient}\\ \textbf{Boosting}\\ \tiny 12{,}150 training labels};
-    \node[gn] (c) at (7.2,3.8) {\textbf{Isotonic Calib}\\ \tiny Calibrated $P(\mathrm{real})$\\ out-of-fold fit};
+  \begin{scope}[shift={(0.2,1.35)}]
+    \node[bx] (f) at (1.1,3.8) {\textbf{22 Features}\\ \tiny SNR, $\chi^2$, ellipticity,\\ FWHM, mask frac};
+    \node[wn] (m) at (3.5,3.8) {\textbf{HistGradient}\\ \textbf{Boosting}\\ \tiny 12{,}150 labels};
+    \node[gn] (c) at (5.9,3.8) {\textbf{Isotonic Calib}\\ \tiny Calibrated $P(\mathrm{real})$\\ out-of-fold fit};
 
     \draw[ar] (f) -- (m);
     \draw[ar] (m) -- (c);
 
-    \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=7.2cm,font=\tiny] at (4.2,2.0) {
+    \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.6cm,font=\tiny] at (3.5,2.0) {
       \textbf{Model Transparency (\code{spherexlens/ml/serve.py}):}\\
       \textbullet\ \textbf{Top-3 Reasons}: Human-readable feature effects (\emph{``strong SNR $+0.21$, good PSF $+0.12$''}).\\
       \textbullet\ \textbf{Decision Integrity}: Ranking aid only; \textbf{never overrides} deterministic triage.
@@ -1350,14 +1358,14 @@ Furthermore, match radii scale dynamically with stellar magnitude: expanding fro
   \end{scope}
 
   % Bar chart of held-out performance on right
-  \begin{scope}[shift={(8.4,0.4)}]
-    \begin{axis}[width=7.8cm,height=4.6cm,ybar,bar width=9pt,ymin=0,ymax=115,
+  \begin{scope}[shift={(8.4,1.35)}]
+    \begin{axis}[width=7.8cm,height=3.9cm,ybar,bar width=7.5pt,ymin=0,ymax=130,
       ylabel={Held-Out Accuracy (\%)},ylabel style={font=\scriptsize},
       symbolic x coords={{Brightening},{Fading},{Dipole (Movers)}},
       xtick=data,tick label style={font=\scriptsize,text=slate},axis line style={slate},
       grid=major,grid style={rule!70},nodes near coords={\pgfmathprintnumber\pgfplotspointmeta\%},
-      nodes near coords style={font=\tiny\bfseries,text=slate},
-      legend style={font=\tiny,draw=rule,at={(0.98,0.98)},anchor=north east}]
+      nodes near coords style={rotate=90,anchor=west,font=\tiny\bfseries,text=slate},
+      legend style={font=\tiny,draw=rule,at={(0.04,0.96)},anchor=north west}]
     \addplot[fill=accent!45,draw=accent] coordinates {
       ({Brightening},90.0) ({Fading},72.0) ({Dipole (Movers)},100.0)
     };
@@ -1370,7 +1378,7 @@ Furthermore, match radii scale dynamically with stellar magnitude: expanding fro
   \end{scope}
 
   % Caveat & Active learning banner below
-  \node[draw=bad,thick,fill=bad2,rounded corners=2pt,align=left,inner sep=3.5pt,text width=15.4cm,font=\tiny] at (8.1,0.2)
+  \node[draw=bad,thick,fill=bad2,rounded corners=2pt,align=left,inner sep=3pt,text width=15.4cm,font=\tiny] at (8.1,0.22)
     {\textbf{Scientific Caveat from Model Card (\code{ml/MODEL_CARD.md}):} The headline held-out score (Precision 0.96, PR-AUC 0.99) is inflated by dipoles because synthetic movers are dipoles while null-test artefacts almost never are. The honest measure of model skill is the per-kind table: brightening precision 0.90 / recall 0.82; fading 0.72 / 0.63. Public consensus votes (\code{/api/votes}) continuously provide real-world labels to retrain future models.};
 \end{tikzpicture}}
 
@@ -1402,14 +1410,14 @@ Furthermore, the model serves as an intelligent ranking assistant: it never alte
   ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
 
   % 5 input pillars across the top
-  \node[bx] (p1) at (1.5,5.2) {\textbf{ML Probability}\\ $P(\mathrm{real}) = 0.93$\\ \tiny Weight: 0.40};
-  \node[gn] (p2) at (4.7,5.2) {\textbf{Signal SNR}\\ $S = 18.4\sigma$\\ \tiny Weight: 0.25};
-  \node[bx] (p3) at (7.9,5.2) {\textbf{Motion Agreement}\\ NEOWISE 14-yr\\ \tiny Within $2.1\sigma$ (0.15)};
-  \node[gn] (p4) at (11.1,5.2) {\textbf{Asteroid Vetting}\\ JPL Horizons\\ \tiny No asteroid (0.10)};
-  \node[wn] (p5) at (14.3,5.2) {\textbf{Optical NEOSSat}\\ CSA Archival\\ \tiny Validated (0.10)};
+  \node[bx] (p1) at (1.5,5.9) {\textbf{ML Probability}\\ $P(\mathrm{real}) = 0.93$\\ \tiny Weight: 0.40};
+  \node[gn] (p2) at (4.7,5.9) {\textbf{Signal SNR}\\ $S = 18.4\sigma$\\ \tiny Weight: 0.25};
+  \node[bx] (p3) at (7.9,5.9) {\textbf{Motion Agreement}\\ NEOWISE 14-yr\\ \tiny Within $2.1\sigma$ (0.15)};
+  \node[gn] (p4) at (11.1,5.9) {\textbf{Asteroid Vetting}\\ JPL Horizons\\ \tiny No asteroid (0.10)};
+  \node[wn] (p5) at (14.3,5.9) {\textbf{Optical NEOSSat}\\ CSA Archival\\ \tiny Validated (0.10)};
 
   % Fusion node in center
-  \node[draw=purple,thick,fill=purple2,rounded corners=2pt,align=center,inner sep=5pt,text width=7.2cm] (fuse) at (7.9,3.6) {
+  \node[draw=purple,thick,fill=purple2,rounded corners=2pt,align=center,inner sep=5pt,text width=9.6cm] (fuse) at (7.9,3.9) {
     \textbf{Bayesian / Weighted Evidence Combiner (\code{evidence.py})}\\[2pt]
     $\mathrm{Score} = \sum w_i v_i / \sum w_i \implies \mathbf{0.88}$ (High Believability)
   };
@@ -1466,14 +1474,13 @@ As shown in the card mock at the bottom of the slide, the engine provides comple
   \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,1.2) rectangle (6.2,5.0);
   \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.35,4.85) {SPHEREx Polar Orbit Geometry};
 
-  \draw[slate,thick] (3.2,3.3) circle (1.2);
-  \node[font=\tiny,text=slate,anchor=south] at (3.2,4.55) {Sun-Synchronous Polar Orbit};
-  \fill[ink] (3.2,3.3) circle (0.14);
-  \node[font=\tiny\bfseries,text=white] at (3.2,3.3) {N};
-  \node[font=\tiny,text=ink,anchor=north] at (3.2,3.15) {North Ecliptic Pole};
+  \draw[slate,thick] (3.2,3.1) circle (1.05);
+  \fill[ink] (3.2,3.1) circle (0.12);
+  \node[font=\tiny\bfseries,text=white] at (3.2,3.1) {N};
+  \node[font=\fontsize{5}{6}\selectfont,text=ink,anchor=north] at (3.2,2.95) {North Ecliptic Pole};
 
   \foreach \ang in {30, 75, 120, 165, 210, 255, 300, 345}{
-    \draw[-{Stealth[length=3pt]},accent,thick] ({3.2+1.2*cos(\ang)},{3.3+1.2*sin(\ang)}) -- ++({-0.25*sin(\ang)},{0.25*cos(\ang)});
+    \draw[-{Stealth[length=3pt]},accent,thick] ({3.2+1.05*cos(\ang)},{3.1+1.05*sin(\ang)}) -- ++({-0.22*sin(\ang)},{0.22*cos(\ang)});
   }
   \node[draw=accent,fill=accent2,rounded corners=2pt,align=center,inner sep=2.5pt,text width=5.6cm,font=\tiny] at (3.2,1.6) {
     \textbf{$\sim$20{,}800 Visits to Ecliptic Poles}: Roll shifts band per visit.
@@ -1516,7 +1523,7 @@ In our first benchmark run on the North Ecliptic Pole across seventy-eight visit
 \begin{itemize}[leftmargin=1.4em,itemsep=1.5pt,topsep=1.5pt]
 \item Slitless spectrophotometry: \code{WCS-WAVE} extension provides per-pixel wavelength mapping ($0.75 \to 5.0\,\mu\mathrm{m}$)
 \item Moving target SED extraction: Aperture photometry tracks target coordinates across all 6 detector arrays, producing observed SED
-\item Three diagnostic spectral indices: (1) Mean $\mathrm{CH_4}$ methane absorption ratio ($1.6/1.74\,\mu\mathrm{m}$ and $2.1/2.33\,\mu\mathrm{m}$), (2) $\mathrm{H_2O}$ water ice continuum-to-trough ratio ($1.29, 2.17\,\mu\mathrm{m}$ vs $1.5, 2.0, 3.05\,\mu\mathrm{m}$), (3) Logarithmic near-infrared slope ($4.6\,\mu\mathrm{m} / 1.1\,\mu\mathrm{m}$)
+\item Three diagnostic spectral indices: (1) Methane $\mathrm{CH_4}$ ratio ($1.6/1.74\,\mu\mathrm{m}$), (2) Water ice $\mathrm{H_2O}$ ratio ($1.29\,\mu\mathrm{m}$ vs $1.5, 2.0\,\mu\mathrm{m}$), (3) NIR slope ($4.6/1.1\,\mu\mathrm{m}$)
 \item Gated 5-class physical classifier: Brown dwarf, Ultracool Y-dwarf, Icy KBO, Dusty T Tauri, or M-dwarf/Mira giant
 \item Scientific guard: Requires $\ge 30$ spectral channels before reporting categorical label; prevents guessing from sparse cutouts
 \end{itemize}
@@ -1534,15 +1541,15 @@ In our first benchmark run on the North Ecliptic Pole across seventy-eight visit
 
   % Highlighted spectral windows
   \fill[accent!30] (2.6,5.4) rectangle (3.3,5.95);
-  \node[anchor=south,font=\tiny,text=accent,align=center] at (2.5,5.95) {H$_2$O Cont.\\ 1.29, 2.17};
+  \node[anchor=south,font=\tiny,text=accent,align=center] at (2.5,5.95) {Water Cont.\\[1pt] \scriptsize 1.29, 2.17};
   \fill[good!40] (4.0,5.4) rectangle (4.8,5.95);
-  \node[anchor=south,font=\tiny,text=good,align=center] at (4.7,5.95) {CH$_4$ (1)\\ 1.6 / 1.74};
+  \node[anchor=south,font=\tiny,text=good,align=center] at (4.7,5.95) {Methane (1)\\[1pt] \scriptsize 1.6 / 1.74};
   \fill[good!40] (6.2,5.4) rectangle (7.3,5.95);
-  \node[anchor=south,font=\tiny,text=good,align=center] at (6.8,5.95) {CH$_4$ (2)\\ 2.1 / 2.33};
+  \node[anchor=south,font=\tiny,text=good,align=center] at (6.8,5.95) {Methane (2)\\[1pt] \scriptsize 2.1 / 2.33};
   \fill[accent!30] (8.8,5.4) rectangle (9.9,5.95);
-  \node[anchor=south,font=\tiny,text=accent,align=center] at (9.35,5.95) {H$_2$O Troughs\\ 1.5, 2.0, 3.05};
+  \node[anchor=south,font=\tiny,text=accent,align=center] at (9.35,5.95) {Water Troughs\\[1pt] \scriptsize 1.5, 2.0};
   \fill[warn!30] (13.6,5.4) rectangle (14.6,5.95);
-  \node[anchor=south,font=\tiny,text=warn,align=center] at (14.1,5.95) {NIR Slope\\ 4.6 / 1.1};
+  \node[anchor=south,font=\tiny,text=warn,align=center] at (14.1,5.95) {NIR Slope\\[1pt] \scriptsize 4.6 / 1.1};
 
   % 3 schematic spectra templates
   \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,1.6) rectangle (4.8,4.5);
@@ -1656,29 +1663,29 @@ Meanwhile, \code{http_guard.py} provides sliding-window rate limiting and struct
   ar/.style={-{Stealth[length=4.5pt]},draw=slate,thick}]
 
   % Tier 1: Netlify Edge
-  \node[bx] (net) at (2.0,5.6) {\textbf{Netlify Edge CDN}\\ \code{site/index.html}, \code{app.js}\\ S8 HMAC Proxy Signing};
-  \node[draw=purple,thick,fill=purple2,rounded corners=2pt,align=center,inner sep=3pt,text width=3.3cm] (sig) at (2.0,3.6) {
+  \node[bx] (net) at (2.0,6.2) {\textbf{Netlify Edge CDN}\\ \code{site/index.html}, \code{app.js}\\ S8 HMAC Proxy Signing};
+  \node[draw=purple,thick,fill=purple2,rounded corners=2pt,align=center,inner sep=2.5pt,text width=3.3cm] (sig) at (2.0,4.4) {
     \textbf{S8 Signed Proxy}\\ \code{X-Nf-Sign} HS256\\ Secret Manager
   };
   \draw[ar] (net) -- (sig);
 
   % Tier 2: Dual Cloud Run Services
-  \node[gn] (api) at (7.8,5.6) {\textbf{\code{spherex-lens-api}}\\ Concurrency: 80\\ Snapshot reads, $<26$\,s\\ \code{/api/targets}, \code{/dashboard}};
-  \node[wn] (live) at (7.8,3.6) {\textbf{\code{spherex-lens-live}}\\ Concurrency: 1\\ Heavy IRSA streaming\\ Direct CORS SSE stream};
+  \node[gn] (api) at (7.8,6.3) {\textbf{\code{spherex-lens-api}}\\ Concurrency: 80\\ Snapshot reads, $<26$\,s\\ {\tiny\code{/api/targets} \textbullet\ \code{/dashboard}}};
+  \node[wn] (live) at (7.8,4.3) {\textbf{\code{spherex-lens-live}}\\ Concurrency: 1\\ Heavy IRSA streaming\\ Direct CORS SSE stream};
 
   \draw[ar] (sig.north east) -- (api.west);
   \draw[ar,dashed] (sig.east) -- (live.west);
 
   % Tier 3: GCS & Cloud Scheduler
-  \node[bx] (gcs) at (13.6,5.6) {\textbf{Private GCS Bucket}\\ \code{current.json} manifest\\ 14-day history chain};
-  \node[gn] (job) at (13.6,3.6) {\textbf{Cloud Run Job}\\ \code{cloud_refresh.py}\\ Cloud Scheduler (12\,h)};
+  \node[bx] (gcs) at (13.6,6.2) {\textbf{Private GCS Bucket}\\ \code{current.json} manifest\\ 14-day history chain};
+  \node[gn] (job) at (13.6,4.4) {\textbf{Cloud Run Job}\\ \code{cloud_refresh.py}\\ Cloud Scheduler (12\,h)};
 
   \draw[ar,good] (api) -- node[above,font=\tiny,text=good] {RO} (gcs);
   \draw[ar,accent] (job) -- node[right,font=\tiny,text=accent] {RW} (gcs);
   \draw[ar,slate,dashed] (job) -- node[below,font=\tiny,text=slate] {12\,h trigger} (live);
 
   % Security Review S1-S21 Summary Bar below
-  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=5pt,text width=15.4cm,font=\scriptsize] at (7.8,1.4)
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=15.4cm,font=\scriptsize] at (7.8,1.15)
     {\textbf{Security Audit Summary (S1--S21 Complete, \code{docs/SECURITY_REVIEW.md}):}\\
      \begin{tabular}{@{}llp{11.2cm}@{}}
      \toprule
@@ -1722,8 +1729,8 @@ In Phase 9, we completed a rigorous twenty-one-point security review. We elimina
   % Left wireframe box (x: 0..8.8, y: 0..7.4)
   \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,0.0) rectangle (8.8,7.4);
   \draw[rule,fill=ink!10] (0.1,6.9) rectangle (8.7,7.3);
-  \node[anchor=west,font=\tiny\bfseries,text=ink] at (0.2,7.1) {SPHERExLens \textbullet\ NASA/IPAC IRSA DR1};
-  \node[anchor=east,font=\tiny,text=slate] at (8.6,7.1) {[Telemetry OK]\; Guide\; Accuracy\; Demo};
+  \node[anchor=west,font=\fontsize{5}{6}\selectfont\bfseries,text=ink] at (0.2,7.1) {SPHERExLens DR1 Console};
+  \node[anchor=east,font=\fontsize{5}{6}\selectfont,text=slate] at (8.6,7.1) {[Telemetry OK] \textbar\ Guide \textbar\ Accuracy};
 
   % Toolbar + Telemetry
   \draw[rule,fill=slate!6] (0.1,6.35) rectangle (8.7,6.85);
@@ -1763,7 +1770,7 @@ In Phase 9, we completed a rigorous twenty-one-point security review. We elimina
   \node[font=\fontsize{5}{6}\selectfont,align=center] at (6.6,2.37) {\textbf{4 Analytical Charts}\\ Histogram, noise, pairs, recovery};
 
   \draw[rule,fill=slate!4] (0.12,0.15) rectangle (8.68,1.55);
-  \node[font=\fontsize{5}{6}\selectfont,align=center] at (4.4,0.85) {\textbf{Multi-Wavelength Catalogues \& Provenance Table} (Gaia DR3, AllWISE, VSX, JPL Horizons, FITS links)};
+  \node[font=\fontsize{5}{6}\selectfont,align=center,text width=8.2cm] at (4.4,0.85) {\textbf{Multi-Wavelength Catalogues \& Provenance Table}\\ Gaia DR3, AllWISE, VSX, JPL Horizons, FITS links};
 
   % Right side: Two-stage canvas & Playback architecture
   \begin{scope}[shift={(9.1,0.0)}]
@@ -1782,12 +1789,12 @@ In Phase 9, we completed a rigorous twenty-one-point security review. We elimina
     \draw[ar] (c4) -- (c5);
 
     % Snapshot playback engine below
-    \draw[rule,thick,fill=white,rounded corners=2pt] (0,0.0) rectangle (7.1,3.5);
-    \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.2,3.35) {Time-Lapse Snapshot Engine};
-    \node[draw=purple,thick,fill=purple2!40,rounded corners=2pt,align=left,font=\tiny,inner sep=3pt,text width=6.5cm] at (3.5,2.3) {
-      \textbf{Playback}: Traverses \code{previous_manifest} chain at 2.5\,s/frame.\\
-      \textbf{Scale Lock}: Freezes frame-1 stretch to compare physical flux.\\
-      \textbf{Purple Motion Trail}: Plots centroid trajectory across visits.
+    \draw[rule,thick,fill=white,rounded corners=2pt] (0,0.0) rectangle (7.1,3.6);
+    \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.2,3.45) {Time-Lapse Snapshot Engine};
+    \node[draw=purple,thick,fill=purple2!40,rounded corners=2pt,align=left,font=\tiny,inner sep=3pt,text width=6.5cm] at (3.5,2.5) {
+      \textbf{Playback}: \code{previous_manifest} chain, 2.5\,s/frame.\\
+      \textbf{Scale Lock}: frame-1 stretch frozen for flux comparison.\\
+      \textbf{Purple Trail}: centroid path across visits.
     };
     \node[draw=rule,fill=white,rounded corners=2pt,align=left,font=\fontsize{5}{6}\selectfont,inner sep=2pt,text width=6.5cm] at (3.5,0.8) {
       \textbf{Offline Resilience (\code{sw.js})}: Service worker enforces 8-frame cache quota; 200\,MB IndexedDB stores tiles for zero-latency offline exploration.
@@ -1944,10 +1951,10 @@ Across fields containing catalogued AAVSO VSX variable stars, the detector recov
   \draw[rule,fill=slate!10] (0,5.15) rectangle (16.2,5.6);
   \node[anchor=west,font=\tiny\bfseries] at (0.2,5.38) {SPHERExLens \textbullet\ NASA/IPAC IRSA DR1 Production Console};
   \node[chip,font=\fontsize{5}{6}\selectfont] at (10.4,5.38) {SNAPSHOT READY};
-  \node[cb] at (12.2,5.38) {6};
-  \node[chip,font=\fontsize{5}{6}\selectfont] at (13.1,5.38) {Accuracy / Guide};
-  \node[chip,font=\fontsize{5}{6}\selectfont] at (14.6,5.38) {Auto Demo};
-  \node[chip,font=\fontsize{5}{6}\selectfont] at (15.6,5.38) {Reset};
+  \node[cb] at (11.8,5.38) {6};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (12.9,5.38) {Accuracy};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (14.5,5.38) {Demo};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (15.7,5.38) {Reset};
 
   % Control Bar
   \draw[rule,fill=accent2!35] (0,4.65) rectangle (16.2,5.15);
@@ -1997,8 +2004,8 @@ Across fields containing catalogued AAVSO VSX variable stars, the detector recov
   };
 
   % Bottom strip: Table + 6 moves key
-  \node[pan,minimum width=9.6cm,minimum height=1.2cm,font=\tiny] (tab) at (5.0,0.7) {
-    \textbf{Detections \;\textbullet\; Expected Movers \;\textbullet\; External Catalogue Links \;\textbullet\; Provenance}
+  \node[pan,minimum width=9.6cm,minimum height=1.2cm,font=\fontsize{5.5}{6.5}\selectfont] (tab) at (5.0,0.7) {
+    \textbf{Detections \;\textbullet\; Movers \;\textbullet\; Catalogue Links \;\textbullet\; Provenance}
   };
   \node[pan,minimum width=5.8cm,minimum height=1.2cm,align=left,text width=5.4cm,font=\tiny] (steps) at (13.1,0.7) {
     \textbf{The Six Demo Moves:}\\
@@ -2031,38 +2038,38 @@ Move six: open the Accuracy modal to inspect live null-test curves, machine-lear
 \figbox{\begin{tikzpicture}[font=\footnotesize,
   p/.style={draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.6cm,rounded corners=2pt}]
 
-  \node[p] (a) at (2.6,3.6) {
-    {\Large\bfseries WORKS}\\[5pt]
+  \node[p] (a) at (2.6,3.95) {
+    {\large\bfseries WORKS}\\[5pt]
     \footnotesize Calibrated ZOGY on DR1 co-adds\\
     69.3\% strict injection recovery\\
     91\% (99/109) detections explained\\
     JPL Horizons asteroid vetting
   };
 
-  \node[p] (b) at (8.1,3.6) {
-    {\Large\bfseries HONEST}\\[5pt]
+  \node[p] (b) at (8.1,3.95) {
+    {\large\bfseries HONEST}\\[5pt]
     \footnotesize 1.66 null false candidates/field\\
     M42 null \& Sgr A* refused\\
     ML dipole biases openly disclosed\\
     Fail-don't-fake external timeouts
   };
 
-  \node[p] (c) at (13.6,3.6) {
-    {\Large\bfseries OPEN HORIZONS}\\[5pt]
-    \footnotesize Full-mission deep-field light curves\\
-    GPU-accelerated SFFT space DIA\\
-    Active learning from public votes\\
-    IVOA Simple Cone Search federation
+  \node[p] (c) at (13.6,3.95) {
+    {\large\bfseries OPEN HORIZONS}\\[5pt]
+    \footnotesize Full-mission deep light curves\\
+    GPU-accelerated SFFT DIA\\
+    Active learning, public votes\\
+    IVOA cone-search federation
   };
 
   % Repository metadata card
-  \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=center,inner sep=6pt,text width=15.6cm,font=\footnotesize] at (8.1,1.0) {
+  \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=center,inner sep=6pt,text width=15.6cm,font=\footnotesize] at (8.1,0.85) {
     \textbf{An Open, Inspectable Software Artefact:}\\
     21\,429 Runtime Python Lines \;\textbullet\; 7\,611 UI Lines \;\textbullet\; Netlify Static Edge + Dual Cloud Run + Private GCS\\
     18 Evaluated DR1 Fields \;\textbullet\; 246 Cutouts Traceable to NASA IRSA \;\textbullet\; Automated CI Regression Gate
   };
 
-  \node[align=left,text width=15.6cm,font=\tiny,text=muted,anchor=north] at (8.1,0.2) {
+  \node[align=left,text width=15.6cm,font=\tiny,text=muted,anchor=north] at (8.1,0.05) {
     \textbf{Key Citations:} Zackay, Ofek \& Gal-Yam 2016 (ZOGY, ApJ 830, 27) \;\textbullet\;
     Hu et al.\ 2022 (SFFT) \;\textbullet\; Gaia DR3 (A\&A 674, A1) \;\textbullet\; AllWISE / NEOWISE (Mainzer et al.) \;\textbullet\;
     SPHEREx Mission (Dor\'e et al.) \;\textbullet\; NASA/IPAC IRSA SPHEREx Data Release 1 Documentation.

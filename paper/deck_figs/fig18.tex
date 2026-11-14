@@ -1,0 +1,121 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=4pt,text width=3.3cm,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=4pt,text width=3.3cm,rounded corners=2pt},
+  as/.style={draw=purple,thick,fill=purple2,align=center,inner sep=4pt,text width=3.3cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
+
+  % Top flow: Exposure MJD -> JPL -> SBDB -> SSOIS
+  \node[bx] (exp) at (1.8,4.8) {\textbf{Exposure Metadata}\\ Target RA/Dec, MJD\\ Observation epoch};
+  \node[as] (jpl) at (5.8,4.8) {\textbf{JPL Horizons}\\ Small-Body Ident\\ 25\,s time-boxed query};
+  \node[gn] (sbdb) at (9.8,4.8) {\textbf{JPL SBDB}\\ Orbit class, NEO status\\ Diameter, $H$ magnitude};
+  \node[bx] (sso) at (13.8,4.8) {\textbf{CADC SSOIS}\\ Geometry check\\ Archive frame lookup};
+
+  \draw[ar] (exp) -- (jpl);
+  \draw[ar] (jpl) -- node[above,font=\tiny,text=good] {match} (sbdb);
+  \draw[ar] (sbdb) -- (sso);
+
+  % UI Card Mock underneath
+  \draw[purple,thick,fill=purple2!40,rounded corners=2pt] (1.0,1.2) rectangle (14.6,3.6);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=purple!90!black] at (1.2,3.45) {Triage Card: Asteroid Verification Panel (Live Production UI)};
+
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.1cm,font=\tiny] at (3.3,2.2) {
+    \textbf{Designation:} 433 Eros (1898 DQ)\\
+    \textbf{Orbit Class:} Amor (NEO)\\
+    \textbf{Visual Mag:} $V = 14.2$\,mag\\
+    \textbf{Separation:} $3.8\arcsec$ from peak
+  };
+
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.1cm,font=\tiny] at (7.8,2.2) {
+    \textbf{Ephemeris:} JPL Horizons\\
+    \textbf{Position $\sigma$:} $0.4\arcsec$\\
+    \textbf{CADC SSOIS:} Confirmed\\
+    \textbf{SSOIS separation:} $1.9\arcsec$
+  };
+
+  \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=4.1cm,font=\tiny] at (12.3,2.2) {
+    \textbf{Status Verdict:}\\[2pt]
+    {\scriptsize\textcolor{purple!90!black}{\textbf{\code{KNOWN_ASTEROID}}}}\\[3pt]
+    {\fontsize{5}{6}\selectfont
+     \href{https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html}{[JPL SBDB Tool]}\\[1pt]
+     \href{https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/ssois/}{[CADC SSOIS]}}
+  };
+
+  \node[draw=bad,thick,fill=bad2,rounded corners=2pt,align=left,inner sep=3pt,text width=15.4cm,font=\tiny] at (7.8,0.4)
+    {\textbf{Fail-Don't-Fake Guarantee (\code{spherexlens/triage/asteroids.py}):} Web requests enforce a 25\,s timeout (\code{ASTEROID_TIME_BOX_S}). If JPL Horizons is unreachable or times out, the triage card displays ``asteroid check unavailable'' rather than defaulting to CANDIDATE. Cloud refresh jobs wait for full resolution.};
+\end{tikzpicture}
+\end{document}

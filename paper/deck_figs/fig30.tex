@@ -1,0 +1,116 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  p/.style={draw=rule,thick,fill=white,align=center,inner sep=6pt,text width=4.6cm,rounded corners=2pt}]
+
+  \node[p] (a) at (2.6,3.95) {
+    {\large\bfseries WORKS}\\[5pt]
+    \footnotesize Calibrated ZOGY on DR1 co-adds\\
+    69.3\% strict injection recovery\\
+    91\% (99/109) detections explained\\
+    JPL Horizons asteroid vetting
+  };
+
+  \node[p] (b) at (8.1,3.95) {
+    {\large\bfseries HONEST}\\[5pt]
+    \footnotesize 1.66 null false candidates/field\\
+    M42 null \& Sgr A* refused\\
+    ML dipole biases openly disclosed\\
+    Fail-don't-fake external timeouts
+  };
+
+  \node[p] (c) at (13.6,3.95) {
+    {\large\bfseries OPEN HORIZONS}\\[5pt]
+    \footnotesize Full-mission deep light curves\\
+    GPU-accelerated SFFT DIA\\
+    Active learning, public votes\\
+    IVOA cone-search federation
+  };
+
+  % Repository metadata card
+  \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=center,inner sep=6pt,text width=15.6cm,font=\footnotesize] at (8.1,0.85) {
+    \textbf{An Open, Inspectable Software Artefact:}\\
+    21\,429 Runtime Python Lines \;\textbullet\; 7\,611 UI Lines \;\textbullet\; Netlify Static Edge + Dual Cloud Run + Private GCS\\
+    18 Evaluated DR1 Fields \;\textbullet\; 246 Cutouts Traceable to NASA IRSA \;\textbullet\; Automated CI Regression Gate
+  };
+
+  \node[align=left,text width=15.6cm,font=\tiny,text=muted,anchor=north] at (8.1,0.05) {
+    \textbf{Key Citations:} Zackay, Ofek \& Gal-Yam 2016 (ZOGY, ApJ 830, 27) \;\textbullet\;
+    Hu et al.\ 2022 (SFFT) \;\textbullet\; Gaia DR3 (A\&A 674, A1) \;\textbullet\; AllWISE / NEOWISE (Mainzer et al.) \;\textbullet\;
+    SPHEREx Mission (Dor\'e et al.) \;\textbullet\; NASA/IPAC IRSA SPHEREx Data Release 1 Documentation.
+  };
+\end{tikzpicture}
+\end{document}

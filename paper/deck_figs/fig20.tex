@@ -1,0 +1,122 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=2.5pt,text width=2.0cm,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=2.5pt,text width=2.0cm,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=2.5pt,text width=2.15cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
+
+  % ML Pipeline Flow on Left
+  \begin{scope}[shift={(0.2,1.35)}]
+    \node[bx] (f) at (1.1,3.8) {\textbf{22 Features}\\ \tiny SNR, $\chi^2$, ellipticity,\\ FWHM, mask frac};
+    \node[wn] (m) at (3.5,3.8) {\textbf{HistGradient}\\ \textbf{Boosting}\\ \tiny 12{,}150 labels};
+    \node[gn] (c) at (5.9,3.8) {\textbf{Isotonic Calib}\\ \tiny Calibrated $P(\mathrm{real})$\\ out-of-fold fit};
+
+    \draw[ar] (f) -- (m);
+    \draw[ar] (m) -- (c);
+
+    \node[draw=rule,fill=white,rounded corners=2pt,align=left,inner sep=3pt,text width=6.6cm,font=\tiny] at (3.5,2.0) {
+      \textbf{Model Transparency (\code{spherexlens/ml/serve.py}):}\\
+      \textbullet\ \textbf{Top-3 Reasons}: Human-readable feature effects (\emph{``strong SNR $+0.21$, good PSF $+0.12$''}).\\
+      \textbullet\ \textbf{Decision Integrity}: Ranking aid only; \textbf{never overrides} deterministic triage.
+    };
+  \end{scope}
+
+  % Bar chart of held-out performance on right
+  \begin{scope}[shift={(8.4,1.35)}]
+    \begin{axis}[width=7.8cm,height=3.9cm,ybar,bar width=7.5pt,ymin=0,ymax=130,
+      ylabel={Held-Out Accuracy (\%)},ylabel style={font=\scriptsize},
+      symbolic x coords={{Brightening},{Fading},{Dipole (Movers)}},
+      xtick=data,tick label style={font=\scriptsize,text=slate},axis line style={slate},
+      grid=major,grid style={rule!70},nodes near coords={\pgfmathprintnumber\pgfplotspointmeta\%},
+      nodes near coords style={rotate=90,anchor=west,font=\tiny\bfseries,text=slate},
+      legend style={font=\tiny,draw=rule,at={(0.04,0.96)},anchor=north west}]
+    \addplot[fill=accent!45,draw=accent] coordinates {
+      ({Brightening},90.0) ({Fading},72.0) ({Dipole (Movers)},100.0)
+    };
+    \addlegendentry{Precision}
+    \addplot[fill=good!50,draw=good] coordinates {
+      ({Brightening},82.0) ({Fading},63.0) ({Dipole (Movers)},100.0)
+    };
+    \addlegendentry{Recall}
+    \end{axis}
+  \end{scope}
+
+  % Caveat & Active learning banner below
+  \node[draw=bad,thick,fill=bad2,rounded corners=2pt,align=left,inner sep=3pt,text width=15.4cm,font=\tiny] at (8.1,0.22)
+    {\textbf{Scientific Caveat from Model Card (\code{ml/MODEL_CARD.md}):} The headline held-out score (Precision 0.96, PR-AUC 0.99) is inflated by dipoles because synthetic movers are dipoles while null-test artefacts almost never are. The honest measure of model skill is the per-kind table: brightening precision 0.90 / recall 0.82; fading 0.72 / 0.63. Public consensus votes (\code{/api/votes}) continuously provide real-world labels to retrain future models.};
+\end{tikzpicture}
+\end{document}

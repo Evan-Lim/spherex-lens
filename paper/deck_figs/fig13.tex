@@ -1,0 +1,116 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize]
+  \begin{scope}
+    \begin{axis}[width=9.6cm,height=5.4cm,
+      xlabel={Threshold $\tau$ [$\sigma$]},ylabel={Expected False Pixels ($|S|>\tau$)},
+      xlabel style={font=\scriptsize},ylabel style={font=\scriptsize},
+      ymode=log,xmin=2.5,xmax=6.5,ymin=1e-5,ymax=1e4,
+      grid=both,grid style={rule!70},axis line style={slate},
+      tick label style={font=\tiny,text=slate},
+      legend style={font=\tiny,draw=rule,at={(0.04,0.06)},anchor=south west}]
+    \addplot[thick,accent,mark=none] coordinates {
+      (2.5,402.4) (2.8,165.6) (3.0,87.5) (3.4,21.8) (3.8,4.68)
+      (4.0,2.05) (4.4,0.35) (4.8,0.052) (5.0,0.0186) (5.4,0.0021)
+      (5.8,0.00022) (6.0,0.000064) (6.4,0.000005)
+    };
+    \addlegendentry{Analytic $2N^2\Phi(-\tau)$}
+    \addplot[only marks,mark=*,mark size=2.5pt,bad] coordinates {(3,87.5) (4,2.05) (5,0.0186) (6,0.000064)};
+    \addlegendentry{Operating points}
+    \draw[dashed,good,thick] (axis cs:6.0,1e-5) -- (axis cs:6.0,1e4);
+    \node[font=\tiny\bfseries,text=good,rotate=90,anchor=south] at (axis cs:5.92,0.1) {Calibrated Threshold: $6.0\sigma$};
+    \end{axis}
+  \end{scope}
+
+  % Null test bar comparison on the right
+  \begin{scope}[shift={(10.4,0.3)}]
+    \draw[rule,thick,fill=white,rounded corners=2pt] (0,0) rectangle (5.8,4.8);
+    \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.2,4.6) {Empirical Null Test Finding:};
+    \node[anchor=north west,font=\tiny,text=slate,text width=5.4cm] at (0.2,4.2) {
+      Theoretical Gaussian predictions assume uncorrelated pixels. Real WCS reprojection correlates noise across $\sim 1.5$\,pixels.\\[4pt]
+      \textbf{Measured False CANDIDATEs/field:}\\
+      \textbullet\ At $5.0\sigma$: 0.86 per field\\
+      \textbullet\ At $6.0\sigma$: 0.48 per field (7 fields)\\
+      \textbullet\ Completeness: \textbf{Identical recall}
+    };
+    \draw[bad,thick,fill=bad!20] (0.4,1.2) rectangle (2.4,2.4);
+    \node[font=\tiny\bfseries,text=bad,align=center] at (1.4,1.8) {$5.0\sigma$\\0.86 / field};
+    \draw[good,thick,fill=good!20] (3.0,1.2) rectangle (5.0,2.0);
+    \node[font=\tiny\bfseries,text=good,align=center] at (4.0,1.6) {$6.0\sigma$\\0.48 / field};
+    \node[anchor=north,font=\tiny,text=good] at (2.7,0.8) {Cuts false alarms by 44\%};
+  \end{scope}
+\end{tikzpicture}
+\end{document}

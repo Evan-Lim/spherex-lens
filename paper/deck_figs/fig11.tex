@@ -1,0 +1,109 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize]
+  % Flag census on left
+  \begin{scope}
+    \begin{axis}[width=7.2cm,height=4.4cm,xbar,bar width=7pt,xmin=0,xmax=24,
+      xlabel={\% of pixels flagged in raw cutouts},xlabel style={font=\scriptsize},
+      symbolic y coords={{SUR (cosmics)},{saturation},{hot/cold},{outlier},{persistence},{SOURCE (bit 21)}},
+      ytick=data,tick label style={font=\tiny,text=slate},axis line style={slate},
+      grid=major,grid style={rule!70},nodes near coords,nodes near coords style={font=\tiny,text=slate},
+      enlarge y limits=0.14]
+    \addplot[fill=bad!35,draw=bad] coordinates {
+      (14.2,{SUR (cosmics)}) (6.1,{saturation}) (8.4,{hot/cold}) (5.3,{outlier}) (3.8,{persistence})
+    };
+    \addplot[fill=good!45,draw=good] coordinates {(19.6,{SOURCE (bit 21)})};
+    \end{axis}
+  \end{scope}
+
+  % Pixel grid on right
+  \begin{scope}[shift={(8.4,0.9)}]
+    \node[anchor=south west,font=\scriptsize\bfseries,text=ink] at (0,3.35) {Cross-Epoch Mask Matching (\texttt{coadd\_matched})};
+    \foreach \i in {0,...,5}{\foreach \j in {0,...,4}{
+      \pgfmathsetmacro{\m}{int(mod(\i*7+\j*3,10))}
+      \ifnum\m<3 \def\cc{bad!30}\else\def\cc{good!25}\fi
+      \draw[rule,fill=\cc] (\i*0.62,\j*0.62) rectangle (\i*0.62+0.58,\j*0.62+0.58);
+    }}
+    \node[font=\tiny,text=bad,anchor=west] at (3.9,2.6) {14 bad bits $\Rightarrow w=0$};
+    \node[font=\tiny,text=good,anchor=west] at (3.9,1.8) {Kept bits $\Rightarrow w_k=1/\tilde{V}_k$};
+    \node[font=\tiny,text=slate,anchor=west] at (3.9,1.0) {Stack: $\sigma_C^2 = (\sum w_k)^{-1}$};
+  \end{scope}
+
+  \node[draw=accent,thick,fill=accent2,rounded corners=2pt,align=left,inner sep=4pt,text width=15.2cm,font=\tiny] at (8.1,-1.35)
+    {\textbf{Asymmetric Mask Hole Elimination:}\\
+     If an optical spike or bad pixel is masked in Epoch 2, \code{coadd_matched} zeroes that band at $(x,y)$ in Epoch 1 as well. This prevents missing-flux holes from impersonating real moving dipoles (e.g.\ TRAPPIST-1).};
+\end{tikzpicture}
+\end{document}

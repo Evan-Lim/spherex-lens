@@ -1,0 +1,116 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  b/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,text width=3.6cm,rounded corners=2pt},
+  g/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,text width=3.6cm,rounded corners=2pt},
+  w/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,text width=3.6cm,rounded corners=2pt},
+  s/.style={draw=slate,thick,fill=white,align=center,inner sep=3.5pt,text width=3.6cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
+
+  % Top row: Ingest -> Imaging -> Subtraction -> Triage
+  \node[b] (ing) at (1.8,6.2) {\textbf{\code{spherexlens.ingest}}\\ SIA2, S3, Gaia, CADC\\ \scriptsize 2\,347 LOC};
+  \node[b] (img) at (5.9,6.2) {\textbf{\code{spherexlens.imaging}}\\ Co-add, EPSF, ZODI, mask\\ \scriptsize 1\,310 LOC};
+  \node[b] (zog) at (10.0,6.2) {\textbf{\code{step3_zogy}}\\ Robust ZOGY, dipole kinematics\\ \scriptsize 235 LOC};
+  \node[g] (tri) at (14.1,6.2) {\textbf{\code{spherexlens.triage}}\\ Asteroids, Evidence score\\ \scriptsize 1\,126 LOC};
+
+  \draw[ar] (ing) -- (img);
+  \draw[ar] (img) -- (zog);
+  \draw[ar] (zog) -- (tri);
+
+  % Middle row: ML, Deep Fields, Evaluation Harness
+  \node[w] (ml) at (14.1,4.0) {\textbf{\code{spherexlens.ml}}\\ 22 feats, HistGB, Active learn\\ \scriptsize 1\,600 LOC};
+  \node[g] (dep) at (10.0,4.0) {\textbf{\code{spherexlens.deep}}\\ NEP lightcurves, Lomb-Scargle\\ \scriptsize 609 LOC};
+  \node[w] (eva) at (5.9,4.0) {\textbf{\code{spherexlens.eval}}\\ Null test, Strict injection, Gate\\ \scriptsize 1\,772 LOC};
+  \node[s] (cch) at (1.8,4.0) {\textbf{Snapshot Store}\\ GCS SHA-256 immutable\\ \scriptsize 318 LOC};
+
+  \draw[ar] (tri) -- (ml);
+  \draw[ar] (zog) -- (dep);
+  \draw[ar] (zog) -- (eva);
+  \draw[ar] (tri) -- (cch);
+
+  % Bottom row: Serving & Client
+  \node[s] (rou) at (3.8,1.4) {\textbf{\code{spherexlens.routes}}\\ REST API, Votes, Cone, Health\\ \scriptsize 1\,108 LOC};
+  \node[b] (app) at (8.0,1.4) {\textbf{FastAPI Core (\code{app.py})}\\ Snapshot API, SSE streams\\ \scriptsize 3\,285 LOC};
+  \node[g] (web) at (12.4,1.4) {\textbf{Browser Console (\code{site/})}\\ Canvas engine, Snapshot replay\\ \scriptsize 7\,611 LOC};
+
+  \draw[ar] (rou) -- (app);
+  \draw[ar] (app) -- (web);
+  \draw[ar] (cch.south) -- ++(0,-0.6) -| (rou.north);
+
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=center,inner sep=4pt,text width=16.0cm,font=\scriptsize] at (8.0,-0.2)
+    {\textbf{Total Codebase: 21\,429 Runtime Python Lines} \quad\textbullet\quad JSON contract in \code{CONTRACT.md} \quad\textbullet\quad \code{enrich.py} hook decouples subsystems};
+\end{tikzpicture}
+\end{document}

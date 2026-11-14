@@ -1,0 +1,118 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,text width=3.3cm,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,text width=3.3cm,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,text width=3.3cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
+
+  % Gaia 3-tier cascade
+  \node[bx] (g1) at (2.0,6.2) {\textbf{Gaia DR3 Primary}\\ IPAC IRSA TAP};
+  \node[wn] (g2) at (2.0,4.8) {\textbf{Secondary Mirror}\\ STScI MAST TAP};
+  \node[gn] (g3) at (2.0,3.4) {\textbf{Tertiary Fallback}\\ CDS VizieR Mirrors};
+  \draw[ar] (g1) -- node[right,font=\tiny,text=bad] {timeout} (g2);
+  \draw[ar] (g2) -- node[right,font=\tiny,text=bad] {timeout} (g3);
+
+  % Asteroid Ephemeris
+  \node[bx] (ast1) at (7.4,6.2) {\textbf{JPL Horizons}\\ Small-Body Ident API};
+  \node[gn] (ast2) at (7.4,4.8) {\textbf{JPL SBDB}\\ Orbital Telemetry};
+  \node[bx] (ast3) at (7.4,3.4) {\textbf{CADC SSOIS}\\ Geometric Cross-check};
+  \draw[ar] (ast1) -- node[right,font=\tiny,text=good] {match} (ast2);
+  \draw[ar] (ast2) -- node[right,font=\tiny,text=slate] {validate} (ast3);
+
+  % Optical confirmation & Links
+  \node[bx] (neo1) at (12.8,6.2) {\textbf{CSA NEOSSat}\\ CADC TAP Query};
+  \node[gn] (neo2) at (12.8,4.8) {\textbf{\code{neossat_clean.py}}\\ Dark / Flat / Bias Clean};
+  \node[bx] (lnk) at (12.8,3.4) {\textbf{External Visualisers}\\ WiseView / IRSA Finder};
+  \draw[ar] (neo1) -- (neo2);
+  \draw[ar] (neo2) -- (lnk);
+
+  % Operating mode comparison table below
+  \node[draw=rule,thick,fill=white,rounded corners=2pt,align=left,inner sep=4pt,text width=15.4cm,font=\scriptsize] at (7.4,0.7)
+    {\textbf{Dual Ingestion Modes Compared:}\\
+     \begin{tabular}{@{}p{2.3cm}p{5.7cm}p{6.3cm}@{}}
+     \toprule
+     \textbf{Feature} & \textbf{Cached Mode (\code{data_cache/})} & \textbf{Live Streaming Mode (\code{live_ingest.py})} \\
+     \midrule
+     Throughput & Instant replay from SSD / GCS snapshots & 4 concurrent worker threads parsing HTTP stream in RAM \\
+     Disk Storage & Few hundred MBs of FITS files on disk & \textbf{Zero bytes written to disk} (streamed into \code{BytesIO}) \\
+     External Dependency & Offline-ready; independent of archive status & Live dependence on IRSA SIA2 latency and availability \\
+     Use Case & Scheduled batch jobs, evaluation, ML training & On-demand ad-hoc exploration of any sky coordinate \\
+     \bottomrule
+     \end{tabular}
+    };
+\end{tikzpicture}
+\end{document}

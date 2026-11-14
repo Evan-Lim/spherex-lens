@@ -1,0 +1,111 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize]
+  % Timeline axis
+  \draw[-{Stealth[length=7pt]},thick,rule] (0.2,5.0) -- (16.2,5.0);
+  \foreach \x/\yr/\la/\lb/\col in {
+    1.8/1998/{Alard \& Lupton}/{OIS: kernel fitting}/accent,
+    6.2/2008/{Bramich}/{Discrete DIA}/accent,
+    10.8/2016/{ZOGY}/{Closed-form Fourier}/good,
+    15.0/2022/{SFFT (Hu et al.)}/{Delta-basis space}/slate}{
+    \fill[\col] (\x,5.0) circle (0.11);
+    \node[anchor=south,text=\col,align=center,text width=3.4cm,font=\scriptsize] at (\x,5.15) {\bfseries \yr\\[1pt] \la\\[1pt] \lb};
+  }
+
+  % Sketch 1: Kernel fitting
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,1.75) rectangle (4.6,4.75);
+  \node[anchor=north west,font=\tiny\bfseries,text=accent] at (0.35,4.62) {1998--2008: Kernel Fitting};
+  \draw[slate,dashed,thick] plot[smooth] coordinates {(0.6,2.6) (1.5,3.6) (2.4,3.9) (3.3,3.0) (4.2,2.6)};
+  \draw[accent,thick] plot[smooth] coordinates {(0.6,2.6) (1.7,3.3) (2.4,4.0) (3.1,3.2) (4.2,2.6)};
+  \node[anchor=north,font=\tiny,text=muted,text width=4.2cm,align=center] at (2.4,2.45) {Kernel estimated from brightest stars; vulnerable to crowding and nebular gas.};
+
+  % Sketch 2: ZOGY closed-form
+  \draw[rule,thick,fill=white,rounded corners=2pt] (5.2,1.75) rectangle (9.6,4.75);
+  \node[anchor=north west,font=\tiny\bfseries,text=good] at (5.35,4.62) {2016: ZOGY (closed form)};
+  \draw[good,thick] plot[smooth] coordinates {(5.6,2.6) (6.6,3.4) (7.4,4.0) (8.2,3.4) (9.2,2.6)};
+  \draw[bad,thick,dashed] plot[smooth] coordinates {(5.6,2.6) (6.6,3.4) (7.4,4.0) (8.2,3.4) (9.2,2.6)};
+  \node[anchor=north,font=\tiny,text=muted,text width=4.2cm,align=center] at (7.4,2.45) {Closed-form Fourier division using known PSFs; no kernel ever fitted.};
+
+  % Decision box
+  \draw[good,thick,fill=good2,rounded corners=2pt] (10.2,1.75) rectangle (16.2,4.75);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=good] at (10.4,4.6) {Why ZOGY for SPHERExLens?};
+  \node[anchor=north west,font=\tiny,text=ink,text width=5.6cm,align=left] at (10.4,4.25) {
+    \textbullet\ \textbf{Analytic Null}: Significance $S \sim \mathcal{N}(0,1)$ where sky is constant.\\[3pt]
+    \textbullet\ \textbf{Provable Threshold}: Gaussian tails yield exact false-alarm budgets ($2N^2\Phi(-\tau)$).\\[3pt]
+    \textbullet\ \textbf{Speed}: Exactly two 2D-FFTs per epoch pair ($<0.6$\,s per $180^2$ cutout).
+  };
+\end{tikzpicture}
+\end{document}

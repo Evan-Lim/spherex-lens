@@ -1,0 +1,120 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3.5pt,text width=2.6cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},thick,draw=slate}]
+
+  % 5 input pillars across the top
+  \node[bx] (p1) at (1.5,5.9) {\textbf{ML Probability}\\ $P(\mathrm{real}) = 0.93$\\ \tiny Weight: 0.40};
+  \node[gn] (p2) at (4.7,5.9) {\textbf{Signal SNR}\\ $S = 18.4\sigma$\\ \tiny Weight: 0.25};
+  \node[bx] (p3) at (7.9,5.9) {\textbf{Motion Agreement}\\ NEOWISE 14-yr\\ \tiny Within $2.1\sigma$ (0.15)};
+  \node[gn] (p4) at (11.1,5.9) {\textbf{Asteroid Vetting}\\ JPL Horizons\\ \tiny No asteroid (0.10)};
+  \node[wn] (p5) at (14.3,5.9) {\textbf{Optical NEOSSat}\\ CSA Archival\\ \tiny Validated (0.10)};
+
+  % Fusion node in center
+  \node[draw=purple,thick,fill=purple2,rounded corners=2pt,align=center,inner sep=5pt,text width=9.6cm] (fuse) at (7.9,3.9) {
+    \textbf{Bayesian / Weighted Evidence Combiner (\code{evidence.py})}\\[2pt]
+    $\mathrm{Score} = \sum w_i v_i / \sum w_i \implies \mathbf{0.88}$ (High Believability)
+  };
+
+  \draw[ar] (p1) -- (fuse.north -| p1);
+  \draw[ar] (p2) -- (fuse.north -| p2);
+  \draw[ar] (p3) -- (fuse.north);
+  \draw[ar] (p4) -- (fuse.north -| p4);
+  \draw[ar] (p5) -- (fuse.north -| p5);
+
+  % Production UI Evidence Card mock below
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.8,0.4) rectangle (15.0,2.6);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (1.0,2.45) {Production Triage UI: Combined Evidence Card};
+
+  \node[draw=rule,fill=slate!5,rounded corners=2pt,align=left,inner sep=3pt,text width=4.0cm,font=\tiny] at (3.2,1.4) {
+    \textbf{ML Classification:}\quad \textcolor{good}{\textbf{0.93}}\\
+    Top reason: strong point-source SNR, clean unmasked profile.
+  };
+
+  \node[draw=rule,fill=slate!5,rounded corners=2pt,align=left,inner sep=3pt,text width=4.0cm,font=\tiny] at (7.9,1.4) {
+    \textbf{Motion Consistency:}\quad \textcolor{good}{\textbf{0.90}}\\
+    NEOWISE 2010--2024 trajectory agrees with SPHEREx within $2.1\sigma$.
+  };
+
+  \node[draw=rule,fill=slate!5,rounded corners=2pt,align=left,inner sep=3pt,text width=4.0cm,font=\tiny] at (12.6,1.4) {
+    \textbf{Archive Vetting:}\quad \textcolor{good}{\textbf{1.00}}\\
+    No known asteroid at MJD; NEOSSat frames confirmed optical counterpart.
+  };
+\end{tikzpicture}
+\end{document}

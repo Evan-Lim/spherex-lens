@@ -1,0 +1,124 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  k/.style={draw=good,thick,fill=good2,align=center,inner sep=3pt,text width=3.3cm,rounded corners=2pt},
+  c/.style={draw=warn,thick,fill=warn2,align=center,inner sep=3pt,text width=3.3cm,rounded corners=2pt},
+  m/.style={draw=accent,thick,fill=accent2,align=center,inner sep=3pt,text width=3.3cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},draw=slate,thick}]
+
+  % Left panel: Astrometric Epoch Propagation Geometry
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.2,1.7) rectangle (7.6,6.4);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.4,6.2) {Proper-Motion Epoch Propagation};
+
+  \fill[accent] (1.7,4.6) circle (0.12);
+  \node[font=\tiny\bfseries,text=accent,below] at (1.7,4.45) {Gaia J2016.0};
+
+  \fill[good] (5.9,4.6) circle (0.12);
+  \node[font=\tiny\bfseries,text=good,below] at (5.9,4.45) {SPHEREx 2026.1};
+
+  % Unpropagated cone (miss)
+  \draw[bad,dashed,thick] (1.7,4.6) circle (0.8);
+  \node[font=\tiny,text=bad,above] at (1.7,5.4) {Naive cone: MISS};
+
+  % Propagated cone (hit)
+  \draw[good,thick] (5.9,4.6) circle (0.8);
+  \node[font=\tiny,text=good,above] at (5.9,5.4) {Propagated: HIT};
+
+  \draw[-{Stealth[length=6pt]},thick,good] (1.8,4.8) -- node[above,font=\tiny,text=good] {$10.4\arcsec/\mathrm{yr} \times 9.8\,\mathrm{yr} \approx 102\arcsec$} (5.8,4.8);
+
+  \node[font=\tiny,text=muted,align=left,text width=6.6cm] at (4.0,2.65) {
+    \textbf{The Barnard's Star Bug Resolved:}\\
+    At $10.4\arcsec/\mathrm{yr}$, Barnard's Star is displaced by $\sim 94\arcsec$ between Gaia DR3 and SPHEREx DR1. Naive matching missed it, branding the star an unexplained CANDIDATE. In \code{catalog_tools.py}, \code{propagate_catalogs()} moves coordinates to exposure MJD, identifying it cleanly as \code{KNOWN_MOVER}.
+  };
+
+  % Right panel: 6-Class Triage Tree
+  \draw[rule,thick,fill=white,rounded corners=2pt] (8.2,1.45) rectangle (16.0,6.4);
+  \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (8.4,6.2) {Six-Category Multi-Tier Triage Flow};
+
+  \node[m,text width=3.8cm] (in) at (12.1,4.9) {\textbf{Detection Coordinate}\\ Propagate Gaia/AllWISE to MJD};
+
+  \node[k,text width=3.3cm] (km) at (10.1,3.6) {\textbf{\code{KNOWN_MOVER}}\\ \tiny Gaia match + motion\\ \textbf{\code{VARIABLE}} \tiny (VSX)};
+  \node[m,text width=3.3cm] (art) at (14.1,3.6) {\textbf{\code{BRIGHT_STAR}}\\ \tiny $G \le 7$, $W1 \le 5.5$ halo\\ \textbf{\code{MASK_ARTEFACT}}};
+  \node[c,text width=4.0cm] (can) at (12.1,2.4) {\textbf{\code{CANDIDATE} (Unexplained)}\\ \tiny Survives all multi-wavelength vetoes};
+
+  \draw[ar] (in) -| (km);
+  \draw[ar] (in) -| (art);
+  \draw[ar] (in) -- (can);
+
+  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=center,inner sep=3.5pt,text width=15.4cm,font=\scriptsize] at (8.1,0.65)
+    {\textbf{Triage Verdict Performance Across 18 Fields:} 99 of 109 detections (91\%) explained by catalogued astrometry, stellar variability, or optical artefacts, leaving exactly 10 candidate residuals for scientific follow-up.};
+\end{tikzpicture}
+\end{document}

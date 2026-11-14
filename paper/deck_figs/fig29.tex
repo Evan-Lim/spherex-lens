@@ -1,0 +1,149 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  cb/.style={circle,draw=bad,thick,fill=bad,text=white,inner sep=1.2pt,font=\tiny\bfseries},
+  pan/.style={draw=slate,thick,fill=white,align=center,inner sep=2.5pt,rounded corners=2pt},
+  chip/.style={draw=accent,thick,fill=accent2,align=center,inner sep=2pt,rounded corners=2pt}]
+
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0,0) rectangle (16.2,5.6);
+
+  % Top Chrome
+  \draw[rule,fill=slate!10] (0,5.15) rectangle (16.2,5.6);
+  \node[anchor=west,font=\tiny\bfseries] at (0.2,5.38) {SPHERExLens \textbullet\ NASA/IPAC IRSA DR1 Production Console};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (10.4,5.38) {SNAPSHOT READY};
+  \node[cb] at (11.8,5.38) {6};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (12.9,5.38) {Accuracy};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (14.5,5.38) {Demo};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (15.7,5.38) {Reset};
+
+  % Control Bar
+  \draw[rule,fill=accent2!35] (0,4.65) rectangle (16.2,5.15);
+  \node[chip,font=\fontsize{5}{6}\selectfont] (drop) at (1.8,4.9) {Target: Barnard's Star $\blacktriangledown$};
+  \node[cb,left=2pt of drop] {1};
+  \node[chip,fill=good2,draw=good,font=\fontsize{5}{6}\selectfont] at (4.2,4.9) {$\blacktriangleright$ Run Pipeline};
+  \node[draw=rule,fill=white,font=\fontsize{5}{6}\selectfont,inner sep=1.5pt] at (6.6,4.9) {RA / Dec / Label};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (8.6,4.9) {Fresh IRSA};
+  \node[draw=rule,fill=white,font=\fontsize{5}{6}\selectfont,inner sep=1.5pt] at (10.6,4.9) {Snapshot History};
+  \node[draw=rule,fill=white,font=\fontsize{5}{6}\selectfont,inner sep=1.5pt] at (12.4,4.9) {Cone Search};
+  \node[chip,font=\fontsize{5}{6}\selectfont] at (14.2,4.9) {Evidence};
+  \node[draw=rule,fill=white,font=\fontsize{5}{6}\selectfont,inner sep=1.5pt] at (15.5,4.9) {Export};
+
+  % Sky Viewer (left)
+  \node[pan,minimum width=9.6cm,minimum height=3.0cm] (map) at (5.0,3.05) {};
+  \node[anchor=north west,font=\scriptsize\bfseries] at (0.3,4.5) {Sky Viewer};
+  \node[chip,font=\fontsize{5}{6}\selectfont] (skybtn) at (4.0,4.35) {Field \textbar\ All-sky};
+  \node[cb,left=2pt of skybtn] {5};
+  \node[chip,font=\fontsize{5}{6}\selectfont] (lay) at (7.4,4.35) {Co-add \textbar\ Diff D \textbar\ Sig S};
+  \node[cb,right=2pt of lay] {3};
+
+  % Snapshot playback bar
+  \node[draw=purple,fill=purple!10,font=\fontsize{5}{6}\selectfont,inner sep=1.5pt,rounded corners=1pt] (snap) at (5.0,3.95)
+    {Snapshot: latest $\blacktriangledown$ \textbar\ \textcolor{good}{$\blacktriangleright$ Play (2.5\,s)}};
+  \node[cb,right=3pt of snap] {4};
+
+  % Canvas interior
+  \draw[purple,thick,dashed] (4.0,2.8) -- (4.65,3.0) -- (5.35,3.15);
+  \fill[purple!70] (4.0,2.8) circle (0.09);
+  \fill[bad] (4.65,3.0) circle (0.12);
+  \fill[good] (5.35,3.15) circle (0.12);
+  \draw[-{Stealth[length=3.5pt]},thick,slate] (4.8,3.03) -- (5.2,3.11);
+  \node[font=\fontsize{5}{6}\selectfont,text=purple!90!black] at (5.0,2.55) {Purple motion trail across retained snapshots};
+  \node[font=\fontsize{5}{6}\selectfont,text=slate] at (5.0,2.3) {$36.2\sigma$ dipole (\code{KNOWN_MOVER})};
+  \node[cb] at (3.5,3.1) {2};
+
+  % Triage Verdict (right)
+  \node[pan,minimum width=5.8cm,minimum height=3.0cm] (verd) at (13.1,3.05) {};
+  \node[anchor=north west,font=\scriptsize\bfseries] at (10.35,4.5) {Triage Verdict};
+  \node[draw=good,fill=good2,text width=5.2cm,align=left,font=\tiny,inner sep=2.5pt] at (13.1,3.8) {
+    \textbf{\#1 KNOWN\_MOVER} \;\textbullet\; $36.2\sigma$ dipole\\
+    Matched Gaia DR3 + proper motion
+  };
+  \node[draw=rule,fill=white,text width=5.2cm,align=left,font=\tiny,inner sep=2.5pt] at (13.1,2.5) {
+    \textbf{Multi-Factor Evidence Score: 0.94}\\
+    ML: 0.96 \textbar\ NEOWISE agreement \textbar\ Asteroid clear
+  };
+
+  % Bottom strip: Table + 6 moves key
+  \node[pan,minimum width=9.6cm,minimum height=1.2cm,font=\fontsize{5.5}{6.5}\selectfont] (tab) at (5.0,0.7) {
+    \textbf{Detections \;\textbullet\; Movers \;\textbullet\; Catalogue Links \;\textbullet\; Provenance}
+  };
+  \node[pan,minimum width=5.8cm,minimum height=1.2cm,align=left,text width=5.4cm,font=\tiny] (steps) at (13.1,0.7) {
+    \textbf{The Six Demo Moves:}\\
+    \textbf{1} Select Barnard's Star \;\textbullet\; \textbf{2} Click $36.2\sigma$ dipole \;\textbullet\; \textbf{3} Switch Co-add/Diff/Sig\\
+    \textbf{4} Snapshot Play \;\textbullet\; \textbf{5} All-sky $\to$ Crab M1 \;\textbullet\; \textbf{6} Open Accuracy Modal
+  };
+\end{tikzpicture}
+\end{document}

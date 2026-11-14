@@ -1,0 +1,157 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  bx/.style={draw=accent,thick,fill=accent2,align=center,inner sep=2.5pt,font=\tiny,rounded corners=2pt},
+  gn/.style={draw=good,thick,fill=good2,align=center,inner sep=2.5pt,font=\tiny,rounded corners=2pt},
+  wn/.style={draw=warn,thick,fill=warn2,align=center,inner sep=2.5pt,font=\tiny,rounded corners=2pt},
+  ar/.style={-{Stealth[length=4pt]},draw=slate,thick}]
+
+  % Left wireframe box (x: 0..8.8, y: 0..7.4)
+  \draw[rule,thick,fill=white,rounded corners=2pt] (0.0,0.0) rectangle (8.8,7.4);
+  \draw[rule,fill=ink!10] (0.1,6.9) rectangle (8.7,7.3);
+  \node[anchor=west,font=\fontsize{5}{6}\selectfont\bfseries,text=ink] at (0.2,7.1) {SPHERExLens DR1 Console};
+  \node[anchor=east,font=\fontsize{5}{6}\selectfont,text=slate] at (8.6,7.1) {[Telemetry OK] \textbar\ Guide \textbar\ Accuracy};
+
+  % Toolbar + Telemetry
+  \draw[rule,fill=slate!6] (0.1,6.35) rectangle (8.7,6.85);
+  \node[font=\fontsize{5}{6}\selectfont,text=slate,align=center] at (4.4,6.6) {Target: Barnard's Star $\blacktriangledown$ \textbar\ $\blacktriangleright$ Run \textbar\ RA/Dec \textbar\ Fresh IRSA \textbar\ History \textbar\ Cone Search};
+  \draw[rule,fill=accent2!50] (0.1,5.9) rectangle (8.7,6.25);
+  \node[anchor=west,font=\fontsize{5}{6}\selectfont,text=accent] at (0.2,6.07) {RA 269.45 \textbullet\ Dec +4.69 \textbullet\ MJD 60880.3};
+  \node[anchor=east,font=\fontsize{5}{6}\selectfont,text=muted] at (8.6,6.07) {SSE live stream \textbullet\ 0.4\,s};
+
+  % 4 Metric cards
+  \foreach \i/\lbl/\col in {0/{Detections ($6\sigma$)}/accent, 1/{Unaccounted}/bad, 2/{Max SNR}/good, 3/{Baseline (d)}/warn}{
+    \draw[\col,thick,fill=\col!10,rounded corners=1pt] (0.12+\i*2.15,5.3) rectangle (2.15+\i*2.15,5.8);
+    \node[font=\fontsize{5}{6}\selectfont,text=ink] at (1.13+\i*2.15,5.55) {\lbl};
+  }
+
+  % Primary split: Sky Viewer + Triage Verdict
+  \draw[accent,thick,fill=accent2!70,rounded corners=2pt] (0.12,3.2) rectangle (5.4,5.2);
+  \node[anchor=north,font=\scriptsize\bfseries,text=accent] at (2.76,5.12) {Sky Viewer (\texttt{<canvas>})};
+  \node[draw=purple,fill=white,rounded corners=1pt,font=\fontsize{5}{6}\selectfont,inner sep=1.5pt] at (2.76,4.55)
+    {Snapshot: latest $\blacktriangledown$ \textbar\ \textcolor{good}{$\blacktriangleright$ Play (2.5\,s)}};
+  \draw[purple,thick,dashed] (1.3,3.7) -- (2.4,3.9) -- (3.6,3.8);
+  \fill[purple] (3.6,3.8) circle (2pt);
+  \node[font=\fontsize{5}{6}\selectfont,text=purple!90!black] at (2.4,4.1) {purple motion trail ($t_0 \to t_1 \to t_2$)};
+
+  \draw[good,thick,fill=good2!60,rounded corners=2pt] (5.55,3.2) rectangle (8.68,5.2);
+  \node[anchor=north,font=\scriptsize\bfseries,text=good] at (7.1,5.12) {Triage Verdict};
+  \node[font=\fontsize{5}{6}\selectfont,text=slate,align=center] at (7.1,4.2) {
+    \textbf{\#1 KNOWN\_MOVER}\\
+    $36.2\sigma$ dipole\\
+    Gaia DR3 + PM propagated\\
+    Evidence Score: 0.94
+  };
+
+  % Analytical diagnostics panels
+  \draw[rule,fill=slate!4] (0.12,1.7) rectangle (4.3,3.05);
+  \node[font=\fontsize{5}{6}\selectfont,align=center] at (2.2,2.37) {\textbf{Epoch Pairs \& Diagnostics}\\ Click-to-inspect detection list};
+  \draw[rule,fill=slate!4] (4.5,1.7) rectangle (8.68,3.05);
+  \node[font=\fontsize{5}{6}\selectfont,align=center] at (6.6,2.37) {\textbf{4 Analytical Charts}\\ Histogram, noise, pairs, recovery};
+
+  \draw[rule,fill=slate!4] (0.12,0.15) rectangle (8.68,1.55);
+  \node[font=\fontsize{5}{6}\selectfont,align=center,text width=8.2cm] at (4.4,0.85) {\textbf{Multi-Wavelength Catalogues \& Provenance Table}\\ Gaia DR3, AllWISE, VSX, JPL Horizons, FITS links};
+
+  % Right side: Two-stage canvas & Playback architecture
+  \begin{scope}[shift={(9.1,0.0)}]
+    \draw[rule,thick,fill=white,rounded corners=2pt] (0,3.8) rectangle (7.1,7.4);
+    \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.2,7.25) {Two-Stage Canvas Pipeline};
+
+    \node[bx,text width=1.6cm] (c1) at (1.1,6.2) {$180\times 180$\\ Float Grid};
+    \node[bx,text width=1.8cm] (c2) at (3.5,6.2) {0.5--99.5\%\\ Asinh / Log};
+    \node[gn,text width=1.8cm] (c3) at (5.9,6.2) {256-LUT\\ Offscreen};
+    \draw[ar] (c1) -- (c2); \draw[ar] (c2) -- (c3);
+
+    \node[wn,text width=6.5cm] (c4) at (3.5,5.1) {\textbf{Composite Layer} (\texttt{requestAnimationFrame}, 60\,FPS)};
+    \draw[ar] (c3.south) -- (c4.north -| c3);
+
+    \node[bx,text width=6.5cm] (c5) at (3.5,4.3) {\textbf{5 Vector Overlays}: Grid, Catalogues, Dipoles, Reticle};
+    \draw[ar] (c4) -- (c5);
+
+    % Snapshot playback engine below
+    \draw[rule,thick,fill=white,rounded corners=2pt] (0,0.0) rectangle (7.1,3.6);
+    \node[anchor=north west,font=\scriptsize\bfseries,text=ink] at (0.2,3.45) {Time-Lapse Snapshot Engine};
+    \node[draw=purple,thick,fill=purple2!40,rounded corners=2pt,align=left,font=\tiny,inner sep=3pt,text width=6.5cm] at (3.5,2.5) {
+      \textbf{Playback}: \code{previous_manifest} chain, 2.5\,s/frame.\\
+      \textbf{Scale Lock}: frame-1 stretch frozen for flux comparison.\\
+      \textbf{Purple Trail}: centroid path across visits.
+    };
+    \node[draw=rule,fill=white,rounded corners=2pt,align=left,font=\fontsize{5}{6}\selectfont,inner sep=2pt,text width=6.5cm] at (3.5,0.8) {
+      \textbf{Offline Resilience (\code{sw.js})}: Service worker enforces 8-frame cache quota; 200\,MB IndexedDB stores tiles for zero-latency offline exploration.
+    };
+  \end{scope}
+\end{tikzpicture}
+\end{document}

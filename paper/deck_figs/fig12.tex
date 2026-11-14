@@ -1,0 +1,114 @@
+% ==========================================================================
+%  SPHERExLens -- presentation specification: every slide, every figure and
+%  the complete spoken script. 30 slides; full route 28:10, 15-minute route 18:40.
+%  Layout follows the reference "slides and script" document:
+%  title page + deck-map table, then one page per slide with
+%  "On the slide." / "Figure / diagram." / the figure / "Spoken script."
+%  Build:  pdflatex slides_and_script.tex   (twice)
+% ==========================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,fit,backgrounds,patterns,decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% --------------------------------------------------------------- colours ---
+\definecolor{ink}{HTML}{14213A}
+\definecolor{slate}{HTML}{3F4A5A}
+\definecolor{muted}{HTML}{7B8798}
+\definecolor{accent}{HTML}{1F6FB2}
+\definecolor{accent2}{HTML}{E8F1F8}
+\definecolor{good}{HTML}{1E7B4F}
+\definecolor{good2}{HTML}{E7F3EC}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{bad2}{HTML}{FAECEA}
+\definecolor{warn}{HTML}{8A5A00}
+\definecolor{warn2}{HTML}{FBF3E2}
+\definecolor{rule}{HTML}{C9D0DA}
+\definecolor{purple}{HTML}{7C3AED}
+\definecolor{purple2}{HTML}{F3E8FF}
+
+% ------------------------------------------------------------ page style ---
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------- macros ---
+\newcommand{\arcmin}{\ensuremath{{}^{\prime}}}
+\newcommand{\arcsec}{\ensuremath{{}^{\prime\prime}}}
+\newcommand{\code}[1]{\texttt{\small\detokenize{#1}}}
+
+% slide header:  Slide 1 --- Title       0:45
+% The header is measured first and scaled down to the text width when a long
+% title would otherwise run into the running time on the right.
+\newsavebox{\slideheadbox}
+\newcommand{\slidehead}[3]{%
+  \sbox{\slideheadbox}{\large\bfseries Slide #1 --- #2\hspace{1em plus 1fill}#3}%
+  \noindent\ifdim\wd\slideheadbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\slideheadbox}}%
+  \else
+    \makebox[\linewidth][s]{\usebox{\slideheadbox}}%
+  \fi\par
+  \vspace{2pt}\hrule height 0.9pt\vspace{8pt}}
+
+% figure wrapper: sized to fit cleanly without overflowing margins
+\newcommand{\figbox}[1]{\begin{center}\resizebox{0.98\linewidth}{!}{#1}\end{center}}
+
+
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  v/.style={draw=slate,thick,fill=white,align=center,inner sep=4pt,text width=2.4cm,rounded corners=2pt},
+  p/.style={draw=accent,thick,fill=accent2,align=center,inner sep=4pt,text width=2.8cm,rounded corners=2pt},
+  o/.style={draw=good,thick,fill=good2,align=center,inner sep=4pt,text width=2.5cm,rounded corners=2pt},
+  ar/.style={-{Stealth[length=5pt]},draw=slate,thick}]
+
+  \node[v] (i1) at (1.4,4.2) {$I_1,\ \sigma_1^2$\\ \tiny Epoch 1 Co-add};
+  \node[v] (i2) at (1.4,1.8) {$I_2,\ \sigma_2^2$\\ \tiny Epoch 2 Co-add};
+  \node[p] (f1) at (5.2,4.2) {$\hat{I}_1,\ \hat{P}_1$\\ \tiny 2D FFT + \code{EPSF}};
+  \node[p] (f2) at (5.2,1.8) {$\hat{I}_2,\ \hat{P}_2$\\ \tiny 2D FFT + \code{EPSF}};
+  \node[p] (den) at (9.4,3.0) {\textbf{ZOGY Kernel}\\ \scriptsize $\sqrt{\sigma_1^2|\hat{P}_2|^2+\sigma_2^2|\hat{P}_1|^2}$};
+  \node[o] (D) at (13.6,4.2) {$\hat{D} \to D$\\ \scriptsize Optimal Difference};
+  \node[o] (S) at (13.6,1.8) {$\hat{S} \to S$\\ \scriptsize Significance Map};
+
+  \draw[ar] (i1) -- (f1); \draw[ar] (i2) -- (f2);
+  \draw[ar] (f1) -- (den); \draw[ar] (f2) -- (den);
+  \draw[ar] (den) -- (D); \draw[ar] (den) -- (S);
+
+  % Null distribution graph below
+  \begin{scope}[shift={(0.4,-3.2)}]
+    \begin{axis}[width=8.0cm,height=4.0cm,
+      xlabel={$S$ in units of standard deviation ($\sigma$)},ylabel={Pixel Count},
+      xlabel style={font=\scriptsize},ylabel style={font=\scriptsize},
+      tick label style={font=\tiny,text=slate},axis line style={slate},ymin=0,
+      grid=major,grid style={rule!60},legend style={font=\tiny,draw=rule,at={(0.03,0.96)},anchor=north west}]
+    \addplot[thick,accent,mark=none] coordinates {
+      (-4,5) (-3.5,15) (-3,40) (-2.5,130) (-2,350) (-1.5,620) (-1,850) (-0.5,980) (0,1020)
+      (0.5,980) (1,850) (1.5,620) (2,350) (2.5,130) (3,40) (3.5,15) (4,5)};
+    \addlegendentry{Analytic Null: $\mathcal{N}(0,1)$}
+    \end{axis}
+  \end{scope}
+
+  \node[draw=good,thick,fill=good2,rounded corners=2pt,align=left,inner sep=5pt,text width=6.6cm,font=\scriptsize] at (12.4,-1.8)
+    {\textbf{The Core Mathematical Advantage:}\\
+     Where the celestial sky has not varied, $S(\mathbf{x})$ is strictly Gaussian with mean 0 and variance 1 by construction.\\
+     Genuine astrophysical transients sit far outside this distribution in the extreme tails ($|S| \ge 6.0\sigma$).\\
+     Computational cost: exactly two 2D-FFTs ($<0.6$\,s per $180^2$ frame).};
+\end{tikzpicture}
+\end{document}
