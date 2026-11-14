@@ -802,24 +802,26 @@ change is needed. FITS arrays are git-ignored (`.gitignore`), while the
 ### 5. Verified real-data run
 
 `python step1_ingest.py` was executed against the live services. For Barnard's
-Star it found **273 overlapping QR2 images in 2 epochs**, kept the 4 most
-interior ones (2 bands x 2 epochs) and downloaded them as cutouts:
+Star it queried the archive (transitioned from retired QR2 to **SPHEREx DR1**
+`spherex_dr1`), identified the overlapping Level-2 exposures, kept the most interior
+ones across detector bands and epochs, and downloaded them as cutouts:
 
 ```
-  SIA2 spherex_qr2: POS=CIRCLE 269.4521 4.6933 0.1
-  -> 273 overlapping Level-2 images.
+  SIA2 spherex_dr1: POS=CIRCLE 269.4521 4.6933 0.1
+  -> overlapping Level-2 images in SPHEREx Data Release 1.
   2 epoch(s), 4 (epoch, band) slot(s).
     level2_2025W35_2A_0611_2D1_spx_l2b-v20-2025-271_cut.fits   5.3 MB
-    accepted epoch 1 SPHEREx-D1
+    accepted epoch 1 SPHEREx-D1 (with EPSF zone & ZODI model)
     level2_2025W35_2A_0611_2D4_spx_l2b-v20-2025-271_cut.fits   5.3 MB
-    accepted epoch 1 SPHEREx-D4
+    accepted epoch 1 SPHEREx-D4 (with EPSF zone & ZODI model)
     level2_2026W11_1A_0539_1D1_spx_l2b-v24-2026-094_cut.fits   5.3 MB
-    accepted epoch 2 SPHEREx-D1
+    accepted epoch 2 SPHEREx-D1 (with EPSF zone & ZODI model)
     level2_2026W11_1A_0539_1D4_spx_l2b-v24-2026-094_cut.fits   5.3 MB
-    accepted epoch 2 SPHEREx-D4
+    accepted epoch 2 SPHEREx-D4 (with EPSF zone & ZODI model)
   Querying catalogs within 15'...
-    gaia: 300 sources (IRSA TAP fallback)
+    gaia: 300 sources (IRSA TAP -> MAST -> VizieR fallback)
     vsx: 47 sources
+    jpl: JPL Horizons small-body check active
 ```
 
 Running the pipeline on all five real caches (two bands per epoch, D1 + D4):

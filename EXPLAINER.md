@@ -110,7 +110,7 @@ no detected changes in this snapshot; TRAPPIST-1 has 10 (9 `KNOWN`, 1
 `CANDIDATE`). These counts can change when the local data cache is deliberately
 refreshed and the static site regenerated.
 
-The Large Magellanic Cloud was also tried and dropped: at Dec -69.8 every QR2
+The Large Magellanic Cloud was also tried and dropped: at Dec -69.8 every early
 image in a 9' box belongs to the same visit, so there is no second epoch to
 subtract. These are archive-coverage constraints, not evidence that the object
 is constant.
@@ -917,8 +917,10 @@ out variable, and Gaia independently lists that same star as variable.
   (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the
   California Institute of Technology, and is funded by the National Aeronautics
   and Space Administration."*
-* Gaia DR3: ESA/Gaia/DPAC, via IRSA TAP (VizieR as fallback).
+* Gaia DR3: ESA/Gaia/DPAC, via IRSA TAP (with STScI MAST and CDS VizieR as fallbacks).
 * AllWISE and NEOWISE: NASA/JPL-Caltech/UCLA, via IRSA TAP.
 * AAVSO VSX: the American Association of Variable Star Observers, via VizieR.
+* Solar System / Asteroids: NASA/JPL Horizons Small-Body Identification & SBDB, and CADC SSOIS.
+* Optical confirmation: Canadian Space Agency (CSA) NEOSSat via CADC TAP.
 * Method: Zackay, Ofek & Gal-Yam 2016, *Proper Image Subtraction*, ApJ 830, 27.
 * Everything else (pipeline, dashboard, documentation) is in this repository.
