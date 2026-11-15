@@ -1,0 +1,193 @@
+1
+00:00:00,000 --> 00:00:09,000
+SPHERExLens — finding what changed in NASA's SPHEREx all-
+sky infrared survey.
+
+2
+00:00:09,000 --> 00:00:27,000
+One image shows where things are. Two visits show what
+changed. Subtract them and the sky cancels, leaving a
+dipole if a source moved, or a monopole if it brightened
+or faded — but instrumental residuals outnumber the real
+events a thousand to one.
+
+3
+00:00:27,000 --> 00:00:44,000
+The task: two 180-pixel cut-outs, one significance map, a
+six-sigma threshold — 109 detections. Each one must be
+identified as catalogue star, asteroid, artefact, or
+candidate. Public data only, every number reproducible.
+
+4
+00:00:44,000 --> 00:00:56,000
+Four questions: is the map calibrated? Can we separate
+dipoles from monopoles at three arcseconds? How much do
+catalogues explain? And what did we miss?
+
+5
+00:00:56,000 --> 00:01:09,000
+Forty years of subtraction — kernel fitting, then discrete
+kernels, then ZOGY: closed-form Fourier subtraction with
+an analytic null. That null is why we can quote a false-
+alarm rate.
+
+6
+00:01:09,000 --> 00:01:20,000
+Every survey detects, vetoes, triages, then hands to a
+human. Brokers do this for optical alerts — nothing end-
+to-end was published for SPHEREx pixels.
+
+7
+00:01:20,000 --> 00:01:33,000
+SPHEREx: a twenty-centimetre telescope, 102 bands from
+0.75 to 5 microns, six detector arrays, six FITS
+extensions per cut-out, six-month cadence. Every pixel has
+its own colour.
+
+8
+00:01:33,000 --> 00:01:45,000
+We fetch five-megabyte stamps rather than seventy-megabyte
+frames: eighteen fields, 246 cut-outs, each accepted only
+with margin and few flagged pixels.
+
+9
+00:01:45,000 --> 00:01:56,000
+Seven subsystems — ingest, imaging, ZOGY, triage, machine
+learning, deep fields, evaluation — sharing one JSON
+contract and 21,429 lines of Python.
+
+10
+00:01:56,000 --> 00:02:07,000
+Every archive call has a fallback: Gaia through three
+mirrors, asteroids through JPL and CADC, optical checks
+through NEOSSat. Failures are reported, never hidden.
+
+11
+00:02:07,000 --> 00:02:21,000
+Fourteen defect bits are rejected, but SOURCE and
+FULLSAMPLE are kept — rejecting them erased real flux.
+Masked pixels are dropped in both epochs, so a hole cannot
+fake a dipole.
+
+12
+00:02:21,000 --> 00:02:41,000
+ZOGY convolves each image with the other's point-spread
+function and divides by the combined noise — nothing is
+fitted. The output is a flux difference and a significance
+map that is unit-variance Gaussian wherever the sky did
+not change. Two FFTs, under 0.6 seconds.
+
+13
+00:02:41,000 --> 00:02:59,000
+At five sigma the theory predicts 0.02 false pixels per
+frame; the real data gave 0.86 per field. At six sigma
+that halves, with no loss of recovery. The threshold is
+calibrated, not inherited.
+
+14
+00:02:59,000 --> 00:03:10,000
+Three shapes tell the story: a dipole means motion, a
+positive peak means brightening, a negative peak means
+fading. Geometry is the physics.
+
+15
+00:03:10,000 --> 00:03:33,000
+The turning point. Our first detector recovered 0.2 per
+cent — three architectural defects: a global noise scale,
+unconstrained dipole pairing, and a fixed bright-star
+mask. Robust MAD scaling, physical pairing and exponential
+masking took recovery to 69.3 per cent.
+
+16
+00:03:33,000 --> 00:03:49,000
+To measure false alarms we split one visit in two and
+subtract: no real change can exist. Two hundred and twenty
+realisations gave 8,854 raw peaks, cut to 1.66 false
+candidates per field — zero in six star fields.
+
+17
+00:03:49,000 --> 00:04:05,000
+Then we plant 12,240 sources and count: 96.7 per cent of
+brightenings, 95.3 of fadings, 56 of movers — slow movers
+hide inside the PSF. Overall: 69.3.
+
+18
+00:04:05,000 --> 00:04:16,000
+Asteroids move arcminutes per hour and mimic flares, so we
+identify them: JPL Horizons, the Small-Body Database, CADC
+cross-checks — time-boxed at twenty-five seconds.
+
+19
+00:04:16,000 --> 00:04:29,000
+Identity needs time: Gaia is epoch 2016, SPHEREx is 2026.
+Propagating proper motion — Barnard's Star moves 94
+arcseconds — turns a phantom candidate into KNOWN_MOVER.
+
+20
+00:04:29,000 --> 00:04:46,000
+A classifier on twenty-two features ranks candidates. The
+headline 0.96 precision is inflated by synthetic dipoles;
+honest monopole skill is 0.90 and 0.82. It ranks — it
+never overrules a catalogue.
+
+21
+00:04:46,000 --> 00:04:56,000
+Five weighted streams — machine learning, significance,
+kinematics, asteroid clearance, optical confirmation —
+combine into one explainable score.
+
+22
+00:04:56,000 --> 00:05:07,000
+At the ecliptic pole the same star is seen twenty thousand
+eight hundred times. Spectral normalisation removes the
+filter artefact: one of six stars variable, matching Gaia.
+
+23
+00:05:07,000 --> 00:05:17,000
+102 bands give a spectrum without follow-up: methane,
+water and near-infrared slope separate brown dwarfs, icy
+bodies and young stars — above thirty usable bands.
+
+24
+00:05:17,000 --> 00:05:27,000
+One FastAPI service, thin routers, a bounded job pool —
+one running, eight waiting — rate limited and correlated.
+
+25
+00:05:27,000 --> 00:05:37,000
+Reads and live work run in separate services: concurrency
+eighty for snapshots, one for streaming, refreshed every
+twelve hours.
+
+26
+00:05:37,000 --> 00:05:47,000
+The console is 7,611 lines of vanilla web code: no build
+step, two-stage canvas, offline caching.
+
+27
+00:05:47,000 --> 00:06:05,000
+The census: 109 detections across eighteen fields — 99
+known, 10 candidates. Detection count is not discovery
+count. Two fields return nothing: M42 is a null sky, Sgr
+A-star has no shared band.
+
+28
+00:06:05,000 --> 00:06:21,000
+The ten sit in five fields — Epsilon Indi B, WISE 0855,
+M45, TRAPPIST-1, 3C 273 — faint infrared excesses beyond
+Gaia and WISE. Barnard's Star, our first candidate, was a
+coordinate bug.
+
+29
+00:06:21,000 --> 00:06:45,000
+Live: select Barnard's Star and run. A 36.2-sigma dipole,
+carded as KNOWN_MOVER. Toggle co-add, difference,
+significance. Play six months of snapshots. The Crab
+Nebula for extended gas. The accuracy panel — every number
+here comes from it.
+
+30
+00:06:45,000 --> 00:07:00,000
+It works: 69.3 per cent recovery. It is honest: 1.66 false
+candidates per field. And it is open: reproducible from
+NASA's archive. Thank you.
