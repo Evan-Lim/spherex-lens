@@ -7,17 +7,26 @@ Two LaTeX documents live here, both self-contained and both compiled with `pdfla
 | `spherexlens_paper.tex` | the **33-page technical report**: problem statement, related work, data, methodology, revised code, results, validation, discussion, references, appendices, plus a 12-slide deck |
 | `slides_and_script.tex` | the **25-page presentation specification**: 23 slides for a 21:40 talk (15:45 short route), one page per slide in the reference document's layout -- `Slide N — Title … time`, `On the slide.` bullets, `Figure / diagram.` brief, the figure itself scaled to the text width, then `Spoken script.` -- plus a live-demonstration page and a backup/Q&A page |
 
+A third document is the **actual slide deck**:
+
+| File | What it is |
+|---|---|
+| `spherexlens_beamer.tex` | the **30-slide Beamer presentation** (16:9, LuaLaTeX): custom warm-paper theme, Open-Sauce-like humanist sans (Lato), one purpose-drawn diagram per slide, a plain-language lead line above the technical detail |
+
 ## Build
 
 ```bash
 cd paper
 pdflatex spherexlens_paper.tex   && pdflatex spherexlens_paper.tex
 pdflatex slides_and_script.tex   && pdflatex slides_and_script.tex
+# the slide deck needs LuaLaTeX (fontspec + system fonts)
+lualatex spherexlens_beamer.tex  && lualatex spherexlens_beamer.tex
 ```
 
-Outputs: `spherexlens_paper.pdf` (~1.9 MB) and `slides_and_script.pdf` (~0.74 MB).
+Outputs: `spherexlens_paper.pdf` (~1.9 MB), `slides_and_script.pdf` (~0.8 MB) and
+`spherexlens_beamer.pdf` (30 pages, 16:9).
 Requires TeX Live with `tikz`, `pgfplots`, `tcolorbox`, `listings`, `booktabs`, `longtable`,
-`fancyhdr`, `hyperref`.
+`fancyhdr`, `hyperref`, plus `beamer`, `fontspec` and the Lato font for the deck.
 
 Four photographic figures are read from `../figures_real/` (produced by
 `python make_figures.py --real`); every other chart in both documents is generated from numbers
