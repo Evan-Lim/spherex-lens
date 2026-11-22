@@ -1,0 +1,5 @@
+{
+  "name": "SPHERExLens",
+  "description": "Discovery triage portal for NASA/IPAC IRSA SPHEREx DR1 multi-epoch infrared difference imaging, ZOGY source detection, spectral classification, and citizen-science vetting.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,21 @@
+{
+  "name": "spherex-lens",
+  "version": "2.0.0",
+  "description": "SPHERExLens -- Discovery triage portal for NASA/IPAC IRSA SPHEREx DR1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "sync:site": "node scripts/sync-site.mjs",
+    "build": "node scripts/sync-site.mjs && node --check server.js && node --check static/app.js && node --check site/app.js",
+    "lint": "node --check server.js && node --check static/app.js && node --check static/sw.js && node --check site/app.js && node --check scripts/sync-site.mjs"
+  },
+  "dependencies": {
+    "compression": "^1.8.0",
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
