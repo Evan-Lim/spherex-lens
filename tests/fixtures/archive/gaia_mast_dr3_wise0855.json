@@ -1,0 +1,144 @@
+{
+ "status": "COMPLETE",
+ "msg": "",
+ "data": [
+  {
+   "designation": "Gaia DR3 5756956605732310656",
+   "source_id": 5756956605732310656,
+   "ref_epoch": 2016,
+   "ra": 133.782210092001,
+   "dec": -7.241133942273309,
+   "parallax": 1.0419749612430331,
+   "parallax_error": 0.5123918,
+   "pmra": -11.287122597850777,
+   "pmdec": 0.6035269420228303,
+   "ruwe": 0.9885647,
+   "phot_g_mean_mag": 19.7651119,
+   "phot_bp_mean_mag": 20.971529,
+   "phot_rp_mean_mag": 18.6487789,
+   "phot_variable_flag": "NOT_AVAILABLE",
+   "distance": 0.30890812134262025
+  },
+  {
+   "designation": "Gaia DR3 5756955849818062592",
+   "source_id": 5756955849818062592,
+   "ref_epoch": 2016,
+   "ra": 133.78947676591187,
+   "dec": -7.250829646048526,
+   "parallax": -0.09581311639307577,
+   "parallax_error": 0.196695656,
+   "pmra": 0.2276546862035596,
+   "pmdec": 0.0019254484688564816,
+   "ruwe": 0.977783263,
+   "phot_g_mean_mag": 18.638525,
+   "phot_bp_mean_mag": 18.8109055,
+   "phot_rp_mean_mag": 18.2182922,
+   "phot_variable_flag": "VARIABLE",
+   "distance": 0.43257992281717267
+  },
+  {
+   "designation": "Gaia DR3 5756955854113730432",
+   "source_id": 5756955854113730432,
+   "ref_epoch": 2016,
+   "ra": 133.79361884825323,
+   "dec": -7.245593150156452,
+   "parallax": null,
+   "parallax_error": null,
+   "pmra": null,
+   "pmdec": null,
+   "ruwe": null,
+   "phot_g_mean_mag": 21.017004,
+   "phot_bp_mean_mag": 21.3525639,
+   "phot_rp_mean_mag": 20.0737419,
+   "phot_variable_flag": "NOT_AVAILABLE",
+   "distance": 0.4449722053930261
+  },
+  {
+   "designation": "Gaia DR3 5756955952897282176",
+   "source_id": 5756955952897282176,
+   "ref_epoch": 2016,
+   "ra": 133.7974204064675,
+   "dec": -7.241044615844017,
+   "parallax": 0.29357070758906095,
+   "parallax_error": 0.1172486,
+   "pmra": -2.4257981397640385,
+   "pmdec": 1.2694741185085487,
+   "ruwe": 1.00478256,
+   "phot_g_mean_mag": 17.8639374,
+   "phot_bp_mean_mag": 18.37148,
+   "phot_rp_mean_mag": 17.1890526,
+   "phot_variable_flag": "NOT_AVAILABLE",
+   "distance": 0.6944884187190995
+  }
+ ],
+ "fields": [
+  {
+   "name": "designation",
+   "type": "string"
+  },
+  {
+   "name": "source_id",
+   "type": "string"
+  },
+  {
+   "name": "ref_epoch",
+   "type": "float"
+  },
+  {
+   "name": "ra",
+   "type": "float"
+  },
+  {
+   "name": "dec",
+   "type": "float"
+  },
+  {
+   "name": "parallax",
+   "type": "float"
+  },
+  {
+   "name": "parallax_error",
+   "type": "float"
+  },
+  {
+   "name": "pmra",
+   "type": "float"
+  },
+  {
+   "name": "pmdec",
+   "type": "float"
+  },
+  {
+   "name": "ruwe",
+   "type": "float"
+  },
+  {
+   "name": "phot_g_mean_mag",
+   "type": "float"
+  },
+  {
+   "name": "phot_bp_mean_mag",
+   "type": "float"
+  },
+  {
+   "name": "phot_rp_mean_mag",
+   "type": "float"
+  },
+  {
+   "name": "phot_variable_flag",
+   "type": "string"
+  },
+  {
+   "name": "distance",
+   "type": "float"
+  }
+ ],
+ "paging": {
+  "page": 1,
+  "pageSize": 50000,
+  "pagesFiltered": 1,
+  "rows": 4,
+  "rowsFiltered": 4,
+  "rowsTotal": 4
+ }
+}

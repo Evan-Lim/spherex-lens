@@ -1,806 +1,469 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SPHERExLens — Discovery Triage</title>
-  <meta name="description" content="Discovery triage portal for NASA/IPAC IRSA SPHEREx DR1 multi-epoch infrared difference imaging, ZOGY source detection, spectral classification, and citizen-science vetting.">
-  <meta property="og:title" content="SPHERExLens — Discovery Triage">
-  <meta property="og:description" content="Discovery triage portal for NASA/IPAC IRSA SPHEREx DR1 multi-epoch infrared difference imaging, ZOGY source detection, spectral classification, and citizen-science vetting.">
+  <title>SPHERExLens -- Discovery Triage</title>
   <link rel="icon" href="assets/icons/logo-spherex-lens.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap">
-  <script>
-    (function () {
-      try {
-        var t = localStorage.getItem('spx-theme');
-        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-      } catch (e) {}
-    })();
-  </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
 
-  <div class="app-shell">
-    <!-- ===================== slim M3 navigation rail ===================== -->
-    <aside class="m3-rail" aria-label="Primary workbench navigation">
-      <div class="rail-brand" title="SPHERExLens — NASA/IPAC IRSA SPHEREx DR1">
-        <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="SPHERExLens" width="24" height="24">
+  <!-- ===================== top mission header ===================== -->
+  <header class="chrome">
+    <div class="chrome-left">
+      <img class="brand-logo" src="assets/icons/logo-spherex-lens.svg" alt="" width="22" height="22">
+      <h1 class="brand-name">SPHERExLens</h1>
+      <span class="brand-sub">NASA/IPAC IRSA &middot; SPHEREx DR1</span>
+    </div>
+    <div class="chrome-right">
+      <button id="btn-cloud-status" class="status-pill" type="button"
+              aria-haspopup="dialog" aria-controls="cloud-dialog"
+              title="Cloud snapshot status">
+        <span class="dot" id="status-dot" aria-hidden="true"></span>
+        <span id="status-text">STANDBY &middot; NO FIELD LOADED</span>
+      </button>
+      <div class="segmented mode-switch" id="mode-switch" role="group"
+           aria-label="Interface mode">
+        <button class="seg active" data-mode="public" type="button" aria-pressed="true"
+                title="Plain-language verdicts and voting">Public</button>
+        <button class="seg" data-mode="expert" type="button" aria-pressed="false"
+                title="Scores, provenance and data downloads">Expert</button>
+      </div>
+      <button id="btn-accuracy" class="btn btn-ghost" type="button"
+              aria-haspopup="dialog" aria-controls="accuracy">Accuracy</button>
+      <button id="btn-deep" class="btn btn-ghost" type="button"
+              aria-haspopup="dialog" aria-controls="deep">Deep fields</button>
+      <button id="btn-guide" class="btn btn-ghost" type="button"
+              aria-haspopup="dialog" aria-controls="guide">Guide</button>
+      <button id="btn-demo" class="btn btn-ghost" type="button" aria-pressed="false">Auto Demo</button>
+      <button id="btn-reset" class="btn btn-ghost" type="button">Reset</button>
+    </div>
+  </header>
+  <!-- screen-reader copy of the status pill (the pill itself is a button) -->
+  <p id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+
+  <!-- ===================== compact horizontal control toolbar ===================== -->
+  <nav class="control-bar" aria-label="Target and pipeline controls">
+    <div class="tb-group">
+      <label class="tb-label" for="target-select">Target</label>
+      <select id="target-select" class="control-select">
+        <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
+        <option value="Barnards_Star">Barnard's Star (M4V)</option>
+        <option value="Epsilon_Indi_B">Epsilon Indi B (T-dwarf)</option>
+        <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
+        <option value="R_Draconis">R Draconis (Mira)</option>
+      </select>
+      <button id="btn-run" class="btn btn-primary" type="button">
+        <span class="btn-icon" aria-hidden="true">&#9654;</span> Run Pipeline
+      </button>
+    </div>
+
+    <span class="tb-sep" aria-hidden="true"></span>
+
+    <div class="tb-group tb-coords">
+      <span class="tb-label">Coords</span>
+      <input id="field-ra" class="control-input tb-coord" type="number" step="0.001"
+             placeholder="RA&deg;" aria-label="Right ascension in degrees">
+      <input id="field-dec" class="control-input tb-coord" type="number" step="0.001"
+             placeholder="Dec&deg;" aria-label="Declination in degrees">
+      <input id="field-name" class="control-input tb-name" type="text"
+             placeholder="Label" aria-label="Field name (optional)">
+      <button id="btn-field" class="btn btn-secondary" type="button">Load field from IRSA</button>
+    </div>
+
+    <span class="tb-sep" aria-hidden="true"></span>
+
+    <div class="tb-group">
+      <label class="toggle toggle-live" id="toggle-live-wrap">
+        <input type="checkbox" id="tog-live">
+        <span id="tog-live-label">Fresh IRSA</span>
+      </label>
+      <span class="tip-wrap">
+        <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                aria-label="About fresh IRSA data">?</button>
+        <span class="tip-popover" id="live-hint" role="tooltip"></span>
+      </span>
+    </div>
+
+    <div class="tb-tools">
+      <button type="button" id="btn-win-history" class="btn btn-tool"
+              data-win="win-history" aria-expanded="false" aria-controls="win-history">
+        History <span id="history-badge" class="tool-badge"></span>
+      </button>
+      <button type="button" id="btn-win-stats" class="btn btn-tool"
+              data-win="win-stats" aria-expanded="false" aria-controls="win-stats">
+        Statistics <span id="tc-stats-sum" class="tool-badge"></span>
+      </button>
+      <button type="button" id="btn-win-recovery" class="btn btn-tool"
+              data-win="win-recovery" aria-expanded="false" aria-controls="win-recovery">
+        Recovery <span id="tc-recovery-sum" class="tool-badge"></span>
+      </button>
+      <button type="button" id="btn-win-classify" class="btn btn-tool public-only"
+              data-win="win-classify" aria-expanded="false" aria-controls="win-classify">
+        Help classify
+      </button>
+      <button id="btn-export" class="btn btn-tool" type="button"
+              title="Copy share link to clipboard">Share</button>
+    </div>
+  </nav>
+
+  <!-- ===================== inline coordinate & action telemetry strip ===================== -->
+  <div class="telemetry-strip">
+    <div class="telemetry-coords">
+      <span class="tk">RA</span><span id="kv-ra" class="tv mono">--</span>
+      <span class="tsep">&middot;</span>
+      <span class="tk">DEC</span><span id="kv-dec" class="tv mono">--</span>
+      <span class="tsep">&middot;</span>
+      <span class="tk">EXP</span><span id="kv-type" class="tv mono">--</span>
+    </div>
+    <div class="telemetry-status">
+      <span id="field-hint" class="hint-inline"></span>
+      <span id="action-message" class="action-msg" role="status" aria-live="polite" aria-atomic="true"></span>
+      <span id="action-time" class="mono" aria-hidden="true"></span>
+    </div>
+  </div>
+
+  <!-- ===================== main scientific workspace ===================== -->
+  <main class="workspace" id="main" tabindex="-1">
+
+    <!-- compact 4-cell field metrics strip -->
+    <section class="cards" aria-label="Field metrics">
+      <div class="card card-blue">
+        <div class="card-meta">
+          <span class="card-label">Detections</span>
+          <span class="card-hint">above threshold</span>
+        </div>
+        <div class="card-value" id="card-total">0</div>
+      </div>
+      <div class="card card-red">
+        <div class="card-meta">
+          <span class="card-label">Unaccounted</span>
+          <span class="card-hint">no catalog match</span>
+        </div>
+        <div class="card-value" id="card-unknown">0</div>
+      </div>
+      <div class="card card-green">
+        <div class="card-meta">
+          <span class="card-label">Max SNR</span>
+          <span class="card-hint">significance</span>
+        </div>
+        <div class="card-value" id="card-snr">--</div>
+      </div>
+      <div class="card card-amber">
+        <div class="card-meta">
+          <span class="card-label">Baseline</span>
+          <span class="card-hint">days</span>
+        </div>
+        <div class="card-value" id="card-baseline">--</div>
+      </div>
+    </section>
+
+    <!-- which archives cover this field (payload.coverage; hidden when absent) -->
+    <section class="coverage-row" id="coverage-row" aria-labelledby="coverage-title" hidden>
+      <h2 class="coverage-title" id="coverage-title">Coverage</h2>
+      <ul class="coverage-chips" id="coverage-chips"></ul>
+    </section>
+
+    <!-- primary split: sky viewer + triage verdict -->
+    <section class="map-layout">
+      <div class="panel map-col">
+        <div class="panel-bar">
+          <div class="panel-title-wrap">
+            <h2 class="section-label">Sky Viewer</h2>
+            <span class="tip-wrap">
+              <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                      aria-label="Sky viewer layer info">?</button>
+              <span class="tip-popover" role="tooltip">Co-add: stacked exposures. Difference D: ZOGY proper subtraction. Significance S: difference normalised by noise (&sigma;).</span>
+            </span>
+          </div>
+          <div class="map-toolbar">
+            <div class="segmented" id="view-switch">
+              <button class="seg active" data-view="field" type="button">Field</button>
+              <button class="seg" data-view="sky" type="button">All&#8209;sky</button>
+            </div>
+            <div class="segmented" id="layer-switch">
+              <button class="seg" data-layer="image" type="button" title="All exposures stacked into one image." aria-describedby="tip-coadd">Co-add</button>
+              <button class="seg" data-layer="zogy_image" type="button" title="ZOGY difference between epochs: what changed." aria-describedby="tip-diff">Diff&nbsp;D</button>
+              <button class="seg active" data-layer="zogy_snr" type="button" title="The difference in units of noise (&sigma;). Bright = significant change." aria-describedby="tip-sig">Sig&nbsp;S</button>
+            </div>
+            <div class="snapshot-group" id="snapshot-controls" role="group"
+                 aria-label="Published snapshot history">
+              <span class="snapshot-caption">Snapshot</span>
+              <select id="snapshot-select" class="snapshot-select"
+                      aria-label="Published snapshot version" disabled>
+                <option value="">latest</option>
+              </select>
+              <button id="btn-snapshot-play" class="snapshot-play" type="button"
+                      title="Play the retained snapshots from oldest to latest"
+                      aria-label="Play snapshot history" disabled>
+                <span class="snapshot-play-icon" aria-hidden="true">&#9654;</span><span id="snapshot-play-label">Play</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="map-subbar">
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="tog-grid" checked><span>Grid</span></label>
+            <label class="toggle"><input type="checkbox" id="tog-cat" checked><span>Catalogs</span></label>
+            <label class="toggle"><input type="checkbox" id="tog-det" checked><span>Detections</span></label>
+          </div>
+          <div class="map-dsp" id="map-dsp">
+            <select id="stretch-select" class="dsp-select" title="Intensity stretch" aria-label="Image intensity stretch">
+              <option value="linear">Linear</option>
+              <option value="asinh">Asinh</option>
+              <option value="log">Log</option>
+            </select>
+            <select id="lut-select" class="dsp-select" title="Colour lookup table" aria-label="Colour lookup table">
+              <option value="auto">LUT Auto</option>
+              <option value="snr">Inferno</option>
+              <option value="viridis">Viridis</option>
+              <option value="gray">Grayscale</option>
+              <option value="invgray">Inverted</option>
+            </select>
+          </div>
+          <div class="zoom-group">
+            <button id="btn-mosaic" type="button" title="Rebuild the all-sky tiles" aria-label="Rebuild the all-sky tiles">&#8635;</button>
+            <button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
+            <span id="zoom-label" aria-label="Zoom level">1.0&times;</span>
+            <button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+            <button id="zoom-fit" type="button" title="Fit to field" aria-label="Fit the map to the field">Fit</button>
+          </div>
+        </div>
+
+        <div class="map-info" id="map-hint">run pipeline to load</div>
+
+        <div class="map-wrap" title="drag to pan &middot; wheel to zoom &middot; click a marker, click again to vet it">
+          <canvas id="canvas-map" role="img" aria-label="Field map: no field loaded yet"
+                  aria-describedby="map-summary"></canvas>
+          <div class="map-readout mono" id="map-readout" aria-hidden="true">RA --&middot;--- &nbsp; Dec --&middot;--- &nbsp; --</div>
+          <div class="map-scalebar" aria-hidden="true"><span id="scalebar-line"></span><span id="scalebar-text">--</span></div>
+          <div class="map-tip mono hidden" id="map-tip" aria-hidden="true"></div>
+          <div id="map-loader" class="loader hidden" role="status"><div class="spinner" aria-hidden="true"></div><span class="sr-only">Loading the field&hellip;</span></div>
+        </div>
+        <p id="map-summary" class="sr-only">The map is a picture. Every detection on it is listed in the Detections table, where each row has a Vet button.</p>
+
+        <div class="legend" id="map-legend" aria-label="Map legend">
+          <span class="legend-item"><i class="sw sw-gaia" aria-hidden="true"></i> Gaia DR3</span>
+          <span class="legend-item"><i class="sw sw-vsx" aria-hidden="true"></i> VSX</span>
+          <span class="legend-item"><i class="sw sw-wise" aria-hidden="true"></i> AllWISE</span>
+          <span class="legend-item"><i class="sw sw-target" aria-hidden="true"></i> Target / mover</span>
+          <span class="legend-item"><i class="sw sw-dipole" aria-hidden="true"></i> Dipole (moved)</span>
+          <span class="legend-item"><i class="sw sw-monopole" aria-hidden="true"></i> Monopole (got brighter)</span>
+          <span class="legend-item"><i class="sw sw-fainter" aria-hidden="true"></i> Got fainter</span>
+          <span class="legend-item"><i class="sw sw-asteroid" aria-hidden="true"></i> Known asteroid</span>
+          <span class="legend-item"><i class="sw sw-newast" aria-hidden="true"></i> Possible new asteroid</span>
+        </div>
       </div>
 
-      <nav class="rail-nav">
-        <button type="button" class="rail-item active" id="rail-workbench" data-rail="workbench" aria-current="page" title="Discovery Workbench">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="2"/></svg>
-          </span>
-          <span class="rail-label">Sky</span>
-        </button>
+      <aside class="panel verdict-col" aria-label="Triage verdict">
+        <div class="panel-bar">
+          <div class="panel-title-wrap">
+            <h2 class="section-label">Triage Verdict</h2>
+            <span class="tip-wrap">
+              <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                      aria-label="About triage verdict">?</button>
+              <span class="tip-popover" role="tooltip">Cross-match, proper-motion kinematics, and NEOWISE history for the selected ZOGY detection.</span>
+            </span>
+          </div>
+        </div>
+        <div id="verdict-box" class="verdict-box">
+          <div class="verdict-label">No detection selected</div>
+        </div>
+      </aside>
+    </section>
 
-        <button type="button" class="rail-item" id="btn-watchlist" data-rail="watchlist" aria-haspopup="dialog" aria-controls="watchlist-drawer" title="Pinned Candidate Watchlist">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 3 15 9 21 9.8 16.5 14 17.7 20 12 17 6.3 20 7.5 14 3 9.8 9 9 12 3"/></svg>
-            <span class="rail-badge hidden" id="watchlist-badge">0</span>
-          </span>
-          <span class="rail-label">Watch</span>
-        </button>
-
-        <button type="button" class="rail-item" id="btn-win-classify" data-win="win-classify" aria-expanded="false" aria-controls="win-classify" title="Citizen science vetting queue">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          </span>
-          <span class="rail-label">Classify</span>
-        </button>
-
-        <button type="button" class="rail-item" id="btn-accuracy" aria-haspopup="dialog" aria-controls="accuracy" title="Pipeline accuracy and calibration">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 4 3 5-7"/></svg>
-          </span>
-          <span class="rail-label">Accuracy</span>
-        </button>
-
-        <button type="button" class="rail-item" id="btn-deep" aria-haspopup="dialog" aria-controls="deep" title="SPHEREx Deep-field light curves">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg>
-          </span>
-          <span class="rail-label">Deep</span>
-        </button>
-
-        <span class="rail-divider" aria-hidden="true"></span>
-
-        <button type="button" class="rail-item" id="btn-win-history" data-win="win-history" aria-expanded="false" aria-controls="win-history" title="Saved Research History">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
-            <span id="history-badge" class="rail-badge"></span>
-          </span>
-          <span class="rail-label">History</span>
-        </button>
-
-        <button type="button" class="rail-item" id="btn-win-stats" data-win="win-stats" aria-expanded="false" aria-controls="win-stats" title="Pipeline Statistics">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>
-            <span id="tc-stats-sum" class="rail-badge hidden"></span>
-          </span>
-          <span class="rail-label">Stats</span>
-        </button>
-
-        <button type="button" class="rail-item" id="btn-win-recovery" data-win="win-recovery" aria-expanded="false" aria-controls="win-recovery" title="Synthetic Injection-Recovery">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
-            <span id="tc-recovery-sum" class="rail-badge hidden"></span>
-          </span>
-          <span class="rail-label">Recovery</span>
-        </button>
-      </nav>
-
-      <div class="rail-foot">
-        <button type="button" class="rail-item" id="btn-guide" aria-haspopup="dialog" aria-controls="guide" title="Pipeline Guide &amp; Glossary">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          </span>
-          <span class="rail-label">Guide</span>
-        </button>
-        <button type="button" class="rail-item" id="btn-shortcuts" aria-haspopup="dialog" aria-controls="shortcuts-modal" title="Keyboard shortcuts (?)">
-          <span class="rail-pill" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6.01" y2="10"/><line x1="10" y1="10" x2="10.01" y2="10"/><line x1="14" y1="10" x2="14.01" y2="10"/><line x1="18" y1="10" x2="18.01" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
-          </span>
-          <span class="rail-label">Keys</span>
-        </button>
+    <!-- detections + epoch pairs -->
+    <section class="split-row">
+      <div class="panel">
+        <div class="panel-bar">
+          <h2 class="section-label">Detections</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="detections-table">
+            <caption class="sr-only">Detections in this field. Each row has a Vet button that opens the vetting card.</caption>
+            <thead>
+              <tr>
+                <th scope="col">RA</th><th scope="col">Dec</th><th scope="col" title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th scope="col">Kind</th><th scope="col">Verdict</th><th scope="col">Match</th><th scope="col" class="th-unit">&mu; (&Prime;/yr)</th>
+                <th scope="col" class="expert-only" title="Machine-learning real/bogus score (calibrated probability that it is real)">ML</th>
+                <th scope="col" class="expert-only" title="Evidence score: all checks combined, 0 to 100">Evid.</th>
+                <th scope="col"><span class="sr-only">Vetting card</span></th>
+              </tr>
+            </thead>
+            <tbody id="detections-body">
+              <tr><td colspan="10" class="empty">No detections yet</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </aside>
 
-    <!-- ===================== main column (top bar + workspace) ===================== -->
-    <div class="app-main">
-      <!-- compact M3 top app bar -->
-      <header class="chrome">
-        <div class="chrome-left">
-          <div class="brand-lockup">
-            <h1 class="brand-name">SPHERExLens</h1>
-            <span class="brand-sub">IRSA &middot; SPHEREx DR1</span>
-          </div>
-
-          <button type="button" id="btn-cmd-palette" class="cmd-trigger" aria-haspopup="dialog" aria-controls="cmd-palette" title="Quick jump to any field, detection, or tool">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
-            <span>Search fields, detections, tools&hellip;</span>
-            <kbd class="kbd-hint">&#8984;K</kbd>
-          </button>
+      <div class="panel">
+        <div class="panel-bar">
+          <h2 class="section-label">Epoch Pairs</h2>
         </div>
+        <div id="pairs-out" class="mono-box">run pipeline to compare epochs</div>
+      </div>
+    </section>
 
-        <div class="chrome-right">
-          <button id="btn-cloud-status" class="status-pill" type="button"
-                  aria-haspopup="dialog" aria-controls="cloud-dialog"
-                  title="Cloud snapshot status">
-            <span class="dot" id="status-dot" aria-hidden="true"></span>
-            <span id="status-text">STANDBY &middot; NO FIELD LOADED</span>
-          </button>
-
-          <div class="segmented mode-switch" id="mode-switch" role="group"
-               aria-label="Interface mode">
-            <button class="seg active" data-mode="public" type="button" aria-pressed="true"
-                    title="Plain-language briefing, glossary, and guided citizen vetting">Public</button>
-            <button class="seg" data-mode="expert" type="button" aria-pressed="false"
-                    title="Full scientific scores, Z-scale, PSF ruler, provenance and exports">Expert</button>
-          </div>
-
-          <button id="btn-theme" class="btn btn-icon-only" type="button" aria-label="Switch color theme" title="Toggle Dark / Light M3 theme">
-            <svg class="ico-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-            <svg class="ico-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          </button>
-
-          <button id="btn-demo" class="btn btn-ghost" type="button" aria-pressed="false">Demo</button>
-          <button id="btn-reset" class="btn btn-ghost" type="button">Reset</button>
-          <button id="btn-export" class="btn btn-ghost" type="button" title="Copy share link to clipboard">Share</button>
-        </div>
-      </header>
-      <p id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
-
-      <!-- compact horizontal field & IRSA control ribbon -->
-      <nav class="control-bar" aria-label="Target and pipeline controls">
-        <div class="tb-group">
-          <label class="tb-label" for="target-select">Field</label>
-          <select id="target-select" class="control-select">
-            <option value="WISE_0855">WISE 0855 (Y-dwarf)</option>
-            <option value="Barnards_Star">Barnard's Star (M4V)</option>
-            <option value="Epsilon_Indi_B">Epsilon Indi B (T-dwarf)</option>
-            <option value="RW_Aurigae">RW Aurigae (T Tauri)</option>
-            <option value="R_Draconis">R Draconis (Mira)</option>
-          </select>
-          <button id="btn-run" class="btn btn-primary" type="button">
-            <span class="btn-icon" aria-hidden="true">&#9654;</span> Run
-          </button>
-        </div>
-
-        <span class="tb-sep" aria-hidden="true"></span>
-
-        <div class="tb-group tb-coords">
-          <span class="tb-label">Custom Sky</span>
-          <input id="field-ra" class="control-input tb-coord" type="number" step="0.001"
-                 placeholder="RA&deg;" aria-label="Right ascension in degrees">
-          <input id="field-dec" class="control-input tb-coord" type="number" step="0.001"
-                 placeholder="Dec&deg;" aria-label="Declination in degrees">
-          <input id="field-name" class="control-input tb-name" type="text"
-                 placeholder="Label" aria-label="Field name (optional)">
-          <button id="btn-field" class="btn btn-tonal" type="button">Fetch IRSA</button>
-        </div>
-
-        <span class="tb-sep" aria-hidden="true"></span>
-
-        <div class="tb-group">
-          <label class="toggle toggle-live" id="toggle-live-wrap">
-            <input type="checkbox" id="tog-live">
-            <span id="tog-live-label">Fresh IRSA</span>
-          </label>
+    <!-- diagnostics -->
+    <section class="panel">
+      <div class="panel-bar">
+        <div class="panel-title-wrap">
+          <h2 class="section-label">Diagnostics</h2>
           <span class="tip-wrap">
             <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
-                    aria-label="About fresh IRSA data">?</button>
-            <span class="tip-popover" id="live-hint" role="tooltip"></span>
+                    aria-label="About diagnostics">?</button>
+            <span class="tip-popover" role="tooltip">Significance pixel distribution, per-epoch background noise (&sigma;<sub>1</sub>), detections per pair, and synthetic injection-recovery completeness.</span>
           </span>
         </div>
-
-        <div class="telemetry-inline">
-          <span class="tk">RA</span><span id="kv-ra" class="tv mono">--</span>
-          <span class="tsep">&middot;</span>
-          <span class="tk">DEC</span><span id="kv-dec" class="tv mono">--</span>
-          <span class="tsep">&middot;</span>
-          <span class="tk">EXP</span><span id="kv-type" class="tv mono">--</span>
-        </div>
-      </nav>
-
-      <!-- action & status whisper bar (collapses cleanly when idle) -->
-      <div class="telemetry-strip" id="telemetry-strip">
-        <div class="telemetry-status">
-          <span id="field-hint" class="hint-inline"></span>
-          <span id="action-message" class="action-msg" role="status" aria-live="polite" aria-atomic="true"></span>
-          <span id="action-time" class="mono" aria-hidden="true"></span>
-        </div>
       </div>
-
-      <!-- ===================== main scientific workspace ===================== -->
-      <main class="workspace" id="main" tabindex="-1">
-
-        <!-- compact M3 tonal KPI & archive coverage ribbon -->
-        <section class="ribbon-row" aria-label="Field telemetry and archive coverage">
-          <div class="cards">
-            <div class="card card-blue">
-              <div class="card-meta">
-                <span class="card-label">Detections</span>
-                <span class="card-hint">above threshold</span>
-              </div>
-              <div class="card-value" id="card-total">0</div>
-            </div>
-            <div class="card card-red">
-              <div class="card-meta">
-                <span class="card-label">Unaccounted</span>
-                <span class="card-hint">no catalog match</span>
-              </div>
-              <div class="card-value" id="card-unknown">0</div>
-            </div>
-            <div class="card card-green">
-              <div class="card-meta">
-                <span class="card-label">Max <button type="button" class="gloss-term" data-gloss="sig">SNR</button></span>
-                <span class="card-hint">significance (&sigma;)</span>
-              </div>
-              <div class="card-value" id="card-snr">--</div>
-            </div>
-            <div class="card card-amber">
-              <div class="card-meta">
-                <span class="card-label"><button type="button" class="gloss-term" data-gloss="baseline">Baseline</button></span>
-                <span class="card-hint">days</span>
-              </div>
-              <div class="card-value" id="card-baseline">--</div>
-            </div>
-          </div>
-
-          <section class="coverage-row" id="coverage-row" aria-labelledby="coverage-title" hidden>
-            <h2 class="coverage-title" id="coverage-title">Archives</h2>
-            <ul class="coverage-chips" id="coverage-chips"></ul>
-          </section>
-        </section>
-
-        <!-- public mode plain-language discovery briefing (dynamically populated) -->
-        <section id="public-briefing" class="public-briefing public-only hidden" aria-label="Plain-language field briefing">
-          <div class="briefing-copy">
-            <span class="briefing-kicker">What changed in this patch of sky?</span>
-            <p id="briefing-summary" class="briefing-summary">Loading field findings&hellip;</p>
-          </div>
-          <div class="briefing-actions" id="briefing-jumps" aria-label="Guided discovery jumps"></div>
-        </section>
-
-        <!-- persistent upper split: sky viewer + triage verdict -->
-        <section class="map-layout">
-          <div class="panel map-col">
-            <div class="panel-bar">
-              <div class="panel-title-wrap">
-                <h2 class="section-label">Sky Viewer</h2>
-                <button type="button" class="gloss-term gloss-pill" data-gloss="zogy">ZOGY</button>
-                <span class="tip-wrap">
-                  <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
-                          aria-label="Sky viewer layer info">?</button>
-                  <span class="tip-popover" role="tooltip">Co-add: stacked exposures. Difference D: ZOGY proper subtraction. Significance S: difference normalised by noise (&sigma;).</span>
-                </span>
-              </div>
-              <div class="map-toolbar">
-                <div class="segmented" id="view-switch">
-                  <button class="seg active" data-view="field" type="button">Field</button>
-                  <button class="seg" data-view="sky" type="button">All&#8209;sky</button>
-                </div>
-                <div class="segmented" id="layer-switch">
-                  <button class="seg" data-layer="image" type="button" title="All exposures stacked into one image." aria-describedby="tip-coadd">Co-add</button>
-                  <button class="seg" data-layer="zogy_image" type="button" title="ZOGY difference between epochs: what changed." aria-describedby="tip-diff">Diff&nbsp;D</button>
-                  <button class="seg active" data-layer="zogy_snr" type="button" title="The difference in units of noise (&sigma;). Bright = significant change." aria-describedby="tip-sig">Sig&nbsp;S</button>
-                </div>
-                <div class="snapshot-group" id="snapshot-controls" role="group"
-                     aria-label="Published snapshot history">
-                  <span class="snapshot-caption">Snap</span>
-                  <select id="snapshot-select" class="snapshot-select"
-                          aria-label="Published snapshot version" disabled>
-                    <option value="">latest</option>
-                  </select>
-                  <button id="btn-snapshot-play" class="snapshot-play" type="button"
-                          title="Play retained snapshots from oldest to latest"
-                          aria-label="Play snapshot history" disabled>
-                    <span class="snapshot-play-icon" aria-hidden="true">&#9654;</span><span id="snapshot-play-label">Play</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="map-subbar">
-              <div class="toggles">
-                <label class="toggle"><input type="checkbox" id="tog-grid" checked><span>Grid</span></label>
-                <label class="toggle"><input type="checkbox" id="tog-cat" checked><span>Catalogs</span></label>
-                <label class="toggle"><input type="checkbox" id="tog-det" checked><span>Detections</span></label>
-              </div>
-
-              <!-- Pro Sky Inspection Tools: Blink, Split-Wipe, Z-Scale, PSF Ruler -->
-              <div class="sky-tools" role="toolbar" aria-label="Sky inspection tools">
-                <button type="button" id="btn-blink" class="tool-chip" aria-pressed="false" title="Blink between active layer and comparison layer (B)">Blink</button>
-                <button type="button" id="btn-wipe" class="tool-chip" aria-pressed="false" title="Drag vertical split-wipe curtain comparing two layers">Wipe</button>
-                <button type="button" id="btn-zscale" class="tool-chip" aria-pressed="false" aria-controls="zscale-panel" title="Interactive Z-Scale clip sliders &amp; histogram">Z&#8209;Scale</button>
-                <button type="button" id="btn-ruler" class="tool-chip" aria-pressed="false" title="Drag across sky to measure arcsec &amp; 1D PSF intensity cut (R)">Ruler</button>
-              </div>
-
-              <div class="map-dsp" id="map-dsp">
-                <select id="stretch-select" class="dsp-select" title="Intensity stretch" aria-label="Image intensity stretch">
-                  <option value="linear">Linear</option>
-                  <option value="asinh">Asinh</option>
-                  <option value="log">Log</option>
-                </select>
-                <select id="lut-select" class="dsp-select" title="Colour lookup table" aria-label="Colour lookup table">
-                  <option value="auto">LUT Auto</option>
-                  <option value="snr">Inferno</option>
-                  <option value="viridis">Viridis</option>
-                  <option value="gray">Grayscale</option>
-                  <option value="invgray">Inverted</option>
-                </select>
-              </div>
-
-              <div class="zoom-group">
-                <button id="btn-mosaic" type="button" title="Rebuild the all-sky tiles" aria-label="Rebuild the all-sky tiles">&#8635;</button>
-                <button id="zoom-out" type="button" title="Zoom out (-)" aria-label="Zoom out">&minus;</button>
-                <span id="zoom-label" aria-label="Zoom level">1.0&times;</span>
-                <button id="zoom-in" type="button" title="Zoom in (+)" aria-label="Zoom in">+</button>
-                <button id="zoom-fit" type="button" title="Fit to field (0)" aria-label="Fit the map to the field">Fit</button>
-              </div>
-            </div>
-
-            <!-- Collapsible Blink/Wipe Comparison Controls Bar -->
-            <div id="compare-bar" class="pro-subpanel hidden" role="region" aria-label="Layer comparison controls">
-              <span class="pro-label" id="compare-mode-label">Compare</span>
-              <label class="pro-inline">
-                <span>Layer B</span>
-                <select id="compare-layer-b" class="dsp-select">
-                  <option value="image">Co-add</option>
-                  <option value="zogy_image">Diff D</option>
-                  <option value="zogy_snr">Sig S</option>
-                </select>
-              </label>
-              <label class="pro-inline" id="blink-speed-wrap">
-                <span>Cadence</span>
-                <select id="blink-speed" class="dsp-select">
-                  <option value="400">0.4 s</option>
-                  <option value="800" selected>0.8 s</option>
-                  <option value="1500">1.5 s</option>
-                </select>
-              </label>
-              <span class="pro-hint mono" id="compare-status">Drag curtain on canvas</span>
-              <button type="button" id="btn-compare-close" class="btn btn-ghost btn-xs">Done</button>
-            </div>
-
-            <!-- Collapsible Interactive Z-Scale Percentile & Histogram Panel -->
-            <div id="zscale-panel" class="pro-subpanel zscale-panel hidden" role="region" aria-label="Z-Scale intensity clipping">
-              <canvas id="zscale-hist" width="160" height="36" aria-label="Active layer intensity histogram"></canvas>
-              <div class="zscale-sliders">
-                <label class="zscale-field">
-                  <span>Black <em id="zscale-lo-val" class="mono">0.5%</em></span>
-                  <input type="range" id="zscale-lo" min="0" max="95" step="0.5" value="0.5">
-                </label>
-                <label class="zscale-field">
-                  <span>White <em id="zscale-hi-val" class="mono">99.5%</em></span>
-                  <input type="range" id="zscale-hi" min="5" max="100" step="0.5" value="99.5">
-                </label>
-              </div>
-              <button type="button" id="btn-zscale-reset" class="btn btn-ghost btn-xs">Auto</button>
-            </div>
-
-            <div class="map-info" id="map-hint">run pipeline to load</div>
-
-            <div class="map-wrap" title="drag to pan · wheel to zoom · click a marker, click again to vet it">
-              <canvas id="canvas-map" role="img" aria-label="Field map: no field loaded yet"
-                      aria-describedby="map-summary"></canvas>
-              <div class="map-hud-badge mono hidden" id="map-compare-badge" aria-live="polite"></div>
-              <div class="map-readout mono" id="map-readout" aria-hidden="true">RA --&middot;--- &nbsp; Dec --&middot;--- &nbsp; --</div>
-              <div class="map-scalebar" aria-hidden="true"><span id="scalebar-line"></span><span id="scalebar-text">--</span></div>
-              <div class="map-tip mono hidden" id="map-tip" aria-hidden="true"></div>
-              <div id="map-loader" class="loader hidden" role="status"><div class="spinner" aria-hidden="true"></div><span class="sr-only">Loading the field&hellip;</span></div>
-            </div>
-
-            <!-- Docked 1D Angular Ruler & PSF Intensity Profile Cut -->
-            <div id="psf-profile-dock" class="psf-dock hidden" role="region" aria-label="Angular measurement and 1D intensity profile">
-              <div class="psf-dock-head">
-                <span class="psf-title">1D Intensity Profile &amp; Angular Ruler</span>
-                <span class="psf-metrics mono" id="psf-metrics">Click and drag on the sky canvas to slice a source or dipole</span>
-                <button type="button" id="btn-ruler-clear" class="btn btn-ghost btn-xs">Clear</button>
-              </div>
-              <canvas id="psf-profile-canvas" height="78" role="img" aria-label="1D pixel intensity profile along measurement line"></canvas>
-            </div>
-
-            <p id="map-summary" class="sr-only">The map is a picture. Every detection on it is listed in the Detections table, where each row has a Vet button.</p>
-
-            <div class="legend" id="map-legend" aria-label="Map legend">
-              <span class="legend-item"><i class="sw sw-gaia" aria-hidden="true"></i> Gaia DR3</span>
-              <span class="legend-item"><i class="sw sw-vsx" aria-hidden="true"></i> VSX</span>
-              <span class="legend-item"><i class="sw sw-wise" aria-hidden="true"></i> AllWISE</span>
-              <span class="legend-item"><i class="sw sw-target" aria-hidden="true"></i> Target / mover</span>
-              <span class="legend-item"><i class="sw sw-dipole" aria-hidden="true"></i> <button type="button" class="gloss-term" data-gloss="dipole">Dipole</button></span>
-              <span class="legend-item"><i class="sw sw-monopole" aria-hidden="true"></i> Brighter</span>
-              <span class="legend-item"><i class="sw sw-fainter" aria-hidden="true"></i> Fainter</span>
-              <span class="legend-item"><i class="sw sw-asteroid" aria-hidden="true"></i> Asteroid</span>
-              <span class="legend-item"><i class="sw sw-newast" aria-hidden="true"></i> New asteroid?</span>
-            </div>
-          </div>
-
-          <aside class="panel verdict-col" aria-label="Triage verdict">
-            <div class="panel-bar">
-              <div class="panel-title-wrap">
-                <h2 class="section-label">Triage Inspector</h2>
-                <span class="tip-wrap">
-                  <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
-                          aria-label="About triage verdict">?</button>
-                  <span class="tip-popover" role="tooltip">Cross-match, proper-motion kinematics, and NEOWISE history for the selected ZOGY detection.</span>
-                </span>
-              </div>
-              <div class="inspector-nav">
-                <button type="button" id="btn-det-prev" class="btn btn-ghost btn-xs" title="Previous detection (K)">&lsaquo;</button>
-                <span id="det-pos-label" class="mono det-pos-label">--</span>
-                <button type="button" id="btn-det-next" class="btn btn-ghost btn-xs" title="Next detection (J)">&rsaquo;</button>
-              </div>
-            </div>
-            <div id="verdict-box" class="verdict-box">
-              <div class="verdict-label">No detection selected</div>
-            </div>
-          </aside>
-        </section>
-
-        <!-- ===================== tabbed lower analytical workbench ===================== -->
-        <section class="workbench-deck" aria-label="Analytical workbench">
-          <div class="wb-tabbar" role="tablist" aria-label="Workspace sections">
-            <button type="button" class="wb-tab active" role="tab" id="wbtab-detections" data-wbtab="detections" aria-controls="wbpanel-detections" aria-selected="true">
-              Detections &amp; Pairs <span class="tab-count mono" id="tab-count-det">0</span>
-            </button>
-            <button type="button" class="wb-tab" role="tab" id="wbtab-diagnostics" data-wbtab="diagnostics" aria-controls="wbpanel-diagnostics" aria-selected="false">
-              Diagnostics
-            </button>
-            <button type="button" class="wb-tab" role="tab" id="wbtab-history" data-wbtab="history" aria-controls="wbpanel-history" aria-selected="false">
-              History &amp; <span class="mono">SED</span>
-            </button>
-            <button type="button" class="wb-tab" role="tab" id="wbtab-catalogue" data-wbtab="catalogue" aria-controls="wbpanel-catalogue" aria-selected="false">
-              Movers &amp; Catalogue <span class="tab-count mono" id="tab-count-cat">0</span>
-            </button>
-            <button type="button" class="wb-tab" role="tab" id="wbtab-provenance" data-wbtab="provenance" aria-controls="wbpanel-provenance" aria-selected="false">
-              Sources &amp; Provenance
-            </button>
-          </div>
-
-          <!-- TAB 1: Detections (with Smart Filter/Sort) + Epoch Pairs -->
-          <div class="wb-panel active" role="tabpanel" id="wbpanel-detections" aria-labelledby="wbtab-detections">
-            <section class="split-row">
-              <div class="panel">
-                <div class="panel-bar">
-                  <div class="panel-title-wrap">
-                    <h2 class="section-label">Detections</h2>
-                    <span class="hint-inline mono" id="det-filter-count">--</span>
-                  </div>
-                  <div class="det-sort-wrap">
-                    <label class="tb-label" for="det-sort">Sort</label>
-                    <select id="det-sort" class="dsp-select" aria-label="Sort detections">
-                      <option value="snr-desc">SNR &darr;</option>
-                      <option value="snr-asc">SNR &uarr;</option>
-                      <option value="ml-desc">ML Score &darr;</option>
-                      <option value="evid-desc">Evidence &darr;</option>
-                      <option value="mu-desc">&mu; Motion &darr;</option>
-                      <option value="ra-asc">RA &uarr;</option>
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Smart Detection Filter Toolbar -->
-                <div class="det-toolbar" id="det-toolbar">
-                  <input id="det-search" class="control-input det-search" type="search"
-                         placeholder="Filter ID, match, verdict&hellip; (/)" aria-label="Filter detections">
-                  <div class="chip-row" id="det-class-chips" role="group" aria-label="Filter detections by class">
-                    <button type="button" class="m3-chip active" data-det-filter="all">All</button>
-                    <button type="button" class="m3-chip" data-det-filter="candidate">Candidates</button>
-                    <button type="button" class="m3-chip" data-det-filter="mover">Movers</button>
-                    <button type="button" class="m3-chip" data-det-filter="variable">Variables</button>
-                    <button type="button" class="m3-chip" data-det-filter="artefact">Artefacts</button>
-                    <button type="button" class="m3-chip" data-det-filter="watchlisted">Watchlisted</button>
-                  </div>
-                  <div class="det-sliders">
-                    <label class="slider-chip">
-                      <span>SNR &ge; <em id="det-min-snr-val" class="mono">0</em>&sigma;</span>
-                      <input type="range" id="det-min-snr" min="0" max="50" step="1" value="0">
-                    </label>
-                    <label class="slider-chip expert-only">
-                      <span>ML &ge; <em id="det-min-ml-val" class="mono">0%</em></span>
-                      <input type="range" id="det-min-ml" min="0" max="100" step="5" value="0">
-                    </label>
-                    <button type="button" id="det-filter-reset" class="btn btn-ghost btn-xs hidden">Clear</button>
-                  </div>
-                </div>
-
-                <div class="table-wrap">
-                  <table class="detections-table">
-                    <caption class="sr-only">Detections in this field. Each row has Watchlist and Vet buttons.</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col" class="col-star" aria-label="Watchlist">&#9734;</th>
-                        <th scope="col" class="sortable" data-sort="ra">RA</th>
-                        <th scope="col">Dec</th>
-                        <th scope="col" class="sortable" data-sort="snr" title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th>
-                        <th scope="col">Kind</th>
-                        <th scope="col">Verdict</th>
-                        <th scope="col">Match</th>
-                        <th scope="col" class="th-unit sortable" data-sort="mu">&mu; (&Prime;/yr)</th>
-                        <th scope="col" class="expert-only sortable" data-sort="ml" title="Machine-learning real/bogus score">ML</th>
-                        <th scope="col" class="expert-only sortable" data-sort="evid" title="Evidence score: all checks combined, 0 to 100">Evid.</th>
-                        <th scope="col"><span class="sr-only">Vetting card</span></th>
-                      </tr>
-                    </thead>
-                    <tbody id="detections-body">
-                      <tr><td colspan="11" class="empty">No detections yet</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-bar">
-                  <h2 class="section-label">Epoch Pairs</h2>
-                </div>
-                <div id="pairs-out" class="mono-box">run pipeline to compare epochs</div>
-              </div>
-            </section>
-          </div>
-
-          <!-- TAB 2: Diagnostics -->
-          <div class="wb-panel" role="tabpanel" id="wbpanel-diagnostics" aria-labelledby="wbtab-diagnostics" hidden>
-            <section class="panel">
-              <div class="panel-bar">
-                <div class="panel-title-wrap">
-                  <h2 class="section-label">Diagnostics</h2>
-                  <span class="tip-wrap">
-                    <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
-                            aria-label="About diagnostics">?</button>
-                    <span class="tip-popover" role="tooltip">Significance pixel distribution, per-epoch background noise (&sigma;<sub>1</sub>), detections per pair, and synthetic injection-recovery completeness.</span>
-                  </span>
-                </div>
-              </div>
-              <div class="chart-grid chart-grid-4 has-3" id="diag-charts">
-                <figure class="chart">
-                  <figcaption>Significance histogram</figcaption>
-                  <canvas id="chart-hist" width="380" height="165"></canvas>
-                </figure>
-                <figure class="chart">
-                  <figcaption>Noise per epoch (&sigma;, MJy/sr)</figcaption>
-                  <canvas id="chart-noise" width="380" height="165"></canvas>
-                </figure>
-                <figure class="chart">
-                  <figcaption>Detections per epoch pair</figcaption>
-                  <canvas id="chart-pairs" width="380" height="165"></canvas>
-                </figure>
-                <figure class="chart hidden" id="chart-recovery-wrap">
-                  <figcaption>Injection recovery</figcaption>
-                  <canvas id="chart-recovery" width="380" height="165"></canvas>
-                </figure>
-              </div>
-            </section>
-          </div>
-
-          <!-- TAB 3: Target History & SED -->
-          <div class="wb-panel" role="tabpanel" id="wbpanel-history" aria-labelledby="wbtab-history" hidden>
-            <section class="panel hidden" id="sec-history">
-              <div class="panel-bar">
-                <div class="panel-title-wrap">
-                  <h2 class="section-label">Target History &amp; <button type="button" class="gloss-term" data-gloss="sed">SED</button></h2>
-                </div>
-              </div>
-              <div class="chart-grid" id="history-charts">
-                <figure class="chart" id="chart-sed-wrap">
-                  <figcaption>Spectral energy distribution</figcaption>
-                  <canvas id="chart-sed" width="380" height="180"></canvas>
-                </figure>
-                <figure class="chart" id="chart-neowise-wrap">
-                  <figcaption>IR light curve (<button type="button" class="gloss-term" data-gloss="allwise">AllWISE</button> + NEOWISE)</figcaption>
-                  <canvas id="chart-neowise" width="380" height="180"></canvas>
-                </figure>
-              </div>
-              <div id="history-out" class="mono-box history-notes">run pipeline to load</div>
-            </section>
-            <p id="history-empty-tab" class="tab-empty-note hidden">No target SED or NEOWISE time-series history is bundled for this field.</p>
-          </div>
-
-          <!-- TAB 4: Expected Movers + Field Catalogue -->
-          <div class="wb-panel" role="tabpanel" id="wbpanel-catalogue" aria-labelledby="wbtab-catalogue" hidden>
-            <div class="stack-panels">
-              <section class="panel">
-                <div class="panel-bar">
-                  <div class="panel-title-wrap">
-                    <h2 class="section-label">Expected Movers</h2>
-                    <button type="button" class="gloss-term gloss-pill" data-gloss="pm">Proper Motion</button>
-                    <span class="tip-wrap">
-                      <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
-                              aria-label="About expected movers">?</button>
-                      <span class="tip-popover" role="tooltip">Catalogued stars with proper motion predicting &ge; 1 map pixel (3&Prime;) displacement across the baseline.</span>
-                    </span>
-                  </div>
-                </div>
-                <div class="table-wrap">
-                  <table class="movers-table">
-                    <thead>
-                      <tr><th scope="col">Object</th><th scope="col" class="th-unit">&mu; (&Prime;/yr)</th><th scope="col">Shift (&Prime;)</th><th scope="col">Mag</th><th scope="col">SPHEREx</th><th scope="col">RA, Dec (now)</th></tr>
-                    </thead>
-                    <tbody id="movers-body">
-                      <tr><td colspan="6" class="empty">Run pipeline to list expected movers</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              <section class="panel">
-                <div class="panel-bar">
-                  <h2 class="section-label">Field Catalogue</h2>
-                  <span class="hint-inline" id="objects-hint"></span>
-                </div>
-
-                <div class="object-toolbar">
-                  <div class="segmented" id="object-filter">
-                    <button class="seg active" data-filter="all" type="button">All</button>
-                    <button class="seg" data-filter="known" type="button">Known</button>
-                    <button class="seg" data-filter="candidate" type="button">Candidate</button>
-                    <button class="seg" data-filter="detected" type="button">Detected</button>
-                  </div>
-                  <input id="object-search" class="control-input" type="search"
-                         placeholder="Filter name, RA or catalogue&hellip;" aria-label="Filter catalogue">
-                  <span class="hint-inline mono" id="objects-count">--</span>
-                </div>
-
-                <div class="table-wrap">
-                  <table class="objects-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Verdict</th><th scope="col">RA</th><th scope="col">Dec</th><th scope="col">Mag</th>
-                        <th scope="col">Catalogues</th><th scope="col">Detected</th><th scope="col" title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th scope="col">Pair</th>
-                      </tr>
-                    </thead>
-                    <tbody id="objects-body">
-                      <tr><td colspan="8" class="empty">Run pipeline to load catalogue</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-          </div>
-
-          <!-- TAB 5: Image Sources & Provenance -->
-          <div class="wb-panel" role="tabpanel" id="wbpanel-provenance" aria-labelledby="wbtab-provenance" hidden>
-            <section class="panel">
-              <div class="panel-bar">
-                <h2 class="section-label">Image Sources &amp; Provenance</h2>
-              </div>
-              <div class="archive-line" id="archive-line">
-                NASA/IPAC IRSA SPHEREx Level-2
-              </div>
-              <div class="expert-access expert-only" id="expert-access" aria-labelledby="expert-access-title">
-                <h3 class="expert-access-title" id="expert-access-title">Expert data access</h3>
-                <dl class="prov-list" id="prov-pipeline"></dl>
-                <ul class="download-list" id="download-list"></ul>
-                <p class="hint-inline cone-note" id="cone-note"></p>
-              </div>
-              <div class="table-wrap">
-                <table class="sources-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Epoch</th><th scope="col">Det</th><th scope="col" class="th-unit">&lambda; (&micro;m)</th><th scope="col">Observation</th>
-                      <th scope="col">UTC date</th><th scope="col">Pixels</th><th scope="col">Size</th><th scope="col">Archive record</th>
-                    </tr>
-                  </thead>
-                  <tbody id="sources-body">
-                    <tr><td colspan="8" class="empty">Run pipeline to list sources</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        </section>
-      </main>
-
-      <footer class="footer">
-        <span>SPHEREx Level-2 DR1 &middot; NASA/IPAC IRSA (Caltech) &middot; Gaia DR3, AllWISE &amp; NEOWISE &middot; AAVSO VSX (VizieR)
-          &middot; <button id="btn-credits" class="link-btn" type="button"
-                          aria-haspopup="dialog" aria-controls="credits">Credits &amp; licences</button></span>
-        <span class="mono" id="footer-status">idle</span>
-      </footer>
-    </div>
-  </div>
-
-  <!-- ===================== Candidate Watchlist M3 Side Drawer ===================== -->
-  <div id="watchlist-drawer" class="drawer-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="watchlist-title">
-    <aside class="m3-drawer">
-      <div class="guide-head">
-        <div>
-          <div class="guide-kicker">SPHERExLens &middot; Curated Candidates</div>
-          <h2 id="watchlist-title">Candidate Watchlist</h2>
-        </div>
-        <button type="button" id="watchlist-close" class="win-close guide-close" aria-label="Close watchlist">&times;</button>
+      <div class="chart-grid chart-grid-4 has-3" id="diag-charts">
+        <figure class="chart">
+          <figcaption>Significance histogram</figcaption>
+          <canvas id="chart-hist" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart">
+          <figcaption>Noise per epoch (&sigma;, MJy/sr)</figcaption>
+          <canvas id="chart-noise" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart">
+          <figcaption>Detections per epoch pair</figcaption>
+          <canvas id="chart-pairs" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart hidden" id="chart-recovery-wrap">
+          <figcaption>Injection recovery</figcaption>
+          <canvas id="chart-recovery" width="380" height="150"></canvas>
+        </figure>
       </div>
-      <div class="drawer-toolbar">
-        <input id="watchlist-search" class="control-input" type="search" placeholder="Search field, ID, note, tag&hellip;" aria-label="Search watchlisted candidates">
-        <div class="drawer-actions">
-          <button type="button" id="watchlist-export-csv" class="btn btn-tonal btn-xs">Export CSV</button>
-          <button type="button" id="watchlist-export-json" class="btn btn-secondary btn-xs">JSON</button>
+    </section>
+
+    <!-- target history: SED + NEOWISE + expected movers -->
+    <section class="panel hidden" id="sec-history">
+      <div class="panel-bar">
+        <h2 class="section-label">Target History &amp; SED</h2>
+      </div>
+      <div class="chart-grid" id="history-charts">
+        <figure class="chart" id="chart-sed-wrap">
+          <figcaption>Spectral energy distribution</figcaption>
+          <canvas id="chart-sed" width="380" height="150"></canvas>
+        </figure>
+        <figure class="chart" id="chart-neowise-wrap">
+          <figcaption>IR light curve (AllWISE + NEOWISE)</figcaption>
+          <canvas id="chart-neowise" width="380" height="150"></canvas>
+        </figure>
+      </div>
+      <div id="history-out" class="mono-box history-notes">run pipeline to load</div>
+    </section>
+
+    <!-- expected movers -->
+    <section class="panel">
+      <div class="panel-bar">
+        <div class="panel-title-wrap">
+          <h2 class="section-label">Expected Movers</h2>
+          <span class="tip-wrap">
+            <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
+                    aria-label="About expected movers">?</button>
+            <span class="tip-popover" role="tooltip">Catalogued stars with proper motion predicting &ge; 1 map pixel (3&Prime;) displacement across the baseline.</span>
+          </span>
         </div>
       </div>
-      <div class="drawer-body" id="watchlist-body">
-        <p class="drawer-empty">Star any detection in the table, Inspector, or Vetting Card to pin it here with custom triage notes.</p>
+      <div class="table-wrap">
+        <table class="movers-table">
+          <thead>
+            <tr><th scope="col">Object</th><th scope="col" class="th-unit">&mu; (&Prime;/yr)</th><th scope="col">Shift (&Prime;)</th><th scope="col">Mag</th><th scope="col">SPHEREx</th><th scope="col">RA, Dec (now)</th></tr>
+          </thead>
+          <tbody id="movers-body">
+            <tr><td colspan="6" class="empty">Run pipeline to list expected movers</td></tr>
+          </tbody>
+        </table>
       </div>
-    </aside>
-  </div>
+    </section>
 
-  <!-- ===================== Command Palette (Cmd+K / Ctrl+K) ===================== -->
-  <div id="cmd-palette" class="guide cmd-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="cmd-input-label">
-    <div class="cmd-sheet">
-      <div class="cmd-input-row">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
-        <label id="cmd-input-label" for="cmd-input" class="sr-only">Command palette search</label>
-        <input id="cmd-input" class="cmd-input" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Jump to a field, detection, watchlist item, or action&hellip;">
-        <kbd class="kbd-hint">ESC</kbd>
+    <!-- field catalogue -->
+    <section class="panel">
+      <div class="panel-bar">
+        <h2 class="section-label">Field Catalogue</h2>
+        <span class="hint-inline" id="objects-hint"></span>
       </div>
-      <ul id="cmd-results" class="cmd-results" role="listbox" aria-label="Command palette results"></ul>
-      <div class="cmd-foot">
-        <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate &middot; <kbd>Enter</kbd> select</span>
-        <span class="mono" id="cmd-count"></span>
-      </div>
-    </div>
-  </div>
 
-  <!-- ===================== Keyboard Shortcuts Cheat Sheet ===================== -->
-  <div id="shortcuts-modal" class="guide hidden" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
-    <div class="guide-sheet shortcuts-sheet">
-      <div class="guide-head">
-        <div>
-          <div class="guide-kicker">SPHERExLens &middot; Rapid Triage</div>
-          <h2 id="shortcuts-title">Keyboard Shortcuts</h2>
+      <div class="object-toolbar">
+        <div class="segmented" id="object-filter">
+          <button class="seg active" data-filter="all" type="button">All</button>
+          <button class="seg" data-filter="known" type="button">Known</button>
+          <button class="seg" data-filter="candidate" type="button">Candidate</button>
+          <button class="seg" data-filter="detected" type="button">Detected</button>
         </div>
-        <button type="button" id="shortcuts-close" class="win-close guide-close" aria-label="Close keyboard shortcuts">&times;</button>
+        <input id="object-search" class="control-input" type="search"
+               placeholder="Filter name, RA or catalogue&hellip;" aria-label="Filter catalogue">
+        <span class="hint-inline mono" id="objects-count">--</span>
       </div>
-      <div class="sheet-body shortcuts-grid">
-        <div class="sc-group">
-          <h3>Navigation &amp; Triage</h3>
-          <dl class="sc-list">
-            <div><dt><kbd>&#8984;K</kbd> / <kbd>Ctrl+K</kbd></dt><dd>Open Command Palette</dd></div>
-            <div><dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Next / previous detection</dd></div>
-            <div><dt><kbd>V</kbd></dt><dd>Open Vetting Card for selection</dd></div>
-            <div><dt><kbd>W</kbd></dt><dd>Pin / unpin selected detection to Watchlist</dd></div>
-            <div><dt><kbd>/</kbd></dt><dd>Focus detection filter search</dd></div>
-            <div><dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Vote Real / Bogus / Not sure (in Vetting Card)</dd></div>
-          </dl>
-        </div>
-        <div class="sc-group">
-          <h3>Sky Viewer &amp; Tools</h3>
-          <dl class="sc-list">
-            <div><dt><kbd>B</kbd></dt><dd>Toggle A/B Blink Comparator</dd></div>
-            <div><dt><kbd>R</kbd></dt><dd>Toggle Angular Ruler &amp; 1D PSF Profile</dd></div>
-            <div><dt><kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd></dt><dd>Zoom in / Zoom out / Fit field</dd></div>
-            <div><dt><kbd>G</kbd> / <kbd>D</kbd></dt><dd>Toggle Grid / Detections overlay</dd></div>
-            <div><dt><kbd>?</kbd></dt><dd>Toggle this shortcut reference</dd></div>
-            <div><dt><kbd>Esc</kbd></dt><dd>Close active modal, drawer, or tool</dd></div>
-          </dl>
-        </div>
+
+      <div class="table-wrap">
+        <table class="objects-table">
+          <thead>
+            <tr>
+              <th scope="col">Verdict</th><th scope="col">RA</th><th scope="col">Dec</th><th scope="col">Mag</th>
+              <th scope="col">Catalogues</th><th scope="col">Detected</th><th scope="col" title="Signal-to-noise ratio (&sigma;)." aria-describedby="tip-snr">SNR</th><th scope="col">Pair</th>
+            </tr>
+          </thead>
+          <tbody id="objects-body">
+            <tr><td colspan="8" class="empty">Run pipeline to load catalogue</td></tr>
+          </tbody>
+        </table>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <!-- ===================== Floating Inline Astronomy Glossary Popover ===================== -->
-  <div id="glossary-popover" class="glossary-popover hidden" role="dialog" aria-labelledby="gloss-title">
-    <div class="gloss-head">
-      <span id="gloss-title" class="gloss-title"></span>
-      <button type="button" id="gloss-close" class="win-close" aria-label="Close definition">&times;</button>
-    </div>
-    <p id="gloss-body" class="gloss-body"></p>
-    <p id="gloss-why" class="gloss-why"></p>
-  </div>
+    <!-- image sources & provenance -->
+    <section class="panel">
+      <div class="panel-bar">
+        <h2 class="section-label">Image Sources &amp; Provenance</h2>
+      </div>
+      <div class="archive-line" id="archive-line">
+        NASA/IPAC IRSA SPHEREx Level-2
+      </div>
+      <div class="expert-access expert-only" id="expert-access" aria-labelledby="expert-access-title">
+        <h3 class="expert-access-title" id="expert-access-title">Expert data access</h3>
+        <dl class="prov-list" id="prov-pipeline"></dl>
+        <ul class="download-list" id="download-list"></ul>
+        <p class="hint-inline cone-note" id="cone-note"></p>
+      </div>
+      <div class="table-wrap">
+        <table class="sources-table">
+          <thead>
+            <tr>
+              <th scope="col">Epoch</th><th scope="col">Det</th><th scope="col" class="th-unit">&lambda; (&micro;m)</th><th scope="col">Observation</th>
+              <th scope="col">UTC date</th><th scope="col">Pixels</th><th scope="col">Size</th><th scope="col">Archive record</th>
+            </tr>
+          </thead>
+          <tbody id="sources-body">
+            <tr><td colspan="8" class="empty">Run pipeline to list sources</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-  <!-- ===================== Floating tool windows ===================== -->
+  </main>
+
+  <footer class="footer">
+    <span>SPHEREx Level-2 DR1 &middot; NASA/IPAC IRSA (Caltech) &middot; Gaia DR3, AllWISE &amp; NEOWISE &middot; AAVSO VSX (VizieR)
+      &middot; <button id="btn-credits" class="link-btn" type="button"
+                      aria-haspopup="dialog" aria-controls="credits">Credits &amp; licences</button></span>
+    <span class="mono" id="footer-status">idle</span>
+  </footer>
+
+  <!-- ===================== Windows-style floating tool windows ===================== -->
 
   <!-- History window -->
   <section id="win-history" class="win-dialog hidden" role="dialog"
            aria-labelledby="win-history-title" aria-modal="false">
     <header class="win-titlebar" data-drag-handle>
       <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9776;</span>
         <span id="win-history-title" class="win-title">Research History</span>
         <span id="history-usage" class="win-title-meta"></span>
       </span>
@@ -827,6 +490,7 @@
            aria-labelledby="win-stats-title" aria-modal="false">
     <header class="win-titlebar" data-drag-handle>
       <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9638;</span>
         <span id="win-stats-title" class="win-title">Pipeline Statistics</span>
       </span>
       <button type="button" class="win-close" data-win-close="win-stats"
@@ -859,6 +523,7 @@
            aria-labelledby="win-recovery-title" aria-modal="false">
     <header class="win-titlebar" data-drag-handle>
       <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9678;</span>
         <span id="win-recovery-title" class="win-title">Injection-Recovery</span>
         <span class="tip-wrap">
           <button type="button" class="help-btn" data-tip-toggle aria-expanded="false"
@@ -878,19 +543,20 @@
     </div>
   </section>
 
-  <!-- Help-classify window: GET /api/votes/queue -->
+  <!-- Help-classify window (public mode): GET /api/votes/queue -->
   <section id="win-classify" class="win-dialog hidden" role="dialog"
            aria-labelledby="win-classify-title" aria-modal="false">
     <header class="win-titlebar" data-drag-handle>
       <span class="win-title-left">
-        <span id="win-classify-title" class="win-title">Help Classify</span>
-        <span id="session-vote-tally" class="win-title-meta mono"></span>
+        <span class="win-icon" aria-hidden="true">&#9745;</span>
+        <span id="win-classify-title" class="win-title">Help classify</span>
       </span>
       <button type="button" class="win-close" data-win-close="win-classify"
               aria-label="Close Help classify">&times;</button>
     </header>
     <div class="win-body">
-      <p class="classify-lead">The model is least sure about these detections. Open one, compare the pictures against the reference stamps, and vote whether it looks real.</p>
+      <p class="classify-lead">The computer is least sure about these detections. Open one, look at the
+        pictures, and tell us if you think it is real.</p>
       <ol id="classify-list" class="classify-list" aria-label="Detections that need a human look"></ol>
       <p id="classify-note" class="hint-inline" role="status" aria-live="polite"></p>
     </div>
@@ -936,9 +602,9 @@
           <li><b>Co-add:</b> Throw away bad pixels and stack the exposures of each visit into one sharper picture.</li>
           <li><b>Subtract:</b> Subtract one visit from the next (ZOGY). What is left is what changed.</li>
           <li><b>Triage:</b> For every change above the detection threshold, ask the catalogues &ldquo;do you know this star?&rdquo;, check whether it moves the way Gaia says it should, look at its NEOWISE history, and give it a verdict.</li>
-          <li><b>Asteroid check:</b> Ask NASA JPL (SB Identification) and the Canadian SSOIS service which known asteroids were at that spot at that time. A match gives the verdict <i>Known asteroid</i>; a moving-object signal with no match becomes <i>Possible new asteroid</i>.</li>
-          <li><b>Scores:</b> A machine-learning model gives each detection an <b>ML score</b> (how likely it is real) to rank the best candidates first. The <b>evidence score</b> combines every check (ML, motion, asteroid check, NEOSSat) into a 0&ndash;100 score.</li>
-          <li><b>Validate:</b> Plant fake sources in real images to measure completeness (injection-recovery) and test empty sky to count false alarms.</li>
+          <li><b>Asteroid check:</b> Ask NASA JPL (SB Identification) and the Canadian SSOIS service which known asteroids were at that spot at that time. A match gives the verdict <i>Known asteroid</i>; a moving-object signal with no match becomes <i>Possible new asteroid</i>. If the services cannot be reached the card says <i>asteroid check unavailable</i> &mdash; treat such a detection with caution.</li>
+          <li><b>Scores:</b> A machine-learning model gives each detection an <b>ML score</b> (how likely it is real). It only <i>ranks</i> detections so the best are looked at first &mdash; it never decides. The <b>evidence score</b> adds up every check (ML, motion, asteroid check, NEOSSat) into one number from 0 to 100.</li>
+          <li><b>Validate:</b> Plant fake sources in real images and count how many come back (injection-recovery); run the same pipeline on sky with nothing in it to count false alarms. The results are on the <b>Accuracy</b> page.</li>
         </ol>
 
         <h3>Map Legend</h3>
@@ -961,12 +627,17 @@
       <section class="guide-body" data-panel="use" role="tabpanel"
                id="gpanel-use" aria-labelledby="gtab-use" tabindex="0" hidden>
         <ol class="guide-steps guide-steps-tall">
-          <li><b>Select Field:</b> Pick a registered target from the top bar or enter custom RA / Dec in degrees and click <i>Fetch IRSA</i>. Press <kbd>&#8984;K</kbd> / <kbd>Ctrl+K</kbd> to jump anywhere instantly.</li>
-          <li><b>Inspect Sky Viewer:</b> Scroll to zoom, drag to pan, click a marker to inspect it, click again to open its Vetting Card. Use <i>Blink</i>, <i>Wipe</i>, <i>Z-Scale</i>, and <i>Ruler</i> to inspect dipoles and intensity cuts pixel-by-pixel.</li>
-          <li><b>Filter &amp; Curate:</b> Use the Detections filter chips, SNR/ML sliders, and sortable headers to narrow candidates. Star any interesting object to pin it to your <i>Watchlist</i> with analyst notes and CSV/JSON export.</li>
-          <li><b>Vote:</b> In the Vetting Card, compare the cutouts against the visual reference stamps and vote <i>Real</i>, <i>Bogus</i>, or <i>Not sure</i> (or press <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>).</li>
-          <li><b>Public / Expert:</b> Switch seamlessly in the top bar between plain-language discovery briefings and full scientific telemetry, and toggle Dark / Light M3 themes at any time.</li>
-          <li><b>Keyboard:</b> <kbd>J</kbd>/<kbd>K</kbd> step detections, <kbd>V</kbd> vet, <kbd>W</kbd> watchlist, <kbd>B</kbd> blink, <kbd>R</kbd> ruler, <kbd>/</kbd> filter search, <kbd>?</kbd> all shortcuts.</li>
+          <li><b>Select Field:</b> Pick a registered target from the toolbar dropdown or enter custom RA / Dec in degrees and click <i>Load field from IRSA</i>.</li>
+          <li><b>Coverage chips:</b> The row under the four numbers says which archives cover this field &mdash; for example <i>SPHEREx &#10003; 3 epochs &middot; NEOWISE &#10003; 23 visits &middot; NEOSSat &#10007;</i>. <b>&#10003;</b> = the archive answered and has rows here; <b>&#10007;</b> = it answered but this field has no rows (NEOWISE, for instance, is counted within 10&Prime; of the field centre, so fields it never scanned show &#10007;); <b>?</b> = not checked at field level (JPL SB Identification and SSOIS are queried per detection/designation), still checking, or the archive could not answer. Hover a chip to see the exact count, detail and error.</li>
+          <li><b>Inspect Sky Viewer:</b> Scroll to zoom, drag to pan, click a marker to fill the Triage Verdict panel. Click the same marker again (or press <i>Vet</i> in the Detections table) to open its <b>vetting card</b>.</li>
+          <li><b>Vetting card:</b> Before / difference pictures cut out around the detection, the asteroid check, NEOSSat, the ML and evidence scores with their reasons, and buttons to open the spot in WiseView, the IRSA Finder Chart, SIMBAD and Gaia at MAST.</li>
+          <li><b>Vote:</b> Under <i>Is this real?</i> choose <i>Real</i>, <i>Bogus</i> or <i>Not sure</i>. <i>Help classify</i> in the toolbar lists the detections the computer is least sure about. Votes need the live backend; on the pre-rendered site the buttons say so.</li>
+          <li><b>Public / Expert:</b> <i>Public</i> shows plain-language verdicts. <i>Expert</i> adds the ML and evidence columns, pipeline and model versions, and downloads (CSV, VOTable, per-field JSON, Simple Cone Search). Your choice is remembered on this device.</li>
+          <li><b>Accuracy:</b> The <i>Accuracy</i> button shows how often the pipeline is right, measured on planted sources and empty sky.</li>
+          <li><b>Switch Layers:</b> Toggle between Co-add, Difference D, and Significance S, or switch to All-sky view.</li>
+          <li><b>Replay Snapshots:</b> In the Sky Viewer toolbar, choose a previous published version from <i>Snapshot</i>, or press <i>Play</i> to step oldest to latest. Select a candidate or known object first to follow its dipole/monopole with the purple trail.</li>
+          <li><b>Utility Windows:</b> Open <i>History</i>, <i>Statistics</i>, or <i>Recovery</i> from the toolbar as draggable floating panels.</li>
+          <li><b>Keyboard:</b> <kbd>Tab</kbd> moves through every control; <kbd>Esc</kbd> closes the open window; on the page <kbd>+</kbd>/<kbd>-</kbd> zoom, <kbd>0</kbd> fits, <kbd>g</kbd> grid, <kbd>d</kbd> detections.</li>
         </ol>
       </section>
 
@@ -976,15 +647,18 @@
           <div><dt>Field</dt><dd>9&prime;&times;9&prime; cutout region (3&Prime;/px).</dd></div>
           <div><dt>Epoch</dt><dd>Grouped SPHEREx visits at a distinct observation date.</dd></div>
           <div><dt>&sigma; (sigma)</dt><dd>Significance in background noise units (&sigma;<sub>1</sub>).</dd></div>
-          <div><dt>ZOGY</dt><dd>Zackay, Ofek &amp; Gal-Yam optimal image subtraction that accounts for PSF differences between epochs.</dd></div>
-          <div><dt>Dipole</dt><dd>A side-by-side dark and bright spot in a difference image — signature of a moving star or slight alignment shift.</dd></div>
           <div><dt>KNOWN</dt><dd>Detection matched to Gaia DR3, AllWISE, or VSX.</dd></div>
           <div><dt>CANDIDATE</dt><dd>Unmatched detection above the detection threshold.</dd></div>
-          <div><dt>Known asteroid</dt><dd>JPL (and usually SSOIS) confirms a catalogued asteroid at that spot and time.</dd></div>
+          <div><dt>Known asteroid</dt><dd>JPL (and usually SSOIS) says a catalogued asteroid was right there. Expected, not a discovery.</dd></div>
           <div><dt>Possible new asteroid</dt><dd>Seen in one visit only, moving-object-like, and no known asteroid there. Needs follow-up.</dd></div>
+          <div><dt>Got fainter</dt><dd>A monopole with a negative sign: the source was brighter in the first visit than in the second.</dd></div>
           <div><dt>ML score</dt><dd>Machine-learning estimate (0&ndash;100%) that a detection is real. It ranks detections; it does not decide.</dd></div>
           <div><dt>Evidence score</dt><dd>All checks combined into one 0&ndash;100 number, with each part shown.</dd></div>
-          <div><dt>NEOSSat</dt><dd>Canada's small space telescope; checked for follow-up frames of candidates.</dd></div>
+          <div><dt>NEOSSat</dt><dd>Canada's small space telescope; if it took pictures of the spot, we say whether the source shows up there too.</dd></div>
+          <div><dt>Coverage chip</dt><dd>One archive and whether it has data for this field (&#10003; yes, &#10007; no).</dd></div>
+          <div><dt>Vote</dt><dd>Your Real / Bogus / Not sure answer. Votes on the uncertain detections help train the next model.</dd></div>
+          <div><dt>Precision / recall</dt><dd>Of what we flag, how much is real / of what is real, how much we flag.</dd></div>
+          <div><dt>Recovery grid</dt><dd>Synthetic injection completeness across SNR and &mu;.</dd></div>
           <div><dt>RA / Dec</dt><dd>ICRS right ascension and declination in decimal degrees.</dd></div>
         </dl>
       </section>
@@ -1006,7 +680,6 @@
           <h2 id="vet-title">Detection</h2>
         </div>
         <div class="sheet-head-actions">
-          <button id="vet-star" class="btn btn-tonal" type="button" aria-pressed="false" title="Pin to Watchlist (W)">&#9734; Watch</button>
           <button id="vet-prev" class="btn btn-secondary" type="button" aria-label="Previous detection">&lsaquo; Prev</button>
           <button id="vet-next" class="btn btn-secondary" type="button" aria-label="Next detection">Next &rsaquo;</button>
           <button class="win-close guide-close" type="button" data-sheet-close
@@ -1069,6 +742,7 @@
   <dialog id="cloud-dialog" class="modal" aria-label="Cloud snapshot">
     <div class="win-titlebar modal-titlebar">
       <span class="win-title-left">
+        <span class="win-icon" aria-hidden="true">&#9729;</span>
         <span class="win-title">Cloud Snapshot Status</span>
       </span>
       <button id="cloud-dialog-close" class="win-close modal-close" type="button"
@@ -1124,7 +798,7 @@
     <p class="modal-empty">Cloud snapshot status is not available from this server.</p>
   </dialog>
 
-  <!-- tooltip text for aria-describedby -->
+  <!-- tooltip text for aria-describedby (read by screen readers, not shown) -->
   <div hidden>
     <span id="tip-coadd">All exposures stacked into one image.</span>
     <span id="tip-diff">ZOGY difference between epochs: what changed.</span>

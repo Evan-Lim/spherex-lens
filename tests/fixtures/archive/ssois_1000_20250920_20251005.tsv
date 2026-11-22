@@ -1,0 +1,5 @@
+Image	MJD	Filter	Exptime	Object_RA	Object_Dec	Image_target	Telescope/Instrument	Datalink
+c4d_250924_232454_ori.fits.fz 25f177e1cef9484ba1772ccb143f6d2b	60942.9756571067	r	5	286.551796308375	-30.173593404758	pointing	CTIO-4m/DECam	https://astroarchive.noirlab.edu/api/retrieve/25f177e1cef9484ba1772ccb143f6d2b
+c4d_250924_232644_ori.fits.fz 16bc2b43fc3f5dc615dd95b7dc60f012	60942.9770778519	r	30	286.552082547095	-30.173364218824	pointing	CTIO-4m/DECam	https://astroarchive.noirlab.edu/api/retrieve/16bc2b43fc3f5dc615dd95b7dc60f012
+c4d_250925_232531_ori.fits.fz 1461156a294ed6af4db6b61caf0158a7	60943.9760889021	r	5	286.753247004546	-30.0121909953772	pointing	CTIO-4m/DECam	https://astroarchive.noirlab.edu/api/retrieve/1461156a294ed6af4db6b61caf0158a7
+c4d_250925_232715_ori.fits.fz b7cecc66ea6aaf33084586d0d1435fda	60943.9774307343	r	30	286.753523567345	-30.0119756350356	pointing	CTIO-4m/DECam	https://astroarchive.noirlab.edu/api/retrieve/b7cecc66ea6aaf33084586d0d1435fda
