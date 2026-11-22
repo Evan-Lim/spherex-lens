@@ -1672,15 +1672,17 @@ function buildLayer(name, arr, lutName, symmetric, fixedScale = null) {
 
   let lo, hi;
   const fixed = fixedScale && fixedScale[name];
+  const zLo = (m3State.zscale.custom && name === state.layer) ? m3State.zscale.loPct : 0.5;
+  const zHi = (m3State.zscale.custom && name === state.layer) ? m3State.zscale.hiPct : 99.5;
   if (Array.isArray(fixed) && fixed.length === 2 && fixed[1] > fixed[0]) {
     [lo, hi] = fixed;                    // playback: keep frames comparable
-  } else if (symmetric) {
-    const amp = Math.max(Math.abs(percentile(arr, 0.5)), Math.abs(percentile(arr, 99.5)), 1e-6);
+  } else if (symmetric && !(m3State.zscale.custom && name === state.layer)) {
+    const amp = Math.max(Math.abs(percentile(arr, zLo)), Math.abs(percentile(arr, zHi)), 1e-6);
     lo = -amp;
     hi = amp;
   } else {
-    lo = percentile(arr, 0.5);
-    hi = percentile(arr, 99.5);
+    lo = percentile(arr, zLo);
+    hi = percentile(arr, zHi);
     if (!(hi > lo)) hi = lo + 1e-6;
   }
   state.scaling[name] = [lo, hi];
@@ -1931,10 +1933,30 @@ function draw() {
   const { scale, tx, ty } = state.view;
   const side = scale * npix;
 
-  const layer = state.offscreen[state.layer];
+  const activeLayerKey = (m3State.compare.mode === 'blink' && m3State.compare.blinkPhase === 1)
+    ? m3State.compare.layerB
+    : state.layer;
+  const layer = state.offscreen[activeLayerKey] || state.offscreen[state.layer];
   if (layer) {
     ctx.imageSmoothingEnabled = scale < 3;
-    ctx.drawImage(layer, tx, ty, side, side);
+    if (m3State.compare.mode === 'wipe' && state.offscreen[m3State.compare.layerB]) {
+      const splitPx = Math.round(w * m3State.compare.wipePos);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, splitPx, h);
+      ctx.clip();
+      ctx.drawImage(state.offscreen[state.layer], tx, ty, side, side);
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(splitPx, 0, w - splitPx, h);
+      ctx.clip();
+      ctx.drawImage(state.offscreen[m3State.compare.layerB], tx, ty, side, side);
+      ctx.restore();
+    } else {
+      ctx.drawImage(layer, tx, ty, side, side);
+    }
   }
 
   ctx.strokeStyle = '#94a3b8';
@@ -1957,6 +1979,8 @@ function draw() {
     ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
+  if (m3State.compare.mode === 'wipe') drawWipeCurtain(ctx, w, h);
+  if (m3State.ruler.p1 && m3State.ruler.p2) drawRulerOverlay(ctx);
   if (state.crosshair) drawCrosshair(ctx);
 }
 
@@ -2154,7 +2178,26 @@ function attachMapEvents() {
   const wrap = canvas.parentElement;
 
   canvas.addEventListener('mousedown', (e) => {
-    drag = { x: e.clientX, y: e.clientY, tx: state.view.tx, ty: state.view.ty, moved: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    if (m3State.compare.mode === 'wipe' && state.viewMode === 'field') {
+      const splitPx = rect.width * m3State.compare.wipePos;
+      if (Math.abs(mx - splitPx) <= 16) {
+        drag = { kind: 'wipe', moved: 0 };
+        wrap.classList.add('dragging');
+        return;
+      }
+    }
+    if (m3State.ruler.active && state.viewMode === 'field' && state.data) {
+      const pt = toImage(mx, my);
+      m3State.ruler.p1 = pt;
+      m3State.ruler.p2 = pt;
+      drag = { kind: 'ruler', moved: 0 };
+      draw();
+      return;
+    }
+    drag = { kind: 'pan', x: e.clientX, y: e.clientY, tx: state.view.tx, ty: state.view.ty, moved: 0 };
     wrap.classList.add('dragging');
   });
 
@@ -2164,6 +2207,19 @@ function attachMapEvents() {
     const my = e.clientY - rect.top;
 
     if (drag) {
+      if (drag.kind === 'wipe') {
+        m3State.compare.wipePos = Math.min(0.95, Math.max(0.05, mx / Math.max(1, rect.width)));
+        drag.moved += 4;
+        draw();
+        return;
+      }
+      if (drag.kind === 'ruler') {
+        m3State.ruler.p2 = toImage(mx, my);
+        drag.moved += 4;
+        draw();
+        renderPsfProfile();
+        return;
+      }
       const dx = e.clientX - drag.x;
       const dy = e.clientY - drag.y;
       drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -2172,7 +2228,16 @@ function attachMapEvents() {
       draw();
       return;
     }
-    if (mx < 0 || my < 0 || mx > rect.width || my > rect.height) return;
+    if (mx < 0 || my < 0 || mx > rect.width || my > rect.height) {
+      wrap.classList.remove('wipe-hover');
+      return;
+    }
+    if (m3State.compare.mode === 'wipe' && state.viewMode === 'field') {
+      const splitPx = rect.width * m3State.compare.wipePos;
+      wrap.classList.toggle('wipe-hover', Math.abs(mx - splitPx) <= 14);
+    } else {
+      wrap.classList.remove('wipe-hover');
+    }
     state.crosshair = { cx: mx, cy: my };
     updateHover(mx, my);
     updateReadout(mx, my);
@@ -2180,7 +2245,7 @@ function attachMapEvents() {
   });
 
   window.addEventListener('mouseup', (e) => {
-    if (drag && drag.moved < 4) {
+    if (drag && drag.kind === 'pan' && drag.moved < 4) {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -2198,6 +2263,8 @@ function attachMapEvents() {
       } else {
         pickDetection(mx, my);
       }
+    } else if (drag && drag.kind === 'ruler') {
+      renderPsfProfile();
     }
     drag = null;
     wrap.classList.remove('dragging');
@@ -2257,13 +2324,17 @@ function pickDetection(mx, my) {
 
 function selectDetection(index) {
   state.selected = index;
-  const det = state.data && state.data.detections[index];
+  const dets = (state.data && state.data.detections) || [];
+  const det = dets[index];
   if (det && Number.isFinite(det.ra) && Number.isFinite(det.dec)) {
     state.focus = { ra: det.ra, dec: det.dec, label: det.kind || 'detection' };
   }
-  renderVerdict(state.data.detections[index]);
-  document.querySelectorAll('#detections-body tr')
-    .forEach((tr, i) => tr.classList.toggle('selected', i === index));
+  renderVerdict(det || null);
+  document.querySelectorAll('#detections-body tr').forEach((tr) => {
+    const rowIdx = parseInt(tr.dataset.index, 10);
+    tr.classList.toggle('selected', rowIdx === index);
+  });
+  updateDetPositionLabel();
   draw();
 }
 
@@ -2487,6 +2558,7 @@ function renderVerdict(det) {
   line('Position', 'ICRS (RA, Dec)', `${fmt.num(det.ra, 5)}, ${fmt.num(det.dec, 5)}`);
   line('Detection', `${fmt.escape(kindLabel(det.kind))} \u00b7 conf ${fmt.escape(det.confidence || '--')}`, `${fmt.num(det.snr, 1)}\u03c3`);
   html += `<table class="kv-table verdict-table"><tbody>${rows}</tbody></table>`;
+  html += renderInspectorWatchBlock(det);
   box.innerHTML = html;
   const openBtn = box.querySelector('[data-vet-open]');
   if (openBtn) {
@@ -2495,15 +2567,37 @@ function renderVerdict(det) {
       if (i >= 0) openVetCard(i, openBtn);
     });
   }
+  wireInspectorWatchBlock(box, det);
 }
 
 function renderTable(dets) {
   const tbody = $('detections-body');
-  if (!dets || !dets.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">No detections</td></tr>';
+  const all = Array.isArray(dets) ? dets : [];
+  setText('tab-count-det', String(all.length));
+  if (!all.length) {
+    setText('det-filter-count', '0 detections');
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">No detections</td></tr>';
+    m3State.filteredIndices = [];
+    updateDetPositionLabel();
     return;
   }
-  tbody.innerHTML = dets.map((d, i) => {
+
+  const rows = filterAndSortDetections(all);
+  m3State.filteredIndices = rows.map((r) => r.origIdx);
+  const filteredActive = rows.length !== all.length || m3State.detFilter.query || m3State.detFilter.cls !== 'all'
+    || m3State.detFilter.minSnr > 0 || m3State.detFilter.minMl > 0;
+  setText('det-filter-count', filteredActive ? `${rows.length} of ${all.length}` : `${all.length} total`);
+  const resetBtn = $('det-filter-reset');
+  if (resetBtn) resetBtn.classList.toggle('hidden', !filteredActive);
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">No detections match the current filters</td></tr>';
+    updateDetPositionLabel();
+    return;
+  }
+
+  const fieldName = (state.data && state.data.target) || '';
+  tbody.innerHTML = rows.map(({ d, origIdx }) => {
     const vBadge = categoryBadge(d);
     const kBadge = `<span class="badge badge-${fmt.escape(d.kind)}">${fmt.escape(kindLabel(d.kind))}</span>`;
     const match = d.asteroid && d.asteroid.status === 'match' && d.asteroid.match
@@ -2515,7 +2609,10 @@ function renderTable(dets) {
       : '\u2014';
     const ev = d.evidence && Number.isFinite(d.evidence.score)
       ? String(Math.round(d.evidence.score * 100)) : '\u2014';
-    return `<tr data-index="${i}">
+    const starred = isWatchlisted(fieldName, d, origIdx);
+    const selectedCls = origIdx === state.selected ? ' class="selected"' : '';
+    return `<tr data-index="${origIdx}"${selectedCls}>
+      <td class="col-star"><button type="button" class="star-btn${starred ? ' starred' : ''}" data-watch-idx="${origIdx}" aria-pressed="${starred}" title="${starred ? 'Remove from Watchlist' : 'Pin to Watchlist (W)'}">${starred ? '\u2605' : '\u2606'}</button></td>
       <td>${fmt.num(d.ra, 4)}</td>
       <td>${fmt.num(d.dec, 4)}</td>
       <td>${fmt.num(d.snr, 1)}</td>
@@ -2525,14 +2622,22 @@ function renderTable(dets) {
       <td>${mu}</td>
       <td class="expert-only">${ml}</td>
       <td class="expert-only">${ev}</td>
-      <td><button type="button" class="row-btn" data-vet="${i}"
-        aria-label="Vet detection ${i + 1}: ${fmt.escape(kindLabel(d.kind))} at ${fmt.num(d.snr, 1)} sigma">Vet</button></td>
+      <td><button type="button" class="row-btn" data-vet="${origIdx}"
+        aria-label="Vet detection ${origIdx + 1}: ${fmt.escape(kindLabel(d.kind))} at ${fmt.num(d.snr, 1)} sigma">Vet</button></td>
     </tr>`;
   }).join('');
+
   tbody.querySelectorAll('tr').forEach((tr) => {
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('[data-vet]')) return;
+      if (e.target.closest('[data-vet]') || e.target.closest('[data-watch-idx]')) return;
       selectDetection(parseInt(tr.dataset.index, 10));
+    });
+  });
+  tbody.querySelectorAll('[data-watch-idx]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.watchIdx, 10);
+      toggleWatchlistAt(idx);
     });
   });
   tbody.querySelectorAll('[data-vet]').forEach((btn) => {
@@ -2542,6 +2647,7 @@ function renderTable(dets) {
       openVetCard(i, btn);
     });
   });
+  updateDetPositionLabel();
 }
 
 
@@ -3237,12 +3343,13 @@ async function runPipeline(preloadedData = null, preloadedElapsed = null,
     safe('expert-access', () => renderExpertAccess(data));
     safe('map-summary', () => describeMap(data));
     safe('vet-card', () => refreshOpenVetCard());
+    safe('m3-sync', () => syncM3AfterFieldLoad(data));
     if (failures.length) {
       console.error('panels that failed to render:', failures.join(', '));
     }
     if (state.selected >= 0) {
       document.querySelectorAll('#detections-body tr')
-        .forEach((tr, i) => tr.classList.toggle('selected', i === state.selected));
+        .forEach((tr) => tr.classList.toggle('selected', parseInt(tr.dataset.index, 10) === state.selected));
     }
     if (state.focus) draw();
 
@@ -4701,6 +4808,8 @@ async function sendVote(det, vote, root) {
     const all = myVotes();
     all[id] = vote;
     lsSet(VOTE_KEY, JSON.stringify(all));
+    m3State.sessionVotes += 1;
+    updateSessionVoteTally();
   }
   if (unavailable) state.votesUnavailable = true;
   root.querySelectorAll('[data-vote]').forEach((b) => {
@@ -4824,6 +4933,7 @@ function renderVetCard(index) {
 
   paintCutouts(det);
   if (showSed) drawSed(d.sed, 'vet-sed');
+  enhanceVetCardM3(body, det, index);
 
   body.querySelectorAll('[data-vote]').forEach((btn) => {
     btn.addEventListener('click', () => sendVote(det, btn.dataset.vote, body.querySelector('.vet-vote')));
@@ -5965,17 +6075,12 @@ function attachUiEvents() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
-    if (e.key === '+' || e.key === '=') $('zoom-in').click();
-    if (e.key === '-') $('zoom-out').click();
-    if (e.key === '0') $('zoom-fit').click();
-    if (e.key === 'r') refreshSelectedTarget();
-    if (e.key === 'g') { $('tog-grid').click(); }
-    if (e.key === 'd') { $('tog-det').click(); }
+    handleM3Keydown(e);
   });
 }
 
 async function init() {
+  initM3Workbench();
   attachV2Ui();
   attachUiEvents();
   attachMapEvents();
@@ -6015,6 +6120,1405 @@ async function init() {
   }
   await runPipeline();
   await refreshStatusLoaded;
+}
+
+// ============================================================================
+// SPHERExLens Material Design 3 Workbench & 5 Feature Suites
+// (Theme Toggle, Tabbed Deck, Detection Filter/Sort/Keyboard Triage,
+//  Blink/Wipe/Z-Scale/PSF Ruler, Public Briefing & Glossary & Visual Ref,
+//  Candidate Watchlist w/ Notes & CSV/JSON Export, Command Palette)
+// ============================================================================
+
+const THEME_KEY = 'spx-theme';
+const WATCHLIST_KEY = 'spx-watchlist-v1';
+const WATCH_TAGS = ['Follow-up', 'Mover', 'Transient', 'Check Artefact'];
+
+const LAYER_LABELS = {
+  image: 'Co-add',
+  zogy_image: 'Diff D',
+  zogy_snr: 'Sig S',
+};
+
+const GLOSSARY = {
+  zogy: {
+    title: 'ZOGY Optimal Subtraction',
+    body: 'An algorithm (Zackay, Ofek & Gal-Yam) that subtracts two sky images taken at different times while mathematically matching their blur (PSF) and noise.',
+    why: 'Why it matters: ordinary subtraction leaves rings around steady stars; ZOGY cancels steady stars cleanly so real changes stand out.',
+  },
+  sig: {
+    title: 'Significance S (SNR, \u03c3)',
+    body: 'The brightness of a change divided by the local background noise. A 6\u03c3 peak is six times stronger than random sky noise.',
+    why: 'Why it matters: higher \u03c3 means much lower chance of a random noise fluke.',
+  },
+  baseline: {
+    title: 'Temporal Baseline (Days)',
+    body: 'The time elapsed between the earliest and latest SPHEREx observation visits of this patch of sky.',
+    why: 'Why it matters: longer baselines let nearby stars move noticeably across pixels and catch slow variable stars.',
+  },
+  dipole: {
+    title: 'Dipole (Dark + Bright Pair)',
+    body: 'A negative (dark) spot right next to a positive (bright) spot in a difference image.',
+    why: 'Why it matters: a fast nearby star or asteroid creates a real dipole by moving from one spot to another; a tiny telescope misalignment can also create a balanced artefact dipole.',
+  },
+  sed: {
+    title: 'Spectral Energy Distribution (SED)',
+    body: 'Brightness plotted across wavelength from visible light through SPHEREx\u2019s 102 infrared channels (0.75\u20135.0 \u00b5m).',
+    why: 'Why it matters: the shape of the curve reveals temperature, cool brown dwarfs, dust, and molecular absorption.',
+  },
+  allwise: {
+    title: 'AllWISE & NEOWISE',
+    body: 'NASA\u2019s infrared sky surveys spanning 2010\u20132024 in W1 (3.4 \u00b5m) and W2 (4.6 \u00b5m) wavelengths.',
+    why: 'Why it matters: provides a 14-year historical baseline to check whether a SPHEREx source was already moving or varying.',
+  },
+  pm: {
+    title: 'Proper Motion (\u03bc, \u2033/yr)',
+    body: 'A star\u2019s apparent angular speed across the sky in arcseconds per year, measured by ESA\u2019s Gaia DR3 mission.',
+    why: 'Why it matters: lets SPHERExLens predict which nearby stars should produce motion dipoles between epochs.',
+  },
+};
+
+const m3State = {
+  zscale: { open: false, custom: false, loPct: 0.5, hiPct: 99.5 },
+  compare: { mode: 'none', layerB: 'image', blinkMs: 800, blinkPhase: 0, timer: null, wipePos: 0.5 },
+  ruler: { active: false, p1: null, p2: null },
+  detFilter: { query: '', cls: 'all', minSnr: 0, minMl: 0, sort: 'snr-desc' },
+  filteredIndices: [],
+  activeTab: 'detections',
+  sessionVotes: 0,
+  cmdOpen: false,
+  cmdItems: [],
+  cmdIndex: 0,
+};
+
+// ------------------------------------------------------------------ Theme M3
+function applyTheme(theme) {
+  const next = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  lsSet(THEME_KEY, next);
+  THEME = null; // flush cached canvas chart palette
+  if (state.data) {
+    renderCharts(state.data);
+    renderHistory(state.data);
+    if (m3State.zscale.open) drawZScaleHistogram();
+    if (m3State.ruler.p1 && m3State.ruler.p2) renderPsfProfile();
+    draw();
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// ------------------------------------------------------------ Tabbed Workbench
+function switchWorkbenchTab(name) {
+  m3State.activeTab = name;
+  document.querySelectorAll('.wb-tab').forEach((btn) => {
+    const on = btn.dataset.wbtab === name;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', String(on));
+  });
+  document.querySelectorAll('.wb-panel').forEach((panel) => {
+    const on = panel.id === `wbpanel-${name}`;
+    panel.classList.toggle('active', on);
+    panel.hidden = !on;
+  });
+  if (state.data) {
+    requestAnimationFrame(() => {
+      if (name === 'diagnostics') renderCharts(state.data);
+      if (name === 'history') {
+        renderHistory(state.data);
+        const sec = $('sec-history');
+        const emptyNote = $('history-empty-tab');
+        if (emptyNote && sec) emptyNote.classList.toggle('hidden', !sec.classList.contains('hidden'));
+      }
+    });
+  }
+}
+
+// ----------------------------------------------------- Detection Filter & Sort
+function detectionClassBucket(d, fieldName, origIdx) {
+  const cat = categoryOf(d) || '';
+  if (cat === 'CANDIDATE' || cat === 'KNOWN_STATIC_CHANGED') return 'candidate';
+  if (cat === 'KNOWN_MOVER' || cat === 'KNOWN_ASTEROID' || cat === 'POSSIBLE_UNKNOWN_ASTEROID') return 'mover';
+  if (cat === 'KNOWN_VARIABLE') return 'variable';
+  if (cat === 'BRIGHT_STAR_ARTEFACT' || cat === 'MASK_ARTEFACT') return 'artefact';
+  if (d.verdict === 'CANDIDATE') return 'candidate';
+  return 'known';
+}
+
+function filterAndSortDetections(all) {
+  const f = m3State.detFilter;
+  const q = (f.query || '').trim().toLowerCase();
+  const fieldName = (state.data && state.data.target) || '';
+
+  const rows = [];
+  all.forEach((d, origIdx) => {
+    if (f.minSnr > 0 && !(Number(d.snr) >= f.minSnr)) return;
+    if (f.minMl > 0) {
+      const mlPct = d.ml && Number.isFinite(d.ml.real_bogus) ? d.ml.real_bogus * 100 : -1;
+      if (mlPct < f.minMl) return;
+    }
+    if (f.cls === 'watchlisted') {
+      if (!isWatchlisted(fieldName, d, origIdx)) return;
+    } else if (f.cls !== 'all') {
+      const bucket = detectionClassBucket(d, fieldName, origIdx);
+      if (f.cls === 'candidate') {
+        const cat = categoryOf(d);
+        if (bucket !== 'candidate' && cat !== 'POSSIBLE_UNKNOWN_ASTEROID') return;
+      } else if (bucket !== f.cls) {
+        return;
+      }
+    }
+    if (q) {
+      const cat = categoryOf(d) || d.verdict || '';
+      const ast = d.asteroid && d.asteroid.match ? d.asteroid.match.designation : '';
+      const matchKeys = Object.keys(d.matches || {}).join(' ');
+      const matchNames = Object.values(d.matches || {})
+        .map((m) => (m && m.source && (m.source.name || m.source.designation)) || '').join(' ');
+      const hay = `${d.detection_id || ''} ${cat} ${d.kind || ''} ${ast} ${matchKeys} ${matchNames} ${fmt.num(d.ra, 4)} ${fmt.num(d.dec, 4)}`.toLowerCase();
+      if (!hay.includes(q)) return;
+    }
+    rows.push({ d, origIdx });
+  });
+
+  const numVal = (v, fallback = -Infinity) => (Number.isFinite(v) ? v : fallback);
+  rows.sort((a, b) => {
+    switch (f.sort) {
+      case 'snr-asc': return numVal(a.d.snr, Infinity) - numVal(b.d.snr, Infinity);
+      case 'ml-desc': return numVal(b.d.ml && b.d.ml.real_bogus) - numVal(a.d.ml && a.d.ml.real_bogus);
+      case 'ml-asc': return numVal(a.d.ml && a.d.ml.real_bogus, Infinity) - numVal(b.d.ml && b.d.ml.real_bogus, Infinity);
+      case 'evid-desc': return numVal(b.d.evidence && b.d.evidence.score) - numVal(a.d.evidence && a.d.evidence.score);
+      case 'evid-asc': return numVal(a.d.evidence && a.d.evidence.score, Infinity) - numVal(b.d.evidence && b.d.evidence.score, Infinity);
+      case 'mu-desc': return numVal(b.d.proper_motion_arcsec_yr) - numVal(a.d.proper_motion_arcsec_yr);
+      case 'mu-asc': return numVal(a.d.proper_motion_arcsec_yr, Infinity) - numVal(b.d.proper_motion_arcsec_yr, Infinity);
+      case 'ra-asc': return numVal(a.d.ra, Infinity) - numVal(b.d.ra, Infinity);
+      case 'ra-desc': return numVal(b.d.ra) - numVal(a.d.ra);
+      case 'snr-desc':
+      default: return numVal(b.d.snr) - numVal(a.d.snr);
+    }
+  });
+  return rows;
+}
+
+function syncSortHeaders() {
+  const [col, dir] = m3State.detFilter.sort.split('-');
+  document.querySelectorAll('.detections-table th.sortable').forEach((th) => {
+    th.classList.toggle('sort-asc', th.dataset.sort === col && dir === 'asc');
+    th.classList.toggle('sort-desc', th.dataset.sort === col && dir === 'desc');
+  });
+  const sel = $('det-sort');
+  if (sel && [...sel.options].some((o) => o.value === m3State.detFilter.sort)) {
+    sel.value = m3State.detFilter.sort;
+  }
+}
+
+function updateDetPositionLabel() {
+  const lbl = $('det-pos-label');
+  if (!lbl) return;
+  const list = m3State.filteredIndices;
+  if (!list.length) {
+    lbl.textContent = '0 / 0';
+    return;
+  }
+  const pos = list.indexOf(state.selected);
+  lbl.textContent = pos >= 0 ? `${pos + 1} / ${list.length}` : `– / ${list.length}`;
+}
+
+function panToDetection(index, minZoom = 2.0) {
+  const det = state.data && state.data.detections && state.data.detections[index];
+  if (!det || !Array.isArray(det.position)) return;
+  const { w, h } = canvasSize();
+  const npix = currentNpix();
+  const px = det.position[1];
+  const py = det.position[0];
+  if (state.view.scale < minZoom) state.view.scale = minZoom;
+  state.view.tx = w / 2 - px * state.view.scale;
+  state.view.ty = h / 2 - (npix - py) * state.view.scale;
+  updateZoomLabel();
+  draw();
+}
+
+function stepFilteredDetection(delta) {
+  const list = m3State.filteredIndices;
+  if (!list.length) return;
+  const curPos = list.indexOf(state.selected);
+  const nextPos = curPos < 0
+    ? 0
+    : (curPos + delta + list.length) % list.length;
+  const nextIdx = list[nextPos];
+  selectDetection(nextIdx);
+  const row = document.querySelector(`#detections-body tr[data-index="${nextIdx}"]`);
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
+// --------------------------------------------------- Pro Sky Tools: Blink/Wipe
+function defaultCompareLayerB() {
+  if (state.layer === 'image') return 'zogy_snr';
+  return 'image';
+}
+
+function stopCompare() {
+  if (m3State.compare.timer) {
+    clearInterval(m3State.compare.timer);
+    m3State.compare.timer = null;
+  }
+  m3State.compare.mode = 'none';
+  m3State.compare.blinkPhase = 0;
+  $('btn-blink')?.setAttribute('aria-pressed', 'false');
+  $('btn-wipe')?.setAttribute('aria-pressed', 'false');
+  $('compare-bar')?.classList.add('hidden');
+  $('map-compare-badge')?.classList.add('hidden');
+  $('canvas-map')?.parentElement?.classList.remove('wipe-hover');
+  draw();
+}
+
+function updateCompareBadge() {
+  const badge = $('map-compare-badge');
+  if (!badge) return;
+  if (m3State.compare.mode === 'blink') {
+    const shown = m3State.compare.blinkPhase === 1 ? m3State.compare.layerB : state.layer;
+    badge.textContent = `BLINK \u00b7 ${LAYER_LABELS[shown] || shown}`;
+    badge.classList.remove('hidden');
+  } else if (m3State.compare.mode === 'wipe') {
+    const a = LAYER_LABELS[state.layer] || state.layer;
+    const b = LAYER_LABELS[m3State.compare.layerB] || m3State.compare.layerB;
+    badge.textContent = `WIPE \u00b7 ${a} \u2502 ${b}`;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function setCompareMode(mode) {
+  if (m3State.compare.mode === mode) {
+    stopCompare();
+    return;
+  }
+  if (m3State.compare.timer) {
+    clearInterval(m3State.compare.timer);
+    m3State.compare.timer = null;
+  }
+  m3State.compare.mode = mode;
+  m3State.compare.blinkPhase = 0;
+  if (m3State.compare.layerB === state.layer) {
+    m3State.compare.layerB = defaultCompareLayerB();
+  }
+  const selB = $('compare-layer-b');
+  if (selB) selB.value = m3State.compare.layerB;
+
+  $('btn-blink')?.setAttribute('aria-pressed', String(mode === 'blink'));
+  $('btn-wipe')?.setAttribute('aria-pressed', String(mode === 'wipe'));
+  $('compare-bar')?.classList.remove('hidden');
+  setText('compare-mode-label', mode === 'blink' ? 'Blink' : 'Split-Wipe');
+  $('blink-speed-wrap')?.classList.toggle('hidden', mode !== 'blink');
+  setText('compare-status', mode === 'blink'
+    ? `Alternating ${LAYER_LABELS[state.layer]} \u2194 ${LAYER_LABELS[m3State.compare.layerB]}`
+    : 'Drag the vertical curtain on the sky canvas');
+
+  if (mode === 'blink') {
+    m3State.compare.timer = setInterval(() => {
+      if (state.viewMode !== 'field' || !state.data) return;
+      m3State.compare.blinkPhase = m3State.compare.blinkPhase === 0 ? 1 : 0;
+      updateCompareBadge();
+      draw();
+    }, m3State.compare.blinkMs);
+  }
+  updateCompareBadge();
+  draw();
+}
+
+function drawWipeCurtain(ctx, w, h) {
+  const x = Math.round(w * m3State.compare.wipePos) + 0.5;
+  ctx.save();
+  ctx.strokeStyle = '#ebb866';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, h);
+  ctx.stroke();
+
+  // Handle pill in center
+  const cy = Math.round(h / 2);
+  ctx.fillStyle = '#181f2b';
+  ctx.strokeStyle = '#ebb866';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(x - 11, cy - 16, 22, 32, 11) : ctx.rect(x - 11, cy - 16, 22, 32);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#ebb866';
+  ctx.font = '11px "DM Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('\u2194', x, cy);
+  ctx.restore();
+}
+
+// --------------------------------------------------- Pro Sky Tools: Z-Scale
+function drawZScaleHistogram() {
+  const canvas = $('zscale-hist');
+  if (!canvas || !state.data) return;
+  const arr = state.data[state.layer];
+  if (!Array.isArray(arr) || !arr.length) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const flat = [];
+  const step = Math.max(1, Math.floor(arr.length / 64));
+  for (let y = 0; y < arr.length; y += step) {
+    const row = arr[y];
+    if (!row) continue;
+    for (let x = 0; x < row.length; x += step) {
+      const v = row[x];
+      if (Number.isFinite(v)) flat.push(v);
+    }
+  }
+  if (!flat.length) return;
+  flat.sort((a, b) => a - b);
+  const pMin = flat[Math.floor(flat.length * 0.002)];
+  const pMax = flat[Math.floor(flat.length * 0.998)];
+  const span = pMax > pMin ? pMax - pMin : 1;
+  const nBins = 40;
+  const bins = new Array(nBins).fill(0);
+  for (let i = 0; i < flat.length; i++) {
+    const b = Math.min(nBins - 1, Math.max(0, Math.floor(((flat[i] - pMin) / span) * nBins)));
+    bins[b]++;
+  }
+  const maxB = Math.max(...bins, 1);
+  const T = chartTheme();
+
+  ctx.fillStyle = T.bg;
+  ctx.fillRect(0, 0, w, h);
+  const bw = w / nBins;
+  for (let i = 0; i < nBins; i++) {
+    const bh = Math.max(1, Math.round((Math.log1p(bins[i]) / Math.log1p(maxB)) * (h - 4)));
+    ctx.fillStyle = T.blue;
+    ctx.fillRect(i * bw, h - bh, Math.max(1, bw - 0.6), bh);
+  }
+  // Black/white clip overlays
+  const xLo = (m3State.zscale.loPct / 100) * w;
+  const xHi = (m3State.zscale.hiPct / 100) * w;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, xLo, h);
+  ctx.fillRect(xHi, 0, w - xHi, h);
+  ctx.strokeStyle = T.amber;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(xLo, 0); ctx.lineTo(xLo, h);
+  ctx.moveTo(xHi, 0); ctx.lineTo(xHi, h);
+  ctx.stroke();
+}
+
+function applyZScale() {
+  if (!state.data) return;
+  const name = state.layer;
+  const lutMap = { image: 'coadd', zogy_image: 'diff', zogy_snr: 'snr' };
+  const symMap = { image: false, zogy_image: true, zogy_snr: false };
+  buildLayer(name, state.data[name], lutMap[name] || 'snr', symMap[name] || false, null);
+  drawZScaleHistogram();
+  draw();
+}
+
+// ------------------------------------------- Pro Sky Tools: WCS Ruler & 1D PSF
+function toggleRulerMode(force) {
+  const next = typeof force === 'boolean' ? force : !m3State.ruler.active;
+  m3State.ruler.active = next;
+  $('btn-ruler')?.setAttribute('aria-pressed', String(next));
+  $('canvas-map')?.parentElement?.classList.toggle('ruler-mode', next);
+  $('psf-profile-dock')?.classList.toggle('hidden', !next);
+  if (next) {
+    renderPsfProfile();
+  } else {
+    m3State.ruler.p1 = null;
+    m3State.ruler.p2 = null;
+    draw();
+  }
+}
+
+function drawRulerOverlay(ctx) {
+  const { p1, p2 } = m3State.ruler;
+  if (!p1 || !p2 || !state.data) return;
+  const a = toCanvas(p1.x, p1.y);
+  const b = toCanvas(p2.x, p2.y);
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const pxDist = Math.hypot(dx, dy);
+  const scale = (state.data.map && state.data.map.pixscale_arcsec) || 3;
+  const arcsec = pxDist * scale;
+
+  ctx.save();
+  ctx.strokeStyle = '#ebb866';
+  ctx.lineWidth = 1.8;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(a.cx, a.cy);
+  ctx.lineTo(b.cx, b.cy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  [a, b].forEach((pt, idx) => {
+    ctx.fillStyle = idx === 0 ? '#8ec5ff' : '#ebb866';
+    ctx.beginPath();
+    ctx.arc(pt.cx, pt.cy, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  if (pxDist > 0.4) {
+    const mx = (a.cx + b.cx) / 2;
+    const my = (a.cy + b.cy) / 2 - 12;
+    const text = `${arcsec.toFixed(1)}\u2033 (${pxDist.toFixed(1)} px)`;
+    ctx.font = '11px "DM Mono", monospace';
+    const tw = ctx.measureText(text).width + 12;
+    ctx.fillStyle = 'rgba(9, 12, 17, 0.85)';
+    ctx.fillRect(mx - tw / 2, my - 9, tw, 18);
+    ctx.strokeStyle = 'rgba(235, 184, 102, 0.65)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mx - tw / 2, my - 9, tw, 18);
+    ctx.fillStyle = '#ffdfa8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, mx, my);
+  }
+  ctx.restore();
+}
+
+function renderPsfProfile() {
+  const canvas = $('psf-profile-canvas');
+  const metrics = $('psf-metrics');
+  if (!canvas || !state.data) return;
+  const { p1, p2 } = m3State.ruler;
+  const cssW = Math.max(240, Math.round(canvas.clientWidth || 500));
+  const cssH = 78;
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(cssW * dpr)) canvas.width = Math.round(cssW * dpr);
+  if (canvas.height !== Math.round(cssH * dpr)) canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const T = chartTheme();
+  ctx.fillStyle = T.bg;
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  if (!p1 || !p2) {
+    if (metrics) metrics.textContent = 'Click and drag across any star or dipole on the sky canvas';
+    ctx.fillStyle = T.muted;
+    ctx.font = '11px "Inter", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Drag on Sky Viewer to inspect 1D PSF / dipole cross-section', cssW / 2, cssH / 2 + 4);
+    return;
+  }
+
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const pxDist = Math.hypot(dx, dy);
+  const pixScale = (state.data.map && state.data.map.pixscale_arcsec) || 3;
+  const arcsec = pxDist * pixScale;
+  // PA east of north: RA increases left (-x), Dec increases up (+y)
+  const pa = ((Math.atan2(-dx, dy) * 180) / Math.PI + 360) % 360;
+
+  const nSamples = 64;
+  const vals = [];
+  for (let i = 0; i < nSamples; i++) {
+    const t = i / (nSamples - 1);
+    const v = valueAt(p1.x + dx * t, p1.y + dy * t);
+    vals.push(v === null ? 0 : v);
+  }
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const span = maxV > minV ? maxV - minV : 1;
+  const unit = state.layer === 'zogy_snr' ? '\u03c3' : 'MJy/sr';
+
+  if (metrics) {
+    const dipoleHint = (minV < -1.5 && maxV > 1.5 && state.layer !== 'image') ? ' \u00b7 dipole-like' : '';
+    metrics.textContent = `Sep ${arcsec.toFixed(1)}\u2033 (${pxDist.toFixed(1)} px) \u00b7 PA ${pa.toFixed(0)}\u00b0 \u00b7 Peak ${maxV.toFixed(2)} / Min ${minV.toFixed(2)} ${unit}${dipoleHint}`;
+  }
+
+  const padL = 36, padR = 12, padT = 10, padB = 16;
+  const pw = cssW - padL - padR;
+  const ph = cssH - padT - padB;
+  const toY = (v) => padT + ph - ((v - minV) / span) * ph;
+
+  // Zero line if bracketed
+  if (minV < 0 && maxV > 0) {
+    const zy = toY(0);
+    ctx.strokeStyle = T.grid;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(padL, zy); ctx.lineTo(cssW - padR, zy); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Area + Line
+  ctx.beginPath();
+  vals.forEach((v, i) => {
+    const x = padL + (i / (nSamples - 1)) * pw;
+    const y = toY(v);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = T.amber;
+  ctx.lineWidth = 1.7;
+  ctx.stroke();
+
+  ctx.fillStyle = T.muted;
+  ctx.font = '10px "DM Mono", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(maxV.toFixed(1), padL - 4, padT + 7);
+  ctx.fillText(minV.toFixed(1), padL - 4, padT + ph);
+  ctx.textAlign = 'left';
+  ctx.fillText('0\u2033', padL, cssH - 3);
+  ctx.textAlign = 'right';
+  ctx.fillText(`${arcsec.toFixed(1)}\u2033`, cssW - padR, cssH - 3);
+}
+
+// ------------------------------------------ Guided Public Discovery Briefing
+function renderPublicBriefing(data) {
+  const wrap = $('public-briefing');
+  const summaryEl = $('briefing-summary');
+  const jumpsEl = $('briefing-jumps');
+  if (!wrap || !summaryEl || !jumpsEl) return;
+  if (!data) {
+    wrap.classList.add('hidden');
+    return;
+  }
+  const dets = data.detections || [];
+  const name = data.common || String(data.target || 'this sky patch').replace(/_/g, ' ');
+  const baseline = data.stats && data.stats.baseline_days ? Math.round(data.stats.baseline_days) : null;
+
+  let nCand = 0, nStaticChanged = 0, nNewAst = 0, nAst = 0, nVar = 0, nMover = 0;
+  let bestCandIdx = -1, bestStaticIdx = -1, bestAstIdx = -1, bestVarIdx = -1, bestMoverIdx = -1;
+
+  dets.forEach((d, idx) => {
+    const cat = categoryOf(d);
+    if (cat === 'CANDIDATE') {
+      nCand++;
+      if (bestCandIdx < 0 || d.snr > dets[bestCandIdx].snr) bestCandIdx = idx;
+    } else if (cat === 'KNOWN_STATIC_CHANGED') {
+      nStaticChanged++;
+      if (bestStaticIdx < 0 || d.snr > dets[bestStaticIdx].snr) bestStaticIdx = idx;
+    } else if (cat === 'POSSIBLE_UNKNOWN_ASTEROID') {
+      nNewAst++;
+      if (bestAstIdx < 0 || d.snr > dets[bestAstIdx].snr) bestAstIdx = idx;
+    } else if (cat === 'KNOWN_ASTEROID') {
+      nAst++;
+      if (bestAstIdx < 0) bestAstIdx = idx;
+    } else if (cat === 'KNOWN_VARIABLE') {
+      nVar++;
+      if (bestVarIdx < 0 || d.snr > dets[bestVarIdx].snr) bestVarIdx = idx;
+    } else if (cat === 'KNOWN_MOVER') {
+      nMover++;
+      if (bestMoverIdx < 0 || d.snr > dets[bestMoverIdx].snr) bestMoverIdx = idx;
+    }
+  });
+
+  const parts = [];
+  parts.push(`Across ${name}${baseline ? ` over ${baseline} days` : ''}, SPHEREx detected ${dets.length} infrared change${dets.length === 1 ? '' : 's'}.`);
+  const highlights = [];
+  if (nNewAst) highlights.push(`${nNewAst} possible new asteroid${nNewAst > 1 ? 's' : ''}`);
+  if (nCand) highlights.push(`${nCand} unmatched candidate${nCand > 1 ? 's' : ''}`);
+  if (nStaticChanged) highlights.push(`${nStaticChanged} normally steady star${nStaticChanged > 1 ? 's' : ''} that changed`);
+  if (nMover) highlights.push(`${nMover} moving nearby star${nMover > 1 ? 's' : ''}`);
+  if (nVar) highlights.push(`${nVar} variable star${nVar > 1 ? 's' : ''}`);
+  if (nAst) highlights.push(`${nAst} known asteroid${nAst > 1 ? 's' : ''}`);
+  if (highlights.length) {
+    parts.push(`Highlights include ${highlights.join(', ')}.`);
+  } else if (!dets.length) {
+    parts.push('This sky patch stayed calm above the detection threshold between visits.');
+  }
+  summaryEl.textContent = parts.join(' ');
+
+  const jumps = [];
+  if (bestCandIdx >= 0) jumps.push({ idx: bestCandIdx, label: `Unmatched candidate (${dets[bestCandIdx].snr.toFixed(1)}\u03c3)`, color: '#ebb866' });
+  if (bestStaticIdx >= 0) jumps.push({ idx: bestStaticIdx, label: `Changed star (${dets[bestStaticIdx].snr.toFixed(1)}\u03c3)`, color: '#f28b82' });
+  if (bestAstIdx >= 0) jumps.push({ idx: bestAstIdx, label: `Asteroid signal (${dets[bestAstIdx].snr.toFixed(1)}\u03c3)`, color: '#f48fb1' });
+  if (bestMoverIdx >= 0) jumps.push({ idx: bestMoverIdx, label: `Moving star (${dets[bestMoverIdx].snr.toFixed(1)}\u03c3)`, color: '#7ad6a2' });
+  if (bestVarIdx >= 0) jumps.push({ idx: bestVarIdx, label: `Variable star (${dets[bestVarIdx].snr.toFixed(1)}\u03c3)`, color: '#8ec5ff' });
+  if (!jumps.length && dets.length) {
+    jumps.push({ idx: 0, label: `Brightest peak (${dets[0].snr.toFixed(1)}\u03c3)`, color: '#8ec5ff' });
+  }
+
+  jumpsEl.innerHTML = jumps.map((j) =>
+    `<button type="button" class="briefing-jump" data-jump-det="${j.idx}">` +
+    `<span class="briefing-jump-dot" style="background:${j.color}" aria-hidden="true"></span>${fmt.escape(j.label)}</button>`
+  ).join('');
+  jumpsEl.querySelectorAll('[data-jump-det]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.jumpDet, 10);
+      selectDetection(idx);
+      panToDetection(idx, 2.2);
+    });
+  });
+  wrap.classList.remove('hidden');
+}
+
+// ------------------------------------------------ Inline Astronomy Glossary
+function openGlossary(key, anchor) {
+  const entry = GLOSSARY[key];
+  const pop = $('glossary-popover');
+  if (!entry || !pop) return;
+  setText('gloss-title', entry.title);
+  setText('gloss-body', entry.body);
+  setText('gloss-why', entry.why);
+  pop.classList.remove('hidden');
+  if (anchor && anchor.getBoundingClientRect) {
+    const r = anchor.getBoundingClientRect();
+    const left = Math.min(window.innerWidth - 306, Math.max(12, r.left));
+    const top = (r.bottom + 140 < window.innerHeight) ? r.bottom + 8 : Math.max(12, r.top - 150);
+    pop.style.left = `${left}px`;
+    pop.style.top = `${top}px`;
+  }
+}
+
+function closeGlossary() {
+  $('glossary-popover')?.classList.add('hidden');
+}
+
+// --------------------------------------------------- Candidate Watchlist Store
+function loadWatchlist() {
+  try {
+    const parsed = JSON.parse(lsGet(WATCHLIST_KEY, '[]'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveWatchlist(items) {
+  lsSet(WATCHLIST_KEY, JSON.stringify(items));
+  updateWatchlistBadge();
+}
+
+function watchItemKey(fieldName, det, origIdx) {
+  const id = (det && det.detection_id) || `ra${fmt.num(det && det.ra, 4)}_dec${fmt.num(det && det.dec, 4)}_${origIdx}`;
+  return `${fieldName}::${id}`;
+}
+
+function isWatchlisted(fieldName, det, origIdx) {
+  if (!fieldName || !det) return false;
+  const key = watchItemKey(fieldName, det, origIdx);
+  return loadWatchlist().some((it) => it.key === key);
+}
+
+function getWatchItem(fieldName, det, origIdx) {
+  const key = watchItemKey(fieldName, det, origIdx);
+  return loadWatchlist().find((it) => it.key === key) || null;
+}
+
+function updateWatchlistBadge() {
+  const items = loadWatchlist();
+  const badge = $('watchlist-badge');
+  if (!badge) return;
+  badge.textContent = String(items.length);
+  badge.classList.toggle('hidden', items.length === 0);
+}
+
+function toggleWatchlistAt(origIdx) {
+  const d = state.data;
+  const det = d && d.detections && d.detections[origIdx];
+  if (!d || !det) return;
+  const items = loadWatchlist();
+  const key = watchItemKey(d.target, det, origIdx);
+  const existingIdx = items.findIndex((it) => it.key === key);
+  if (existingIdx >= 0) {
+    items.splice(existingIdx, 1);
+  } else {
+    items.unshift({
+      key,
+      target: d.target,
+      common: d.common || d.target,
+      detection_id: det.detection_id || '',
+      origIdx,
+      ra: det.ra,
+      dec: det.dec,
+      snr: det.snr,
+      kind: det.kind || '',
+      category: categoryOf(det) || det.verdict || 'CANDIDATE',
+      ml: det.ml && Number.isFinite(det.ml.real_bogus) ? det.ml.real_bogus : null,
+      evidence: det.evidence && Number.isFinite(det.evidence.score) ? det.evidence.score : null,
+      tags: [],
+      note: '',
+      savedAt: new Date().toISOString(),
+    });
+  }
+  saveWatchlist(items);
+  if (state.data) renderTable(state.data.detections);
+  if (state.selected === origIdx) renderVerdict(det);
+  syncVetStarButton(det, origIdx);
+  if (!$('watchlist-drawer')?.classList.contains('hidden')) renderWatchlistDrawer();
+}
+
+function updateWatchItemMeta(key, patch) {
+  const items = loadWatchlist();
+  const item = items.find((it) => it.key === key);
+  if (!item) return;
+  Object.assign(item, patch);
+  saveWatchlist(items);
+}
+
+function renderInspectorWatchBlock(det) {
+  if (!state.data || !det) return '';
+  const origIdx = state.data.detections.indexOf(det);
+  const item = getWatchItem(state.data.target, det, origIdx);
+  const starred = Boolean(item);
+  const tagsHtml = starred
+    ? `<div class="watch-tags-row">${WATCH_TAGS.map((t) =>
+        `<button type="button" class="watch-tag-pill${item.tags.includes(t) ? ' active' : ''}" data-wtag="${fmt.escape(t)}">${fmt.escape(t)}</button>`
+      ).join('')}</div>` +
+      `<input type="text" class="watch-note-input" data-wnote placeholder="Add analyst note (saved automatically)\u2026" value="${fmt.escape(item.note || '')}" aria-label="Analyst note">`
+    : '';
+  return `<div class="inspector-watch-bar" data-watch-key="${fmt.escape(watchItemKey(state.data.target, det, origIdx))}" data-watch-orig="${origIdx}">` +
+    `<div class="inspector-watch-top">` +
+      `<span class="v-pill">Candidate Watchlist</span>` +
+      `<button type="button" class="btn ${starred ? 'btn-tonal' : 'btn-secondary'} btn-xs" data-inspector-watch>${starred ? '\u2605 Watchlisted' : '\u2606 Pin to Watchlist'}</button>` +
+    `</div>${tagsHtml}</div>`;
+}
+
+function wireInspectorWatchBlock(box, det) {
+  const bar = box.querySelector('.inspector-watch-bar');
+  if (!bar) return;
+  const origIdx = parseInt(bar.dataset.watchOrig, 10);
+  const key = bar.dataset.watchKey;
+  bar.querySelector('[data-inspector-watch]')?.addEventListener('click', () => {
+    toggleWatchlistAt(origIdx);
+  });
+  bar.querySelectorAll('[data-wtag]').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      const items = loadWatchlist();
+      const it = items.find((x) => x.key === key);
+      if (!it) return;
+      const tag = pill.dataset.wtag;
+      it.tags = it.tags.includes(tag) ? it.tags.filter((x) => x !== tag) : [...it.tags, tag];
+      saveWatchlist(items);
+      pill.classList.toggle('active', it.tags.includes(tag));
+      if (!$('watchlist-drawer')?.classList.contains('hidden')) renderWatchlistDrawer();
+    });
+  });
+  bar.querySelector('[data-wnote]')?.addEventListener('input', (e) => {
+    updateWatchItemMeta(key, { note: e.target.value });
+  });
+}
+
+function openWatchlistDrawer() {
+  const drawer = $('watchlist-drawer');
+  if (!drawer) return;
+  drawer.classList.remove('hidden');
+  renderWatchlistDrawer();
+  $('watchlist-search')?.focus();
+}
+
+function closeWatchlistDrawer() {
+  $('watchlist-drawer')?.classList.add('hidden');
+}
+
+function renderWatchlistDrawer() {
+  const body = $('watchlist-body');
+  if (!body) return;
+  const q = ($('watchlist-search')?.value || '').trim().toLowerCase();
+  const items = loadWatchlist().filter((it) => {
+    if (!q) return true;
+    const hay = `${it.common} ${it.target} ${it.category} ${it.detection_id} ${it.note} ${(it.tags || []).join(' ')}`.toLowerCase();
+    return hay.includes(q);
+  });
+  if (!items.length) {
+    body.innerHTML = '<p class="drawer-empty">No pinned candidates yet. Star any detection in the table, Inspector, or Vetting Card (or press W).</p>';
+    return;
+  }
+  body.innerHTML = items.map((it) => {
+    const tags = WATCH_TAGS.map((t) =>
+      `<button type="button" class="watch-tag-pill${(it.tags || []).includes(t) ? ' active' : ''}" data-dw-tag="${fmt.escape(t)}" data-dw-key="${fmt.escape(it.key)}">${fmt.escape(t)}</button>`
+    ).join('');
+    return `<article class="watch-card" data-dw-card="${fmt.escape(it.key)}">` +
+      `<div class="watch-card-head">` +
+        `<div><div class="watch-card-title">${fmt.escape(it.common)} &middot; ${fmt.escape(kindLabel(it.kind))}</div>` +
+        `<div class="watch-card-meta mono">${fmt.num(it.ra, 4)}, ${fmt.num(it.dec, 4)} &middot; ${fmt.num(it.snr, 1)}\u03c3${it.ml != null ? ` &middot; ML ${Math.round(it.ml * 100)}%` : ''}</div></div>` +
+        `<span class="badge">${fmt.escape(it.category)}</span>` +
+      `</div>` +
+      `<div class="watch-tags-row">${tags}</div>` +
+      `<input type="text" class="watch-note-input" data-dw-note="${fmt.escape(it.key)}" placeholder="Analyst triage note\u2026" value="${fmt.escape(it.note || '')}" aria-label="Analyst note">` +
+      `<div class="watch-card-actions">` +
+        `<button type="button" class="btn btn-tonal btn-xs" data-dw-jump="${fmt.escape(it.key)}">Jump to Sky</button>` +
+        `<button type="button" class="btn btn-ghost btn-xs" data-dw-del="${fmt.escape(it.key)}">Remove</button>` +
+      `</div></article>`;
+  }).join('');
+
+  body.querySelectorAll('[data-dw-tag]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.dwKey;
+      const tag = btn.dataset.dwTag;
+      const all = loadWatchlist();
+      const it = all.find((x) => x.key === key);
+      if (!it) return;
+      it.tags = (it.tags || []).includes(tag) ? it.tags.filter((x) => x !== tag) : [...(it.tags || []), tag];
+      saveWatchlist(all);
+      btn.classList.toggle('active', it.tags.includes(tag));
+    });
+  });
+  body.querySelectorAll('[data-dw-note]').forEach((inp) => {
+    inp.addEventListener('input', () => updateWatchItemMeta(inp.dataset.dwNote, { note: inp.value }));
+  });
+  body.querySelectorAll('[data-dw-del]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = loadWatchlist().filter((x) => x.key !== btn.dataset.dwDel);
+      saveWatchlist(next);
+      renderWatchlistDrawer();
+      if (state.data) {
+        renderTable(state.data.detections);
+        if (state.selected >= 0) renderVerdict(state.data.detections[state.selected]);
+      }
+    });
+  });
+  body.querySelectorAll('[data-dw-jump]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const it = loadWatchlist().find((x) => x.key === btn.dataset.dwJump);
+      if (!it) return;
+      closeWatchlistDrawer();
+      const sel = $('target-select');
+      if (it.target && sel && sel.value !== it.target && [...sel.options].some((o) => o.value === it.target)) {
+        sel.value = it.target;
+        await runPipeline();
+      }
+      const dets = (state.data && state.data.detections) || [];
+      let idx = dets.findIndex((d) => it.detection_id && d.detection_id === it.detection_id);
+      if (idx < 0 && Number.isFinite(it.ra)) {
+        let bestDist = Infinity;
+        dets.forEach((d, i) => {
+          const dist = Math.hypot((d.ra - it.ra) * 3600, (d.dec - it.dec) * 3600);
+          if (dist < bestDist) { bestDist = dist; idx = i; }
+        });
+      }
+      if (idx >= 0) {
+        selectDetection(idx);
+        panToDetection(idx, 2.4);
+      }
+    });
+  });
+}
+
+function downloadBlob(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportWatchlist(format) {
+  const items = loadWatchlist();
+  if (!items.length) {
+    setText('footer-status', 'Watchlist is empty — star candidates first');
+    return;
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (format === 'json') {
+    downloadBlob(`spherexlens-watchlist-${stamp}.json`, JSON.stringify(items, null, 2), 'application/json');
+    setText('footer-status', `Exported ${items.length} watchlisted candidate(s) as JSON`);
+    return;
+  }
+  const cols = ['target', 'common', 'detection_id', 'ra', 'dec', 'snr', 'kind', 'category', 'ml', 'evidence', 'tags', 'note', 'savedAt'];
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [cols.join(',')].concat(items.map((it) =>
+    cols.map((c) => esc(c === 'tags' ? (it.tags || []).join('; ') : it[c])).join(',')
+  )).join('\n');
+  downloadBlob(`spherexlens-watchlist-${stamp}.csv`, csv, 'text/csv;charset=utf-8');
+  setText('footer-status', `Exported ${items.length} watchlisted candidate(s) as CSV`);
+}
+
+// ------------------------------- Vetting Card Visual Ref & Session Vote Tally
+function syncVetStarButton(det, idx) {
+  const btn = $('vet-star');
+  if (!btn || !state.data || !det) return;
+  const starred = isWatchlisted(state.data.target, det, idx);
+  btn.setAttribute('aria-pressed', String(starred));
+  btn.textContent = starred ? '\u2605 Watchlisted' : '\u2606 Watch';
+}
+
+function updateSessionVoteTally() {
+  const totalSaved = Object.keys(myVotes()).length;
+  const txt = m3State.sessionVotes
+    ? `${m3State.sessionVotes} this session (${totalSaved} total)`
+    : (totalSaved ? `${totalSaved} classified` : '');
+  setText('session-vote-tally', txt);
+  const vetTally = $('vet-session-tally');
+  if (vetTally) vetTally.textContent = txt || 'First classification of session';
+}
+
+function paintVisualReferenceStamp(canvas, kind) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const img = ctx.createImageData(w, h);
+  const cx = w / 2, cy = h / 2;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // Deterministic subtle sky noise
+      const noise = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+      let val = 0.5 + (noise - 0.5) * 0.08;
+      if (kind === 'monopole') {
+        const r2 = (x - cx) ** 2 + (y - cy) ** 2;
+        val += 0.48 * Math.exp(-r2 / 36);
+      } else if (kind === 'dipole') {
+        const rPos = (x - (cx + 6)) ** 2 + (y - (cy - 4)) ** 2;
+        const rNeg = (x - (cx - 6)) ** 2 + (y - (cy + 4)) ** 2;
+        val += 0.46 * Math.exp(-rPos / 28) - 0.46 * Math.exp(-rNeg / 28);
+      } else if (kind === 'cosmic') {
+        const r2 = (x - cx) ** 2 + (y - cy) ** 2;
+        val += r2 <= 2.2 ? 0.5 : 0;
+      }
+      const c = Math.max(0, Math.min(255, Math.round(val * 255)));
+      const o = 4 * (y * w + x);
+      if (kind === 'dipole') {
+        img.data[o] = c > 128 ? c : Math.round(c * 0.5);
+        img.data[o + 1] = Math.round(c * 0.85);
+        img.data[o + 2] = c < 128 ? 220 - c : Math.round(c * 0.9);
+      } else {
+        img.data[o] = Math.min(255, Math.round(c * 1.05));
+        img.data[o + 1] = Math.round(c * 0.88);
+        img.data[o + 2] = Math.round(c * 0.62);
+      }
+      img.data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function enhanceVetCardM3(body, det, index) {
+  syncVetStarButton(det, index);
+  const voteSec = body.querySelector('.vet-vote');
+  if (!voteSec) return;
+  const guide = document.createElement('div');
+  guide.className = 'vet-ref-guide';
+  guide.innerHTML =
+    '<div class="vet-ref-head"><span>Visual reference guide</span><span class="mono" id="vet-session-tally"></span></div>' +
+    '<div class="vet-ref-grid">' +
+      '<div class="vet-ref-card"><canvas id="ref-stamp-mono" width="54" height="54" aria-hidden="true"></canvas><span class="vet-ref-title">Clean Monopole</span><span class="vet-ref-desc">Round bright/dark PSF = likely real change</span></div>' +
+      '<div class="vet-ref-card"><canvas id="ref-stamp-dipole" width="54" height="54" aria-hidden="true"></canvas><span class="vet-ref-title">Balanced Dipole</span><span class="vet-ref-desc">Dark+bright pair = moving star or shift</span></div>' +
+      '<div class="vet-ref-card"><canvas id="ref-stamp-cosmic" width="54" height="54" aria-hidden="true"></canvas><span class="vet-ref-title">Sharp 1px Spike</span><span class="vet-ref-desc">Tiny hard pixel = cosmic ray / bogus</span></div>' +
+    '</div>';
+  voteSec.appendChild(guide);
+  paintVisualReferenceStamp($('ref-stamp-mono'), 'monopole');
+  paintVisualReferenceStamp($('ref-stamp-dipole'), 'dipole');
+  paintVisualReferenceStamp($('ref-stamp-cosmic'), 'cosmic');
+  updateSessionVoteTally();
+}
+
+// --------------------------------------------------- Command Palette (Cmd+K)
+function buildCommandItems(query) {
+  const q = (query || '').trim().toLowerCase();
+  const items = [];
+  const push = (group, title, sub, run) => {
+    if (q && !`${group} ${title} ${sub}`.toLowerCase().includes(q)) return;
+    items.push({ group, title, sub, run });
+  };
+
+  // Actions
+  push('Actions', 'Toggle Dark / Light M3 Theme', 'Switch astronomical dark & clinical light', () => toggleTheme());
+  push('Actions', 'Switch to Public Mode', 'Plain-language briefing & guided citizen vetting', () => applyMode('public'));
+  push('Actions', 'Switch to Expert Mode', 'Full ML, Evidence, Provenance & downloads', () => applyMode('expert'));
+  push('Actions', 'Open Candidate Watchlist', `${loadWatchlist().length} pinned candidate(s)`, () => openWatchlistDrawer());
+  push('Actions', 'Export Watchlist as CSV', 'Download curated detections & analyst notes', () => exportWatchlist('csv'));
+  push('Actions', 'Toggle Blink Comparator', 'Alternate active layer vs Layer B (B)', () => setCompareMode('blink'));
+  push('Actions', 'Toggle Split-Wipe Curtain', 'Drag vertical divider between two layers', () => setCompareMode('wipe'));
+  push('Actions', 'Toggle Angular Ruler & 1D PSF Cut', 'Measure arcsec & plot cross-section (R)', () => toggleRulerMode());
+  push('Actions', 'Show Keyboard Shortcuts', 'View rapid triage hotkeys (?)', () => openShortcutsModal());
+
+  // Workbench Tabs & Dialogs
+  push('Workspace', 'Tab: Detections & Epoch Pairs', 'Filterable & sortable detection list', () => switchWorkbenchTab('detections'));
+  push('Workspace', 'Tab: Diagnostics Charts', 'Significance histogram, epoch noise & pairs', () => switchWorkbenchTab('diagnostics'));
+  push('Workspace', 'Tab: Target History & SED', 'SPHEREx 102-ch SED & NEOWISE light curve', () => switchWorkbenchTab('history'));
+  push('Workspace', 'Tab: Movers & Field Catalogue', 'Expected movers & Gaia/AllWISE/VSX browser', () => switchWorkbenchTab('catalogue'));
+  push('Workspace', 'Tab: Image Sources & Provenance', 'IRSA Level-2 FITS records & downloads', () => switchWorkbenchTab('provenance'));
+  push('Workspace', 'Open Accuracy & Calibration', 'Precision-recall & injection-recovery harness', () => $('btn-accuracy')?.click());
+  push('Workspace', 'Open Deep-Field Light Curves', 'Multi-epoch SPHEREx deep field time series', () => $('btn-deep')?.click());
+
+  // Registered Sky Fields
+  const sel = $('target-select');
+  if (sel) {
+    [...sel.options].forEach((opt) => {
+      if (!opt.value) return;
+      push('SPHEREx DR1 Fields', opt.textContent.trim(), opt.value, () => {
+        sel.value = opt.value;
+        switchView('field');
+        runPipeline();
+      });
+    });
+  }
+
+  // Active Field Detections
+  if (state.data && Array.isArray(state.data.detections)) {
+    state.data.detections.slice(0, 30).forEach((d, idx) => {
+      const cat = categoryOf(d) || d.verdict || 'Detection';
+      push('Current Field Detections',
+        `#${idx + 1} ${cat} \u00b7 ${kindLabel(d.kind)} (${fmt.num(d.snr, 1)}\u03c3)`,
+        `RA ${fmt.num(d.ra, 4)}, Dec ${fmt.num(d.dec, 4)}`,
+        () => {
+          switchWorkbenchTab('detections');
+          selectDetection(idx);
+          panToDetection(idx, 2.2);
+        });
+    });
+  }
+
+  // Watchlisted Items
+  loadWatchlist().forEach((it) => {
+    push('Watchlist', `${it.common} \u00b7 ${it.category} (${fmt.num(it.snr, 1)}\u03c3)`,
+      it.note || `${fmt.num(it.ra, 4)}, ${fmt.num(it.dec, 4)}`,
+      () => openWatchlistDrawer());
+  });
+
+  return items.slice(0, 40);
+}
+
+function renderCommandResults() {
+  const list = $('cmd-results');
+  const input = $('cmd-input');
+  if (!list || !input) return;
+  const items = buildCommandItems(input.value);
+  m3State.cmdItems = items;
+  if (m3State.cmdIndex >= items.length) m3State.cmdIndex = 0;
+  setText('cmd-count', `${items.length} match${items.length === 1 ? '' : 'es'}`);
+
+  if (!items.length) {
+    list.innerHTML = '<li class="drawer-empty">No matching fields, detections, or actions</li>';
+    return;
+  }
+  let lastGroup = '';
+  let html = '';
+  items.forEach((it, idx) => {
+    if (it.group !== lastGroup) {
+      lastGroup = it.group;
+      html += `<li class="cmd-group-label" role="presentation">${fmt.escape(it.group)}</li>`;
+    }
+    html += `<li class="cmd-item${idx === m3State.cmdIndex ? ' active' : ''}" role="option" data-cmd-idx="${idx}">` +
+      `<span>${fmt.escape(it.title)}</span><span class="cmd-item-sub mono">${fmt.escape(it.sub)}</span></li>`;
+  });
+  list.innerHTML = html;
+  list.querySelectorAll('[data-cmd-idx]').forEach((li) => {
+    li.addEventListener('click', () => executeCommandIndex(parseInt(li.dataset.cmdIdx, 10)));
+  });
+}
+
+function executeCommandIndex(idx) {
+  const item = m3State.cmdItems[idx];
+  if (!item) return;
+  closeCommandPalette();
+  item.run();
+}
+
+function openCommandPalette() {
+  const pal = $('cmd-palette');
+  const inp = $('cmd-input');
+  if (!pal || !inp) return;
+  m3State.cmdOpen = true;
+  m3State.cmdIndex = 0;
+  pal.classList.remove('hidden');
+  inp.value = '';
+  renderCommandResults();
+  inp.focus();
+}
+
+function closeCommandPalette() {
+  m3State.cmdOpen = false;
+  $('cmd-palette')?.classList.add('hidden');
+}
+
+function openShortcutsModal() {
+  $('shortcuts-modal')?.classList.remove('hidden');
+}
+function closeShortcutsModal() {
+  $('shortcuts-modal')?.classList.add('hidden');
+}
+
+// -------------------------------------------------- Sync After Field Load
+function syncM3AfterFieldLoad(data) {
+  renderPublicBriefing(data);
+  setText('tab-count-cat', String((data.field_objects || []).length));
+  if (m3State.zscale.open) drawZScaleHistogram();
+  if (m3State.ruler.p1 && m3State.ruler.p2) renderPsfProfile();
+  const sec = $('sec-history');
+  const emptyNote = $('history-empty-tab');
+  if (emptyNote && sec) emptyNote.classList.toggle('hidden', !sec.classList.contains('hidden'));
+  updateDetPositionLabel();
+}
+
+// --------------------------------------------------- Keyboard Triage Engine
+function handleM3Keydown(e) {
+  // Cmd+K / Ctrl+K opens Command Palette from anywhere
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (m3State.cmdOpen) closeCommandPalette();
+    else openCommandPalette();
+    return;
+  }
+
+  if (m3State.cmdOpen) {
+    if (e.key === 'Escape') { e.preventDefault(); closeCommandPalette(); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      m3State.cmdIndex = (m3State.cmdIndex + 1) % Math.max(1, m3State.cmdItems.length);
+      renderCommandResults();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      m3State.cmdIndex = (m3State.cmdIndex - 1 + Math.max(1, m3State.cmdItems.length)) % Math.max(1, m3State.cmdItems.length);
+      renderCommandResults();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      executeCommandIndex(m3State.cmdIndex);
+      return;
+    }
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    closeGlossary();
+    closeWatchlistDrawer();
+    closeShortcutsModal();
+    if (m3State.compare.mode !== 'none') stopCompare();
+    if (m3State.ruler.active) toggleRulerMode(false);
+    return;
+  }
+
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  // Quick vote 1/2/3 when Vetting Card is open
+  const vetOpen = $('vet') && !$('vet').classList.contains('hidden');
+  if (vetOpen && ['1', '2', '3'].includes(e.key)) {
+    const map = { '1': 'real', '2': 'bogus', '3': 'unsure' };
+    const btn = document.querySelector(`#vet [data-vote="${map[e.key]}"]:not([disabled])`);
+    if (btn) { e.preventDefault(); btn.click(); }
+    return;
+  }
+
+  if (e.key === '?') {
+    e.preventDefault();
+    if ($('shortcuts-modal')?.classList.contains('hidden')) openShortcutsModal();
+    else closeShortcutsModal();
+    return;
+  }
+  if (e.key === '/') {
+    e.preventDefault();
+    switchWorkbenchTab('detections');
+    $('det-search')?.focus();
+    return;
+  }
+  if (e.key === '+' || e.key === '=') { $('zoom-in')?.click(); return; }
+  if (e.key === '-') { $('zoom-out')?.click(); return; }
+  if (e.key === '0') { $('zoom-fit')?.click(); return; }
+  if (e.key === 'g') { $('tog-grid')?.click(); return; }
+  if (e.key === 'd') { $('tog-det')?.click(); return; }
+  if (e.key === 'j' || e.key === 'J') { e.preventDefault(); stepFilteredDetection(1); return; }
+  if (e.key === 'k' || e.key === 'K') { e.preventDefault(); stepFilteredDetection(-1); return; }
+  if (e.key === 'v' || e.key === 'V') {
+    if (state.selected >= 0) { e.preventDefault(); openVetCard(state.selected, $('canvas-map')); }
+    return;
+  }
+  if (e.key === 'w' || e.key === 'W') {
+    if (state.selected >= 0) { e.preventDefault(); toggleWatchlistAt(state.selected); }
+    return;
+  }
+  if (e.key === 'b' || e.key === 'B') { e.preventDefault(); setCompareMode('blink'); return; }
+  if (e.key === 'r') { e.preventDefault(); toggleRulerMode(); return; }
+  if (e.key === 'R') { e.preventDefault(); refreshSelectedTarget(); return; }
+}
+
+// --------------------------------------------------- Initialize M3 Workbench
+function initM3Workbench() {
+  // Theme button
+  $('btn-theme')?.addEventListener('click', toggleTheme);
+
+  // Navigation Rail Workbench anchor
+  $('rail-workbench')?.addEventListener('click', () => {
+    closeWatchlistDrawer();
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  });
+
+  // Tabbed lower workbench
+  document.querySelectorAll('.wb-tab').forEach((btn) => {
+    btn.addEventListener('click', () => switchWorkbenchTab(btn.dataset.wbtab));
+  });
+
+  // Detection filter & sort toolbar
+  $('det-search')?.addEventListener('input', (e) => {
+    m3State.detFilter.query = e.target.value;
+    if (state.data) renderTable(state.data.detections);
+  });
+  document.querySelectorAll('#det-class-chips .m3-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      m3State.detFilter.cls = chip.dataset.detFilter;
+      document.querySelectorAll('#det-class-chips .m3-chip').forEach((c) =>
+        c.classList.toggle('active', c === chip));
+      if (state.data) renderTable(state.data.detections);
+    });
+  });
+  $('det-min-snr')?.addEventListener('input', (e) => {
+    m3State.detFilter.minSnr = Number(e.target.value) || 0;
+    setText('det-min-snr-val', String(m3State.detFilter.minSnr));
+    if (state.data) renderTable(state.data.detections);
+  });
+  $('det-min-ml')?.addEventListener('input', (e) => {
+    m3State.detFilter.minMl = Number(e.target.value) || 0;
+    setText('det-min-ml-val', `${m3State.detFilter.minMl}%`);
+    if (state.data) renderTable(state.data.detections);
+  });
+  $('det-sort')?.addEventListener('change', (e) => {
+    m3State.detFilter.sort = e.target.value;
+    syncSortHeaders();
+    if (state.data) renderTable(state.data.detections);
+  });
+  document.querySelectorAll('.detections-table th.sortable').forEach((th) => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      const [curCol, curDir] = m3State.detFilter.sort.split('-');
+      const nextDir = (curCol === col && curDir === 'desc') ? 'asc' : 'desc';
+      m3State.detFilter.sort = `${col}-${nextDir}`;
+      syncSortHeaders();
+      if (state.data) renderTable(state.data.detections);
+    });
+  });
+  $('det-filter-reset')?.addEventListener('click', () => {
+    m3State.detFilter = { query: '', cls: 'all', minSnr: 0, minMl: 0, sort: 'snr-desc' };
+    if ($('det-search')) $('det-search').value = '';
+    if ($('det-min-snr')) $('det-min-snr').value = '0';
+    if ($('det-min-ml')) $('det-min-ml').value = '0';
+    setText('det-min-snr-val', '0');
+    setText('det-min-ml-val', '0%');
+    document.querySelectorAll('#det-class-chips .m3-chip').forEach((c) =>
+      c.classList.toggle('active', c.dataset.detFilter === 'all'));
+    syncSortHeaders();
+    if (state.data) renderTable(state.data.detections);
+  });
+  syncSortHeaders();
+
+  // Inspector prev/next buttons
+  $('btn-det-prev')?.addEventListener('click', () => stepFilteredDetection(-1));
+  $('btn-det-next')?.addEventListener('click', () => stepFilteredDetection(1));
+
+  // Pro Sky Tools: Blink, Wipe, Z-Scale, Ruler
+  $('btn-blink')?.addEventListener('click', () => setCompareMode('blink'));
+  $('btn-wipe')?.addEventListener('click', () => setCompareMode('wipe'));
+  $('btn-compare-close')?.addEventListener('click', stopCompare);
+  $('compare-layer-b')?.addEventListener('change', (e) => {
+    m3State.compare.layerB = e.target.value;
+    updateCompareBadge();
+    draw();
+  });
+  $('blink-speed')?.addEventListener('change', (e) => {
+    m3State.compare.blinkMs = Number(e.target.value) || 800;
+    if (m3State.compare.mode === 'blink') {
+      clearInterval(m3State.compare.timer);
+      m3State.compare.timer = setInterval(() => {
+        if (state.viewMode !== 'field' || !state.data) return;
+        m3State.compare.blinkPhase = m3State.compare.blinkPhase === 0 ? 1 : 0;
+        updateCompareBadge();
+        draw();
+      }, m3State.compare.blinkMs);
+    }
+  });
+  // Refresh Z-Scale histogram when user switches primary layer
+  document.querySelectorAll('#layer-switch .seg').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (m3State.compare.mode !== 'none') updateCompareBadge();
+      if (m3State.zscale.open) setTimeout(drawZScaleHistogram, 0);
+      if (m3State.ruler.p1 && m3State.ruler.p2) setTimeout(renderPsfProfile, 0);
+    });
+  });
+
+  $('btn-zscale')?.addEventListener('click', () => {
+    m3State.zscale.open = !m3State.zscale.open;
+    $('btn-zscale')?.setAttribute('aria-pressed', String(m3State.zscale.open));
+    $('zscale-panel')?.classList.toggle('hidden', !m3State.zscale.open);
+    if (m3State.zscale.open) drawZScaleHistogram();
+  });
+  $('zscale-lo')?.addEventListener('input', (e) => {
+    const val = Math.min(Number(e.target.value), m3State.zscale.hiPct - 1);
+    m3State.zscale.loPct = val;
+    m3State.zscale.custom = true;
+    setText('zscale-lo-val', `${val.toFixed(1)}%`);
+    applyZScale();
+  });
+  $('zscale-hi')?.addEventListener('input', (e) => {
+    const val = Math.max(Number(e.target.value), m3State.zscale.loPct + 1);
+    m3State.zscale.hiPct = val;
+    m3State.zscale.custom = true;
+    setText('zscale-hi-val', `${val.toFixed(1)}%`);
+    applyZScale();
+  });
+  $('btn-zscale-reset')?.addEventListener('click', () => {
+    m3State.zscale.custom = false;
+    m3State.zscale.loPct = 0.5;
+    m3State.zscale.hiPct = 99.5;
+    if ($('zscale-lo')) $('zscale-lo').value = '0.5';
+    if ($('zscale-hi')) $('zscale-hi').value = '99.5';
+    setText('zscale-lo-val', '0.5%');
+    setText('zscale-hi-val', '99.5%');
+    rebuildLayers();
+    drawZScaleHistogram();
+    draw();
+  });
+
+  $('btn-ruler')?.addEventListener('click', () => toggleRulerMode());
+  $('btn-ruler-clear')?.addEventListener('click', () => {
+    m3State.ruler.p1 = null;
+    m3State.ruler.p2 = null;
+    renderPsfProfile();
+    draw();
+  });
+
+  // Watchlist Drawer & Vet Card Star
+  $('btn-watchlist')?.addEventListener('click', openWatchlistDrawer);
+  $('watchlist-close')?.addEventListener('click', closeWatchlistDrawer);
+  $('watchlist-drawer')?.addEventListener('click', (e) => {
+    if (e.target === $('watchlist-drawer')) closeWatchlistDrawer();
+  });
+  $('watchlist-search')?.addEventListener('input', renderWatchlistDrawer);
+  $('watchlist-export-csv')?.addEventListener('click', () => exportWatchlist('csv'));
+  $('watchlist-export-json')?.addEventListener('click', () => exportWatchlist('json'));
+  $('vet-star')?.addEventListener('click', () => {
+    if (Number.isFinite(state.vetIndex) && state.vetIndex >= 0) toggleWatchlistAt(state.vetIndex);
+  });
+  updateWatchlistBadge();
+  updateSessionVoteTally();
+
+  // Command Palette
+  $('btn-cmd-palette')?.addEventListener('click', openCommandPalette);
+  $('cmd-input')?.addEventListener('input', () => {
+    m3State.cmdIndex = 0;
+    renderCommandResults();
+  });
+  $('cmd-palette')?.addEventListener('click', (e) => {
+    if (e.target === $('cmd-palette')) closeCommandPalette();
+  });
+
+  // Shortcuts Modal
+  $('btn-shortcuts')?.addEventListener('click', openShortcutsModal);
+  $('shortcuts-close')?.addEventListener('click', closeShortcutsModal);
+  $('shortcuts-modal')?.addEventListener('click', (e) => {
+    if (e.target === $('shortcuts-modal')) closeShortcutsModal();
+  });
+
+  // Inline Astronomy Glossary delegation
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-gloss]');
+    if (trigger) {
+      e.stopPropagation();
+      openGlossary(trigger.dataset.gloss, trigger);
+      return;
+    }
+    const pop = $('glossary-popover');
+    if (pop && !pop.classList.contains('hidden') && !e.target.closest('#glossary-popover')) {
+      closeGlossary();
+    }
+  });
+  $('gloss-close')?.addEventListener('click', closeGlossary);
 }
 
 init();

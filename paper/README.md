@@ -13,18 +13,28 @@ A third document is the **actual slide deck**:
 |---|---|
 | `spherexlens_beamer.tex` | the **30-slide Beamer presentation** (16:9, LuaLaTeX): custom warm-paper theme, Open-Sauce-like humanist sans (Lato), one purpose-drawn diagram per slide, a plain-language lead line above the technical detail |
 
+Two further documents accompany the project:
+
+| File | What it is |
+|---|---|
+| `spherexlens_research_paper.tex` | the **7-page research paper** (single column, A4): abstract, introduction, related work, data, method (masking, ZOGY, statistics, morphology, triage, ranking), validation (Decision A, null tests, injection--recovery), results, discussion, conclusions, 12 references, 4 figures and 2 tables |
+| `spherexlens_poster.tex` | the **A0 portrait poster** (841 × 1189 mm): three columns with header KPI strip, nine content blocks, five TikZ/pgfplots figures and a take-away band |
+
 ## Build
 
 ```bash
 cd paper
-pdflatex spherexlens_paper.tex   && pdflatex spherexlens_paper.tex
-pdflatex slides_and_script.tex   && pdflatex slides_and_script.tex
+pdflatex spherexlens_paper.tex          && pdflatex spherexlens_paper.tex
+pdflatex slides_and_script.tex          && pdflatex slides_and_script.tex
+pdflatex spherexlens_research_paper.tex && pdflatex spherexlens_research_paper.tex
+pdflatex spherexlens_poster.tex
 # the slide deck needs LuaLaTeX (fontspec + system fonts)
-lualatex spherexlens_beamer.tex  && lualatex spherexlens_beamer.tex
+lualatex spherexlens_beamer.tex         && lualatex spherexlens_beamer.tex
 ```
 
-Outputs: `spherexlens_paper.pdf` (~1.9 MB), `slides_and_script.pdf` (~0.8 MB) and
-`spherexlens_beamer.pdf` (30 pages, 16:9).
+Outputs: `spherexlens_paper.pdf` (~1.9 MB), `slides_and_script.pdf` (~0.8 MB),
+`spherexlens_beamer.pdf` (30 pages, 16:9), `spherexlens_research_paper.pdf` (7 pages) and
+`spherexlens_poster.pdf` (1 page, A0).
 Requires TeX Live with `tikz`, `pgfplots`, `tcolorbox`, `listings`, `booktabs`, `longtable`,
 `fancyhdr`, `hyperref`, plus `beamer`, `fontspec` and the Lato font for the deck.
 
