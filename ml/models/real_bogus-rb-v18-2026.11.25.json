@@ -1,0 +1,639 @@
+{
+ "version": "rb-v18-2026.11.25",
+ "kind": "real_bogus",
+ "model_family": "v18 co-add model: 3 LightGBM experts (all / move / var) + judge (5 seeds averaged), exported to NumPy arrays",
+ "generated_utc": "2026-11-25T06:04:47Z",
+ "pipeline": {
+  "pipeline_version": "2.0.0-dev",
+  "config_hash": "56d16c0f08c5",
+  "image_mode": "wavelength-matched, multi-detector co-add per epoch (as the website builds them)"
+ },
+ "features": [
+  "snr",
+  "snr_minus",
+  "fwhm_ratio",
+  "ellipticity",
+  "psf_chi2",
+  "dipole_symmetry",
+  "dipole_sep_px",
+  "kind_dipole",
+  "kind_monopole",
+  "kind_monopole_negative",
+  "bright_star_dist_arcsec",
+  "bright_star_gmag",
+  "masked_frac",
+  "noise_ratio",
+  "exposure_quality",
+  "abs_ecl_lat_deg",
+  "der0",
+  "der1",
+  "der2",
+  "der3",
+  "der4",
+  "der5",
+  "der6",
+  "d_net_ratio",
+  "d_core_ratio",
+  "d_ring_ratio",
+  "d_psf_corr",
+  "d_peak_offset",
+  "d_neg_frac",
+  "p2_0",
+  "p2_1",
+  "p2_2",
+  "p2_3",
+  "p2_4",
+  "p2_5",
+  "p2_6",
+  "ctx0",
+  "ctx1",
+  "ctx2",
+  "ctx3",
+  "ctx4",
+  "ctx5",
+  "ctx6",
+  "ctx7",
+  "ctx8",
+  "ctx9",
+  "col0",
+  "col1",
+  "col2",
+  "col3",
+  "col4",
+  "col5",
+  "col6",
+  "col7",
+  "col8",
+  "miss_fwhm",
+  "miss_psfchi2",
+  "miss_noise",
+  "miss_snrminus",
+  "miss_colour",
+  "gmag_capped"
+ ],
+ "medians": {
+  "snr": 20.852066,
+  "snr_minus": 11.298083,
+  "fwhm_ratio": 1.163201,
+  "ellipticity": 0.200426,
+  "psf_chi2": 115.562103,
+  "dipole_symmetry": 0.154414,
+  "dipole_sep_px": 3.605551,
+  "kind_dipole": 0.0,
+  "kind_monopole": 1.0,
+  "kind_monopole_negative": 0.0,
+  "bright_star_dist_arcsec": 2.607076,
+  "bright_star_gmag": 14.787931,
+  "masked_frac": 0.0,
+  "noise_ratio": 1.236434,
+  "exposure_quality": 0.968839,
+  "abs_ecl_lat_deg": 50.874393,
+  "der0": 10586.744141,
+  "der1": 11229.314453,
+  "der2": 0.018652,
+  "der3": 0.018311,
+  "der4": 4.024804,
+  "der5": 4.050392,
+  "der6": 67.841461,
+  "d_net_ratio": 0.087773,
+  "d_core_ratio": 0.349844,
+  "d_ring_ratio": 0.291931,
+  "d_psf_corr": 0.705813,
+  "d_peak_offset": 1.0,
+  "d_neg_frac": 0.208483,
+  "p2_0": 0.006711,
+  "p2_1": 0.025592,
+  "p2_2": 0.90472,
+  "p2_3": 0.527994,
+  "p2_4": 0.380705,
+  "p2_5": 0.049899,
+  "p2_6": 0.64344,
+  "ctx0": 100.0,
+  "ctx1": 0.0031,
+  "ctx2": 0.012516,
+  "ctx3": 0.306464,
+  "ctx4": 0.010611,
+  "ctx5": 1.067366,
+  "ctx6": 0.657724,
+  "ctx7": 0.052223,
+  "ctx8": 0.240493,
+  "ctx9": 0.81074,
+  "col0": 2.23693,
+  "col1": 4.512261,
+  "col2": 2.106229,
+  "col3": 0.641033,
+  "col4": -0.003232,
+  "col5": -8.8e-05,
+  "col6": 0.012513,
+  "col7": 0.007833,
+  "col8": 0.257921,
+  "miss_fwhm": 0.0,
+  "miss_psfchi2": 0.0,
+  "miss_noise": 0.0,
+  "miss_snrminus": 1.0,
+  "miss_colour": 0.0,
+  "gmag_capped": 0.0
+ },
+ "judge_inputs": [
+  "expert_all",
+  "expert_move",
+  "expert_var",
+  "snr",
+  "snr_minus",
+  "fwhm_ratio",
+  "ellipticity",
+  "psf_chi2",
+  "dipole_symmetry",
+  "dipole_sep_px",
+  "kind_dipole",
+  "kind_monopole",
+  "kind_monopole_negative",
+  "bright_star_dist_arcsec",
+  "bright_star_gmag",
+  "masked_frac",
+  "noise_ratio",
+  "exposure_quality",
+  "abs_ecl_lat_deg",
+  "der0",
+  "der1",
+  "der2",
+  "der3",
+  "der4",
+  "der5",
+  "der6",
+  "d_net_ratio",
+  "d_core_ratio",
+  "d_ring_ratio",
+  "d_psf_corr",
+  "d_peak_offset",
+  "d_neg_frac",
+  "p2_0",
+  "p2_1",
+  "p2_2",
+  "p2_3",
+  "p2_4",
+  "p2_5",
+  "p2_6",
+  "ctx0",
+  "ctx1",
+  "ctx2",
+  "ctx3",
+  "ctx4",
+  "ctx5",
+  "ctx6",
+  "ctx7",
+  "ctx8",
+  "ctx9",
+  "col0",
+  "col1",
+  "col2",
+  "col3",
+  "col4",
+  "col5",
+  "col6",
+  "col7",
+  "col8",
+  "miss_fwhm",
+  "miss_psfchi2",
+  "miss_noise",
+  "miss_snrminus",
+  "miss_colour",
+  "gmag_capped"
+ ],
+ "expert_order": [
+  "all",
+  "move",
+  "var"
+ ],
+ "split": "nested leave-patches-out: GroupKFold(6) by sky patch, inner GroupKFold(3)",
+ "seed": 20261114,
+ "data": {
+  "real_sky_exam": "Track 4 realexam8: SPHEREx DR1 + QR3, 42 patches, 23,178 detections",
+  "n_real_labelled": 623,
+  "n_changed": 281,
+  "n_not_changed": 342,
+  "n_changed_stars": 77,
+  "changed_rows_per_patch": {
+   "Baades_Window": 6,
+   "Bulge_East": 7,
+   "Bulge_North": 1,
+   "Bulge_Plaut": 5,
+   "Bulge_South": 2,
+   "LMC_Bar_E": 25,
+   "LMC_Bar_W": 111,
+   "LMC_North": 23,
+   "LMC_South": 84,
+   "M22": 5,
+   "Orion_M42": 2,
+   "SMC_Bar": 3,
+   "SMC_Wing": 5,
+   "SgrA_star": 2
+  },
+  "label_rule": "catalogued variable (VSX/Gaia/ASAS-SN/OGLE) whose wavelength-matched brightness changed >=10% at >=3 sigma; steady = ordinary Gaia star |change|+2 sigma < 10%; catalogued-but-quiet stars count as not changed",
+  "star_weighting": "1/sqrt(rows per star)",
+  "simulated_rows": 84354,
+  "simulation_sets": [
+   "injections",
+   "null tests",
+   "star variability",
+   "star movers",
+   "asteroid-like",
+   "fake movers"
+  ]
+ },
+ "metrics": {
+  "real_sky_variables_leave_patches_out": {
+   "auc": 0.989,
+   "caught_at_0.5": {
+    "k": 259,
+    "n": 281,
+    "rate": 0.9217,
+    "wilson95": [
+     0.8843,
+     0.9477
+    ]
+   },
+   "steady_false_alarms_at_0.5": {
+    "k": 8,
+    "n": 342,
+    "rate": 0.0234,
+    "wilson95": [
+     0.0119,
+     0.0455
+    ]
+   },
+   "stars_caught_ml_or_measurement": "71/77",
+   "false_alarms_ml_or_measurement": "9/342"
+  },
+  "real_sky_coadd_asteroid_exam": {
+   "asteroids_caught_at_0.5": {
+    "k": 61,
+    "n": 65,
+    "rate": 0.9385,
+    "wilson95": [
+     0.8522,
+     0.9758
+    ]
+   },
+   "steady_false_alarms_at_0.5": {
+    "k": 0,
+    "n": 76,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.0481
+    ]
+   },
+   "ece": 0.0594
+  },
+  "simulated": {
+   "realistic_asteroids_caught_at_0.5": {
+    "k": 1342,
+    "n": 1455,
+    "rate": 0.9223,
+    "wilson95": [
+     0.9074,
+     0.935
+    ]
+   },
+   "glitches_passed_at_0.5": {
+    "k": 1459,
+    "n": 43930,
+    "rate": 0.0332,
+    "wilson95": [
+     0.0316,
+     0.0349
+    ]
+   }
+  },
+  "ece_real_sky": 0.024,
+  "fairness_checks": {
+   "auc_within_brightness_bins": "0.91-0.995",
+   "auc_within_LMC_only": 0.985,
+   "quiet_variable_vs_steady_auc": 0.616,
+   "note": "0.5 would mean no star-type shortcut"
+  },
+  "caveat": "Tested on archived SPHEREx data with leave-patches-out validation only: not on live data, not by independent reviewers. 86% of changed rows are in the LMC; 6 pulsator and 11 eclipsing rows; only 12 non-changing stars at G 15.5-17.",
+  "heldout": {
+   "precision": 0.97,
+   "recall": 0.9217,
+   "f1": 0.9453,
+   "n": 623,
+   "n_real": 281,
+   "threshold": 0.5,
+   "confusion": {
+    "labels": [
+     "real",
+     "bogus"
+    ],
+    "matrix": [
+     [
+      259,
+      22
+     ],
+     [
+      8,
+      334
+     ]
+    ]
+   },
+   "pr_auc": 0.99,
+   "pr_curve": [
+    [
+     1.0,
+     0.451
+    ],
+    [
+     1.0,
+     0.4599
+    ],
+    [
+     0.9964,
+     0.4682
+    ],
+    [
+     0.9964,
+     0.4786
+    ],
+    [
+     0.9964,
+     0.4887
+    ],
+    [
+     0.9964,
+     0.5
+    ],
+    [
+     0.9964,
+     0.5119
+    ],
+    [
+     0.9964,
+     0.5243
+    ],
+    [
+     0.9964,
+     0.5364
+    ],
+    [
+     0.9964,
+     0.5501
+    ],
+    [
+     0.9964,
+     0.5645
+    ],
+    [
+     0.9964,
+     0.5785
+    ],
+    [
+     0.9964,
+     0.5945
+    ],
+    [
+     0.9964,
+     0.6114
+    ],
+    [
+     0.9964,
+     0.6292
+    ],
+    [
+     0.9964,
+     0.6467
+    ],
+    [
+     0.9929,
+     0.6643
+    ],
+    [
+     0.9929,
+     0.6855
+    ],
+    [
+     0.9893,
+     0.7038
+    ],
+    [
+     0.9893,
+     0.7277
+    ],
+    [
+     0.9893,
+     0.7534
+    ],
+    [
+     0.9893,
+     0.7809
+    ],
+    [
+     0.9893,
+     0.8081
+    ],
+    [
+     0.9858,
+     0.8369
+    ],
+    [
+     0.9858,
+     0.8711
+    ],
+    [
+     0.9786,
+     0.8987
+    ],
+    [
+     0.968,
+     0.9283
+    ],
+    [
+     0.9537,
+     0.9571
+    ],
+    [
+     0.9217,
+     0.97
+    ],
+    [
+     0.8932,
+     0.9843
+    ],
+    [
+     0.8505,
+     0.9876
+    ],
+    [
+     0.8114,
+     0.9956
+    ],
+    [
+     0.7722,
+     1.0
+    ],
+    [
+     0.726,
+     1.0
+    ],
+    [
+     0.6797,
+     1.0
+    ],
+    [
+     0.6335,
+     1.0
+    ],
+    [
+     0.5907,
+     1.0
+    ],
+    [
+     0.5445,
+     1.0
+    ],
+    [
+     0.4982,
+     1.0
+    ],
+    [
+     0.4555,
+     1.0
+    ],
+    [
+     0.4093,
+     1.0
+    ],
+    [
+     0.363,
+     1.0
+    ],
+    [
+     0.3167,
+     1.0
+    ],
+    [
+     0.274,
+     1.0
+    ],
+    [
+     0.2278,
+     1.0
+    ],
+    [
+     0.1815,
+     1.0
+    ],
+    [
+     0.1388,
+     1.0
+    ],
+    [
+     0.0925,
+     1.0
+    ],
+    [
+     0.0463,
+     1.0
+    ],
+    [
+     0.0,
+     1.0
+    ]
+   ],
+   "calibration": [
+    [
+     0.0077,
+     0.0246,
+     325
+    ],
+    [
+     0.1447,
+     0.3,
+     10
+    ],
+    [
+     0.227,
+     0.2222,
+     9
+    ],
+    [
+     0.3362,
+     0.75,
+     8
+    ],
+    [
+     0.4629,
+     0.75,
+     4
+    ],
+    [
+     0.5167,
+     0.6667,
+     3
+    ],
+    [
+     0.6536,
+     0.6,
+     5
+    ],
+    [
+     0.7753,
+     0.6667,
+     3
+    ],
+    [
+     0.85,
+     0.9,
+     10
+    ],
+    [
+     0.9953,
+     0.9878,
+     246
+    ]
+   ],
+   "ci95": {
+    "precision": [
+     0.9,
+     0.9937
+    ],
+    "recall": [
+     0.6988,
+     0.969
+    ],
+    "f1": [
+     0.8,
+     0.9766
+    ],
+    "pr_auc": [
+     0.9268,
+     0.9974
+    ],
+    "method": "field bootstrap, n=500"
+   },
+   "n_fields": 23,
+   "note": "real-sky test: Track 4 realexam8 (SPHEREx DR1+QR3), 281 changed vs 342 not-changed catalogued stars, nested leave-patches-out (each patch scored by models that never saw it)"
+  }
+ },
+ "tiers": {
+  "candidate": 0.5,
+  "review": 0.2,
+  "meaning": "candidate: shown as likely real (~2% of steady stars flagged); review: 0.2-0.5, sent to the vote queue (~5%); low: below 0.2"
+ },
+ "calibration": "none beyond the judge's own probabilities (real-sky ECE above); the score ranks, it does not decide",
+ "unused_features": [
+  "n_pairs_seen",
+  "colour_cross_detector",
+  "spec_ch4",
+  "spec_h2o",
+  "spec_nir_slope",
+  "asteroid_match"
+ ],
+ "not_served": "v18's single-exposure asteroid head (trained on 1,254 real asteroids in single-detector frame pairs) is kept in the research folder; the website has no single-exposure mode yet",
+ "files": {
+  "model": "real_bogus-rb-v18-2026.11.25.joblib",
+  "serving_code": "spherexlens/ml/v18.py + spherexlens/ml/imagefeat.py",
+  "tests": "tests/test_ml_v18.py",
+  "report": "docs/ml-report-v1-v18.html"
+ }
+}

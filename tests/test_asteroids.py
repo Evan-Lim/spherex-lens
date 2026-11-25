@@ -203,6 +203,15 @@ class EnricherTests(_NoBackoff):
         self.assertEqual(payload["asteroid_check"]["n_queries"], 2)
         self.assertEqual(payload["stats"]["categories"], {"KNOWN_ASTEROID": 1})
 
+    def test_prediction_too_faint_for_spherex_is_not_a_match(self):
+        # Piazzia is V = 15.5 in the fixture: with a 15.0 limit it must not "match"
+        # (in M55 a V = 24 asteroid "matched" a star residual by coincidence)
+        d = detection(PIAZZIA_RA + 2.0 / 3600, PIAZZIA_DEC)
+        with unittest.mock.patch.object(config, "ASTEROID_VMAG_LIMIT", 15.0):
+            run([d])
+        self.assertNotEqual(d["asteroid"]["status"], "match")
+        self.assertNotEqual(d["category"], "KNOWN_ASTEROID")
+
     def test_sign_convention_positive_monopole_is_checked_against_epoch_b(self):
         # same spot, but a *positive* monopole = present in the later epoch,
         # when Piazzia had already gone: no match
@@ -352,3 +361,28 @@ class TimeBoxTests(unittest.TestCase):
         self.assertEqual(payload["asteroid_check"]["pending"], 2)
         self.assertEqual(payload["detections"][0]["asteroid"]["status"], "unavailable")
         self.assertEqual(payload["detections"][0]["category"], "CANDIDATE")
+
+
+class EmptyFieldTests(unittest.TestCase):
+    """Live bug 2026-11-14: a field with no known small bodies came back from
+    JPL as {"warning": "no matching records"} with no columns; the parser
+    raised, and the dashboard said "asteroid check unavailable"."""
+
+    def test_no_matching_records_is_an_empty_success(self):
+        import json
+        import os
+        from spherexlens.ingest.jpl import JPLSbIdent
+        path = os.path.join(os.path.dirname(__file__), "fixtures", "archive",
+                            "jpl_sb_ident_empty_wise0855.json")
+        body = json.load(open(path))
+        self.assertIn("no matching", body["warning"])
+        res = JPLSbIdent(use_cache=False).parse(body, mjd=60801.5)
+        self.assertEqual(res.rows, [])
+        self.assertIn("no matching", res.meta["warning"])
+
+    def test_garbage_is_still_unavailable(self):
+        from spherexlens.ingest.base import ArchiveUnavailable
+        from spherexlens.ingest.jpl import JPLSbIdent
+        with self.assertRaises(ArchiveUnavailable):
+            JPLSbIdent(use_cache=False).parse({"signature": {}, "fields_second": ["x"],
+                                               "data_second_pass": [["1"]]})

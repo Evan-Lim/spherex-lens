@@ -1,0 +1,322 @@
+<title>SPHEREx-Lens ML Report v1–v18</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (~72ch) with wide tables scrolling inside their own frames; severity encoded as a left tag, not cards everywhere. */
+:root{
+  --bg:#f6f7fa; --surface:#ffffff; --fg:#161a24; --muted:#5a6072; --line:#dcdfe8;
+  --ir:#c2410c; --ir-soft:#fdeee5; --sky:#2f4fa8; --sky-soft:#e8edfa;
+  --crit:#b42318; --crit-soft:#fde8e6; --high:#b45309; --high-soft:#fdf1df; --med:#4d5b7c; --med-soft:#eceff6; --ok:#15803d; --ok-soft:#e4f4e9;
+  --f-display:"Space Grotesk",system-ui,sans-serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f121a; --surface:#161b26; --fg:#e6e9f2; --muted:#9aa2b8; --line:#2a3142;
+  --ir:#fb8a4c; --ir-soft:#3a2216; --sky:#8fa8f0; --sky-soft:#1c2440;
+  --crit:#f87171; --crit-soft:#3b1717; --high:#fbbf24; --high-soft:#352a12; --med:#a9b4d0; --med-soft:#222a3b; --ok:#4ade80; --ok-soft:#14301f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f121a; --surface:#161b26; --fg:#e6e9f2; --muted:#9aa2b8; --line:#2a3142;
+  --ir:#fb8a4c; --ir-soft:#3a2216; --sky:#8fa8f0; --sky-soft:#1c2440;
+  --crit:#f87171; --crit-soft:#3b1717; --high:#fbbf24; --high-soft:#352a12; --med:#a9b4d0; --med-soft:#222a3b; --ok:#4ade80; --ok-soft:#14301f; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 80px;display:grid;gap:44px}
+section{display:grid;gap:16px;min-width:0}
+h1,h2,h3{font-family:var(--f-display);line-height:1.2;text-wrap:balance;margin:0}
+h1{font-size:2.1rem;letter-spacing:-.01em}
+h2{font-size:1.5rem;padding-top:8px;border-top:1px solid var(--line)}
+h3{font-size:1.12rem}
+p{margin:0;max-width:70ch}
+ul,ol{margin:0;padding-left:1.2em;display:grid;gap:4px;max-width:70ch}
+.eyebrow{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ir)}
+.sub{color:var(--muted)}
+.mono,code{font-family:var(--f-mono);font-size:.88em}
+.num{font-variant-numeric:tabular-nums}
+.lede{font-size:1.08rem}
+.callout{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px 20px;display:grid;gap:10px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.74rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.crit{background:var(--crit-soft);color:var(--crit)} .high{background:var(--high-soft);color:var(--high)} .med{background:var(--med-soft);color:var(--med)} .ok{background:var(--ok-soft);color:var(--ok)} .ir{background:var(--ir-soft);color:var(--ir)} .sky{background:var(--sky-soft);color:var(--sky)}
+/* cycle strip */
+.cycle{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--f-mono);font-size:.82rem}
+.cycle span.s{background:var(--surface);border:1px solid var(--line);padding:6px 10px;border-radius:6px}
+.cycle span.a{color:var(--muted)}
+/* question blocks */
+.q{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px;display:grid;gap:12px;min-width:0}
+.q-head{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between}
+.ladder{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.ladder li{display:grid;grid-template-columns:92px 1fr;gap:10px;align-items:baseline}
+.ladder b{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.ladder li.smart{background:var(--sky-soft);border-radius:6px;padding:8px 10px}
+.ladder li.smart b{color:var(--sky)}
+.loop{display:grid;gap:6px;border-top:1px dashed var(--line);padding-top:10px}
+.loop div{display:grid;grid-template-columns:92px 1fr;gap:10px}
+.loop div b{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ir);font-weight:500}
+@media (max-width:560px){.ladder li,.loop div{grid-template-columns:1fr;gap:2px}}
+/* problem register */
+.prob{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.prob:last-child{border-bottom:0}
+.prob .id{font-family:var(--f-mono);font-size:.85rem;color:var(--muted);padding-top:2px}
+.prob .body{display:grid;gap:8px;min-width:0}
+.prob .title{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.prob .title strong{font-family:var(--f-display);font-size:1.05rem;font-weight:600}
+.prob ul{font-size:.94rem}
+.evid{font-size:.86rem;color:var(--muted)}
+.group-label{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:8px}
+.bars{display:grid;gap:6px}
+.bar{display:grid;grid-template-columns:minmax(120px,200px) 1fr 64px;gap:10px;align-items:center;font-size:.86rem}
+.bar .track{height:12px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar .fill{height:100%;background:var(--ir)}
+.bar .fill.sky{background:var(--sky)}
+.bar .v{font-family:var(--f-mono);text-align:right}
+@media (max-width:560px){.bar{grid-template-columns:1fr 56px}.bar .track{grid-column:1/-1;grid-row:2}}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:14px}
+.op{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:8px;align-content:start;min-width:0}
+.op h3{display:flex;gap:8px;align-items:baseline}
+a{color:var(--sky)}
+a:focus-visible{outline:2px solid var(--ir);outline-offset:2px}
+footer{color:var(--muted);font-size:.85rem;display:grid;gap:6px}
+</style>
+
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <div class="eyebrow">SPHEREx-Lens · machine-learning report · versions 1 to 18 · 13–25 Nov 2026</div>
+  <h1>How the SPHEREx-Lens real/bogus model got from v1 to v18</h1>
+  <p class="lede sub">One document for the whole story: what each version changed, what it scored, what went wrong, and what the data taught us. Written for teammates, judges and reviewers who were not in the sessions. Numbers come from the saved results files. Where an early version left no record, the report says so.</p>
+</header>
+
+<section>
+  <div class="callout">
+    <strong style="font-family:var(--f-display);font-size:1.1rem">The short version</strong>
+    <p>SPHEREx-Lens compares two infrared views of the same sky and flags anything that changed. The machine-learning (ML) score ranks those flags: how likely each one is a real change (a moving asteroid, a star changing brightness) rather than an instrument glitch. It never overrides the rule-based KNOWN/CANDIDATE verdict.</p>
+    <p>Versions 1–16 improved the <b>algorithm</b> and ended stuck: real variable stars were caught only 23% of the time. Versions 17–18 switched to improving the <b>data</b>, and that is what worked. Real variable-star ranking went from AUC 0.69 to 0.99, and real asteroid recall at an equal false-alarm rate went from 66% to 97%. The biggest lessons were about labels, not models: three times, a model scored well by learning <i>how the labels were made</i> rather than what the sky looked like.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Words used in this report</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Detection</td><td>A spot where the two views differ, found by the image subtraction (ZOGY).</td></tr>
+      <tr><td>Real / bogus</td><td>Real = an astrophysical change (asteroid, variable star). Bogus = artefact or glitch.</td></tr>
+      <tr><td>Patch / field</td><td>A small piece of sky that is processed together. Patches are 0.16° across.</td></tr>
+      <tr><td>Leave-patches-out</td><td>Testing each patch with a model that never saw that patch. This is the honest test used from v5 on.</td></tr>
+      <tr><td>Answer key</td><td>The set of real-sky labels used to grade a model.</td></tr>
+      <tr><td>Recall / false alarms</td><td>Share of real objects caught / share of non-changing stars wrongly flagged.</td></tr>
+      <tr><td>AUC</td><td>How well a score ranks real above not-real. 0.5 = coin toss, 1.0 = perfect.</td></tr>
+      <tr><td>Calibration error (ECE)</td><td>How far the score's "% likely real" is from the true rate.</td></tr>
+      <tr><td>Co-add</td><td>Several exposures of one epoch stacked into one image. The website stacks all six detectors.</td></tr>
+      <tr><td>Wavelength matching</td><td>SPHEREx sees a different wavelength at each part of a detector. Comparing two epochs is only fair at the same wavelength.</td></tr>
+      <tr><td>Shortcut</td><td>A pattern the model uses that comes from how the data was made, not from the sky.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>1. Timeline at a glance</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Version</th><th>Date</th><th>Main idea</th><th>Phase</th></tr></thead>
+    <tbody>
+      <tr><td>v1</td><td>13 Nov</td><td>Production baseline <code>rb-2026.11.13-1</code>: one tree model on 22 features</td><td>algorithm</td></tr>
+      <tr><td>v2</td><td>13–15 Nov</td><td>Four approaches compared (trees, CNN, hybrid, ensembles), plus leak tests</td><td>algorithm</td></tr>
+      <tr><td>v3–v4</td><td>13–15 Nov</td><td>More kinds of simulated examples, the first real-sky exam</td><td>algorithm</td></tr>
+      <tr><td>v5–v6</td><td>13–15 Nov</td><td>Real-sky labels in training, leave-patches-out testing</td><td>algorithm</td></tr>
+      <tr><td>v7–v9</td><td>13–15 Nov</td><td>Two-stage design: simulation experts + a real-sky "judge"</td><td>algorithm</td></tr>
+      <tr><td>v10–v14</td><td>13–15 Nov</td><td>Physics features: brightness vs shift, field context, colour</td><td>algorithm</td></tr>
+      <tr><td>v15–v16</td><td>13–15 Nov</td><td>Wavelength-matched images and the asteroid-erasing bug fixed. v16 is the final algorithm-era model.</td><td>algorithm → data</td></tr>
+      <tr><td>v17</td><td>23 Nov</td><td>Data audit, honest answer key, first real asteroid exam, two heads</td><td>data</td></tr>
+      <tr><td>v18</td><td>23–25 Nov</td><td>New SPHEREx data (QR3), 1,254 real asteroids, 4,152 real glitch labels, OGLE</td><td>data</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>2. Versions 1–16: improving the algorithm</h2>
+
+  <h3>v1 · the production baseline (rb-2026.11.13-1)</h3>
+  <ul>
+    <li><b>Model:</b> one gradient-boosted tree model (HistGradientBoosting) on 22 numbers per detection, with isotonic calibration.</li>
+    <li><b>Data:</b> 12,150 labelled detections from 18 patches. 6,519 "real" were almost all <i>injected</i> synthetic sources; 5,631 "bogus" were half-split null tests and masked pixels.</li>
+    <li><b>Held-out score:</b> precision 0.957, recall 0.930. This looked excellent.</li>
+    <li><b>Problems found later:</b>
+      <ul>
+        <li>Movers were all dipoles and almost no bogus examples were, so "is it a dipole?" alone looked like perfect skill (dipoles: 100%).</li>
+        <li>The "mask" bogus label was defined by a feature (<code>masked_frac</code>).</li>
+        <li>6 of the 22 features were always empty.</li>
+      </ul>
+      This was the first shortcut.</li>
+  </ul>
+
+  <h3>v2 · four approaches compared</h3>
+  <ul>
+    <li>Trees tuned with Optuna (approach A), a CNN on the 4-layer image stamp on the GPU (B), a hybrid (C), and ensembles and stacking (D).</li>
+    <li>A leak test checked whether the model still works on examples made in a different way. It showed the models leaned on how each example was made.</li>
+    <li>No saved score table survives for v2. Its role was to pick the direction, which was trees plus a CNN.</li>
+  </ul>
+
+  <h3>v3–v4 · more kinds of examples, the first real-sky exam</h3>
+  <ul>
+    <li>Added cross-provenance examples (real sources in null-type image pairs, bogus dipoles in real pairs) and star-anchored brightness changes.</li>
+    <li>LightGBM + CNN (3 seeds), isotonic calibration, and the first <b>real-sky exam</b>: real catalogued variables the pipeline detected.</li>
+  </ul>
+
+  <h3>v5–v6 · real-sky labels, honest testing</h3>
+  <ul>
+    <li>Real-sky labels entered training. Every real-sky number is now <b>leave-patches-out</b>.</li>
+    <li>The targets were set here: real caught &gt; 80%, steady false alarms &lt; 5%, simulated glitches &lt; 5%, calibration error &lt; 10%.</li>
+  </ul>
+
+  <h3>v7–v9 · two stages: simulation experts and a real-sky judge</h3>
+  <ul>
+    <li>Stage 1: experts trained only on simulations (trees; plus a CNN in v9). Stage 2: a small judge that learns from real sky, given the experts' opinions.</li>
+    <li>Fully nested, so no opinion ever came from a model that saw that row.</li>
+    <li>v9 on the first answer key: <b>62%</b> of variables caught, 10.8% glitches passed, calibration error 9.7%.</li>
+  </ul>
+
+  <h3>v10–v14 · physics features</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Version</th><th>Added</th><th>Answer key</th><th>Real variables</th><th>Glitches passed</th><th>Steady false alarms</th><th>ECE</th></tr></thead>
+    <tbody>
+      <tr><td>v10</td><td>Brightness-vs-shift fit in the judge</td><td>v3 (raw change)</td><td class="num">74%</td><td class="num">13.4%</td><td>–</td><td>–</td></tr>
+      <tr><td>v11</td><td>Same fit in the tree expert</td><td>v3</td><td class="num">81%</td><td class="num">15.6%</td><td class="num">0.4%</td><td class="num">5.6%</td></tr>
+      <tr><td>v12</td><td>Field context (how ordinary stars change in the same image); realistic fake movers</td><td>v4 (zero point)</td><td class="num">36%</td><td class="num">2.3%</td><td class="num">0.0%</td><td class="num">3.9%</td></tr>
+      <tr><td>v13</td><td>Retrained on the colour-corrected key</td><td>v5 (colour + blends)</td><td class="num">1 of 5</td><td class="num">1.9%</td><td class="num">3.2%</td><td class="num">3.6%</td></tr>
+      <tr><td>v14</td><td>Colour-aware photometry features</td><td>v5</td><td class="num">1 of 5</td><td class="num">2.2%</td><td class="num">1.8%</td><td class="num">2.8%</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Why the variable score "fell" from 81% to 36%:</b> v9–v11 had learned to recognise artefacts that the early answer key wrongly called variables. Each correction to the key made the exam smaller and more honest, and the score dropped to what the data really supported. This was the second shortcut.</p>
+
+  <h3>v15–v16 · two pipeline bugs found, the last algorithm-era model</h3>
+  <ul>
+    <li><b>Bug 1: wavelength mismatch.</b> The pipeline compared each star at different wavelengths in the two epochs, so a star's colour looked like a brightness change (4–16% per detector). Matched-wavelength images brought each field's zero point to 1.00 ± 0.01.</li>
+    <li><b>Bug 2: asteroids erased.</b> SPHEREx flags a moving asteroid's pixels as "outlier", and the co-add masked them. Without that mask, the asteroid was found in 64 of 67 fields instead of 14 of 40.</li>
+    <li><b>v16 results</b> (answer key v6): 23% of real variables (15/65), 3.0% glitches passed, 1.9% steady false alarms, calibration error 6.2%, and real asteroids 58/65 (59/65 in the website version without the CNN).</li>
+    <li>v16 was built into the website code as an optional model, off by default. The fixes (commit <code>ac8918b</code>) were never pushed.</li>
+  </ul>
+  <div class="callout"><b>Where v16 left things:</b> a good glitch filter and asteroid finder, but variable stars stuck near 23% whatever the algorithm did. The 23 Nov audit asked why, and found the answer in the data.</div>
+</section>
+
+<section>
+  <h2>3. Version 17: the data-centric turn</h2>
+  <h3>The v16 data audit found</h3>
+  <ul>
+    <li>Only 65 real variable labels, and 30 of 41 patches had none. Yet the same patches hold about 1,010 large-amplitude catalogued variables. The label rules threw away about 95% of them.</li>
+    <li>The simulations looked unlike the real sky (a classifier separated them at AUC 0.88). Each simulator made only one class, so the model could learn "which simulator made this".</li>
+    <li>22 of 42 patches had just two visits.</li>
+    <li>The asteroid "pass" (58/65) had a 95% range of 79–95%, so it wasn't proven.</li>
+  </ul>
+
+  <h3>What v17 did</h3>
+  <ul>
+    <li><b>v17a</b> tested algorithm fixes on the old data: three experts (kept), real-sky-likeness weighting, fake PSF failures (dropped), per-class calibration. Variables stayed at about 26%, because the labels were the same.</li>
+    <li><b>Track 2</b> rebuilt the variable answer key honestly. It found that v16's noise estimate marked 40–55% of ordinary faint stars as "changed", so many old labels were noise. The new key had 35 real changes.</li>
+    <li><b>v17b</b> trained on the new key: ranking AUC <b>0.69 → 0.91</b> with the same algorithm. Adding a direct brightness measurement caught 30 of 35.</li>
+    <li><b>Track 3</b> built the first large real asteroid exam: 276 asteroids and 2,137 steady stars in 845 new fields. It showed real-sky weighting <i>hurt</i> asteroids, so v17 became two heads without it.</li>
+  </ul>
+  <div class="tbl"><table>
+    <thead><tr><th>Test (honest, unseen patches)</th><th>v16 setup</th><th>v17</th></tr></thead>
+    <tbody>
+      <tr><td>Variable ranking AUC (new key)</td><td class="num">0.686</td><td class="num">0.922</td></tr>
+      <tr><td>Variables caught, model + measurement</td><td class="num">15/35</td><td class="num">30/35</td></tr>
+      <tr><td>Asteroid AUC (new exam)</td><td class="num">0.987</td><td class="num">0.989</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>4. Version 18: better data from new sources</h2>
+  <h3>The v17 audit found</h3>
+  <ul>
+    <li>Variable positives were 89% red giants, and the pipeline detected only 25% of real measured changes.</li>
+    <li>The asteroid model had <b>never seen a real asteroid in training</b>. Its simulations came from a different observing mode (AUC 0.997 apart).</li>
+    <li>Every glitch label was simulated, though the SPHEREx images carry their own quality flags.</li>
+  </ul>
+
+  <h3>Data built for v18</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Source</th><th>What it gave</th></tr></thead>
+    <tbody>
+      <tr><td>SPHEREx QR3 (surveys 3–4), 5,675 new exposures</td><td>Visits 107 → 218, usable visit pairs 65 → 511. <b>281 real brightness changes</b> from 77 stars.</td></tr>
+      <tr><td>JPL + 168 new frame pairs, partner-epoch checks</td><td><b>1,254 real asteroids</b> (748 objects), at least 99 per detector; 6,993 steady stars.</td></tr>
+      <tr><td>SPHEREx FLAGS planes</td><td><b>4,152 real glitch labels</b>, of which 2,053 are high-confidence. Half the flag types turned out to be chance-level and were dropped.</td></tr>
+      <tr><td>Single-exposure simulations</td><td>Simulated vs real asteroids: AUC 0.997 → 0.64.</td></tr>
+      <tr><td>OGLE (1.36 M variables)</td><td>Types, periods and predicted brightness at every SPHEREx visit for 4,850 stars in our patches.</td></tr>
+      <tr><td>Rubin alerts, Kaggle</td><td>Tried as asked. Rubin hasn't covered our fields yet. Kaggle needs a login and had nothing OGLE didn't.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>v18 results (unseen patches or sky groups)</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Test</th><th>v17</th><th>v18</th></tr></thead>
+    <tbody>
+      <tr><td>Variable ranking AUC (281 changes, 342 not)</td><td class="num">0.881</td><td class="num"><b>0.989</b></td></tr>
+      <tr><td>Changing stars caught (model + measurement)</td><td class="num">56/77</td><td class="num"><b>71/77</b></td></tr>
+      <tr><td>Asteroids caught at 0.47 unexplained flags per field</td><td class="num">66.5%</td><td class="num"><b>97.5%</b></td></tr>
+      <tr><td>Faint asteroids (V ≥ 17.5) at the same rate</td><td class="num">119/327</td><td class="num"><b>315/327</b></td></tr>
+      <tr><td>Co-add model on the real-sky co-add asteroid exam</td><td class="num">59/65 (v16)</td><td class="num"><b>61/65</b>, 0/76 steady flagged</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Third shortcut, caught and fixed:</b> the first v18 asteroid model learned "no star here and no flags means asteroid", because that is how the labels were defined. It flagged 6.8 unexplained detections per field. Training on detections already checked and found to hold no known asteroid fixed it. Lesson: set thresholds on realistic negatives (unexplained detections), not on easy ones (steady stars).</p>
+</section>
+
+<section>
+  <h2>5. What is still not proven (the v18 audit)</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Business problem</th><th>What the data shows</th><th>Plan for v19</th></tr></thead>
+    <tbody>
+      <tr><td>Never run inside the website pipeline</td><td>The live site runs a 14 Nov build without the validity fixes. Its detections are fully separable from the training data (AUC 1.00).</td><td>Deploy the fixed pipeline. Rebuild training rows from the website's own code.</td></tr>
+      <tr><td>Never seen live data</td><td>No newer SPHEREx data exists yet (the latest is about 11 Oct).</td><td>Time split: train on DR1, test on QR3. Then a live shadow test.</td></tr>
+      <tr><td>One in three public asteroid flags unexplained</td><td>38% sit on detector D4. Their rate doesn't follow asteroid density. Unnumbered objects and comets were never checked.</td><td>MPChecker and a D4 investigation</td></tr>
+      <tr><td>"Needs review" tier</td><td>About 1% real as first defined</td><td>Set the tier by its purity</td></tr>
+      <tr><td>Variable detector narrow</td><td>86% LMC, 12 faint negatives, 27 non-LMC stars</td><td>OGLE maps, Gaia DR4 (planned 2 Dec), more fields</td></tr>
+      <tr><td>No independent check</td><td>0 reviewed candidates, 5 votes</td><td>Zooniverse pilot: 360 blind images, kit ready</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>6. v18 on the website (branch <code>ml-v18</code>)</h2>
+  <ul>
+    <li><b>Base:</b> GitHub <code>main</code> (teammates' latest UI and slides), plus the validity fixes from <code>ac8918b</code>.</li>
+    <li><b>Default ML model: v18.</b> The website stacks all six detectors per epoch, so it serves v18's <b>co-add model</b>, the one trained on that kind of image. The single-exposure asteroid model waits for a future single-exposure mover mode, because serving it on co-adds would repeat the "different data" problem.</li>
+    <li><b>Tiers:</b> "candidate" at score ≥ 0.5 (about 2% of steady stars flagged) and "needs review" at 0.2–0.5 (up to 5%). The site shows "needs review" on those rows.</li>
+    <li><b>No LightGBM on the website:</b> the trees ship as plain arrays, 1.2 MB. Scores match training exactly (difference 0.0), and the website's feature code matches the training code exactly (difference 0.0 on 932 real rows).</li>
+    <li><b>Tests:</b> 276 pass, including new parity tests for features, scores, tiers, the default model, the model page and the metrics block.</li>
+    <li><b>One source of truth:</b> <code>ml/models/LATEST.json</code> names v18, so scoring, the model page (<code>/api/model</code>, text from <code>ml/MODEL_CARD.md</code>) and the metrics page all describe the same model. The metrics page shows v18's real-sky precision 0.970, recall 0.922 and PR-AUC 0.990, and the metrics regression gate passes.</li>
+    <li><b>v16 retired:</b> removed from the website. Its feature code lives on as <code>spherexlens/ml/imagefeat.py</code>, because v18 uses it. The original v1 model can still be selected with <code>SPHEREX_ML_MODEL=v1</code>. Each website model has a JSON model card next to it in <code>ml/models/</code>.</li>
+    <li><b>Still experimental:</b> the score only ranks, and the site says so.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>7. Lessons</h2>
+  <ol>
+    <li><b>Check the labels before the model.</b> Three times a high score came from how labels were made: dipoles in v1, artefacts as "variables" in v9–v11, and "no star = asteroid" in v18.</li>
+    <li><b>Better data beat better algorithms.</b> The same recipe went from AUC 0.69 to 0.99 on variables when the labels improved.</li>
+    <li><b>Test where you'll use it.</b> Same observing mode, same pipeline, unseen patches, and in future, unseen time.</li>
+    <li><b>Compare at equal false alarms.</b> v17's "65% vs 47%" asteroid gain vanished at equal false-alarm rates. v18's gain held.</li>
+    <li><b>Report ranges, not single numbers.</b> 58/65 sounds like 89% but means 79–95%.</li>
+    <li><b>Measurement beats guessing for variability.</b> A direct, wavelength-matched brightness measurement ranks almost as well as the ML (AUC 0.987 vs 0.989). The ML's job is to catch what the noisy measurement misses.</li>
+    <li><b>Independent eyes are a data source.</b> Without human review, every "real" is our own rule's opinion.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>8. Where everything is</h2>
+  <ul>
+    <li>Study files: <code>C:\Users\User\spherex-ml\</code> (local git, not pushed). The v16 sandbox is <code>sandbox_v16\</code>, the data builds are <code>track2\</code> to <code>track6\</code>, and the models and results are in <code>v17\</code> and <code>v18\</code>. The Zooniverse kit is <code>v19\zooniverse\</code>.</li>
+    <li>Website: branch <code>ml-v18</code> in <code>C:\Users\User\spherex-lens</code>. Model: <code>ml/models/real_bogus-rb-v18-2026.11.25.joblib</code>, with its model card <code>.json</code>.</li>
+    <li>Earlier reports: v16 data audit, v17 data audit, v18 data audit (claude.ai artifacts).</li>
+  </ul>
+</section>
+
+<footer>
+  <div>Data: NASA SPHEREx (IRSA/IPAC), Gaia DR3 (ESA), JPL Small-Body Database, VSX (AAVSO), ASAS-SN, OGLE Collection of Variable Stars, AllWISE. Independent student project, not an official NASA or SPHEREx team product.</div>
+</footer>
+</div>

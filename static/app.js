@@ -2605,7 +2605,7 @@ function renderTable(dets) {
       : (Object.keys(d.matches || {}).length ? Object.keys(d.matches).join(', ') : '\u2014');
     const mu = d.proper_motion_arcsec_yr ? d.proper_motion_arcsec_yr.toFixed(1) : '\u2014';
     const ml = d.ml && Number.isFinite(d.ml.real_bogus)
-      ? `${Math.round(d.ml.real_bogus * 100)}%${d.ml.uncertain ? ' <span class="obj-note" title="the model is unsure">?</span>' : ''}`
+      ? `${Math.round(d.ml.real_bogus * 100)}%${d.ml.uncertain ? ` <span class="obj-note" title="${d.ml.tier === 'review' ? 'needs review: please vote' : 'the model is unsure'}">?</span>` : ''}`
       : '\u2014';
     const ev = d.evidence && Number.isFinite(d.evidence.score)
       ? String(Math.round(d.evidence.score * 100)) : '\u2014';
@@ -4469,7 +4469,7 @@ function describeMap(data) {
 function verdictScoreStrip(det) {
   const bits = [];
   if (det.ml && Number.isFinite(det.ml.real_bogus)) {
-    bits.push(`<span class="score-chip" title="ML real/bogus score (${fmt.escape(det.ml.model_version || 'model')})">ML ${pct(det.ml.real_bogus)}${det.ml.uncertain ? ' · unsure' : ''}</span>`);
+    bits.push(`<span class="score-chip" title="Experimental ML real/bogus score (${fmt.escape(det.ml.model_version || 'model')}): tested on archived SPHEREx data, not yet on live data or by independent reviewers">ML ${pct(det.ml.real_bogus)}${det.ml.uncertain ? (det.ml.tier === 'review' ? ' · needs review' : ' · unsure') : ''}</span>`);
   }
   if (det.evidence && Number.isFinite(det.evidence.score)) {
     bits.push(`<span class="score-chip" title="Evidence score: all checks combined">Evidence ${Math.round(det.evidence.score * 100)}</span>`);
@@ -4698,7 +4698,7 @@ function mlBlock(det) {
       '<a href="#vet-vote" data-jump-vote>Vote below</a>.</div>' : '';
   return `<p class="big-score">${pct(ml.real_bogus)} <span>likely real</span></p>` +
     meter(ml.real_bogus, 'ML score, percent likely real') +
-    `<p class="vet-muted">The ML score ranks detections so the best are looked at first; it does not decide.` +
+    `<p class="vet-muted"><b>Experimental:</b> the ML score (model v18) was tested on archived SPHEREx data, not yet on live data or by independent reviewers, so treat it as a ranking hint only. It ranks detections so the best are looked at first; it does not decide.` +
     `${ml.model_version ? ` <span class="expert-only">Model ${fmt.escape(ml.model_version)}.</span>` : ''}</p>` +
     (reasons ? `<ul class="ml-reasons" aria-label="Main reasons for the ML score">${reasons}</ul>` : '') + unsure;
 }

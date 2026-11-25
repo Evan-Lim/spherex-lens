@@ -161,7 +161,7 @@ def parse_votable(xml_bytes):
     return rows
 
 
-def query_sia2(ra, dec, radius_deg=0.1, collection=config.SPHEREX_COLLECTION, retries=3,
+def query_sia2(ra, dec, radius_deg=None, collection=config.SPHEREX_COLLECTION, retries=3,
                use_cache=True):
     """
     SIA2 cone search for SPHEREx Level-2 spectral images (obs_collection,
@@ -169,7 +169,12 @@ def query_sia2(ra, dec, radius_deg=0.1, collection=config.SPHEREX_COLLECTION, re
 
     The VOTable response is cached under data_cache/ by default. Live callers
     can set use_cache=False to fetch the current archive listing every time.
+
+    radius_deg defaults to config.SIA2_RADIUS_DEG (a point query: every exposure that
+    covers the target, fast even when IRSA is loaded).
     """
+    if radius_deg is None:
+        radius_deg = config.SIA2_RADIUS_DEG
     cache = os.path.join(CACHE, f"sia2_{collection}_{ra:.4f}_{dec:.4f}_{radius_deg}.xml")
     if use_cache and os.path.exists(cache):
         print(f"  SIA2 {collection} (cached {os.path.basename(cache)})")
@@ -342,7 +347,7 @@ def select_exposures(rows, ra, dec, bands=DEFAULT_BANDS,
     if epoch_mode == "firstlast" and len(groups) > 1:
         groups = [groups[0], groups[-1]]
 
-    slots = []
+    pools = {}
     for epoch_index, group in enumerate(groups, start=1):
         for band in bands:
             pool = [r for r in group if r.get("energy_bandpassname") == band]
@@ -353,6 +358,26 @@ def select_exposures(rows, ra, dec, bands=DEFAULT_BANDS,
             pool = deeper or pool
             pool = sorted(pool, key=lambda r: -(interior_distance_deg(
                 ra, dec, _parse_s_region(r.get("s_region"))) or -1))
+            pools[(epoch_index, band)] = pool
+
+    if config.MATCH_WAVELENGTH:
+        # Same wavelength in every epoch, per detector (spherexlens.ingest.lvf): the LVF
+        # puts a different wavelength on each detector position, so arbitrary exposures
+        # turn a star's spectrum into a fake brightness change between epochs.
+        from spherexlens.ingest import lvf
+        for band in bands:
+            keys = [k for k in sorted(pools) if k[1] == band and pools[k]]
+            if len(keys) < 2:
+                continue
+            ordered, _ = lvf.matched_choice([pools[k] for k in keys], ra, dec,
+                                            config.MATCH_WAVELENGTH_MAX_DLNLAM)
+            for k, pool in zip(keys, ordered):
+                pools[k] = pool
+
+    slots = []
+    for epoch_index in range(1, len(groups) + 1):
+        for band in bands:
+            pool = pools.get((epoch_index, band)) or []
             if pool:
                 slots.append((epoch_index, pool[:per_slot]))
     return slots, len(groups)
@@ -479,7 +504,7 @@ def describe_sources(paths, epochs, rows, collection, size_deg):
     return sources
 
 
-def download_spherex_cutouts(ra, dec, radius_deg=0.1, collection=config.SPHEREX_COLLECTION,
+def download_spherex_cutouts(ra, dec, radius_deg=None, collection=config.SPHEREX_COLLECTION,
                              size_deg=0.2, bands=DEFAULT_BANDS,
                              epoch_mode="all", overwrite=False, rows=None,
                              keep_per_slot=1):
@@ -873,7 +898,7 @@ def download_catalogs(ra, dec, radius_arcmin=15, strict=False):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def ingest_target(name, collection=config.SPHEREX_COLLECTION, radius_deg=0.1,
+def ingest_target(name, collection=config.SPHEREX_COLLECTION, radius_deg=None,
                   size_deg=0.2, bands=DEFAULT_BANDS, epoch_mode="all",
                   overwrite=False, skip_catalogs=False, rows=None,
                   catalogs=None, strict_catalogs=False, keep_per_slot=1):

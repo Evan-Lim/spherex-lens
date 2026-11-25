@@ -15,11 +15,12 @@ from step5_spectrum import _wavelength_from_wave_tab
 
 APERTURE_PX = 2.0          # native 6.2" pixels; PSF FWHM ~7.5" = 1.2 px
 ANNULUS_PX = (4.0, 7.0)
-# FLAGS bits that make a measurement unusable: the same set the co-add masks
-# (step2_coadd.BAD_BITS).  SOURCE (bit 21) and FULLSAMPLE are informational --
-# SOURCE marks pixels *on a real star*, so treating every bit as bad flagged
-# nearly every aperture and the first NEP run analysed 0 stars.
-from step2_coadd import BAD_BITS as BAD_FLAG_MASK  # noqa: E402
+# FLAGS bits that make a measurement unusable: the co-add's set plus OUTLIER
+# (step2_coadd.PHOT_BAD_BITS; the co-add keeps OUTLIER pixels so moving asteroids
+# survive, but a star's photometry should not use them).  SOURCE (bit 21) and
+# FULLSAMPLE are informational -- SOURCE marks pixels *on a real star*, so treating
+# every bit as bad flagged nearly every aperture and the first NEP run analysed 0 stars.
+from step2_coadd import PHOT_BAD_BITS as BAD_FLAG_MASK  # noqa: E402
 
 
 def _mjd(header):

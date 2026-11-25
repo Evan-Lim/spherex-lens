@@ -343,6 +343,12 @@ def check_asteroids(payload, ctx):
 
         match = None
         for sep, s, r in sorted(cands, key=lambda c: c[0]):
+            try:
+                vmag = float(r.get("v_mag"))
+            except (TypeError, ValueError):
+                vmag = None
+            if vmag is not None and vmag > config.ASTEROID_VMAG_LIMIT:
+                continue      # too faint for SPHEREx: a positional coincidence, not this source
             info = sbdb_info(r["key"])
             unc = (info or {}).get("pos_unc_arcsec")
             radius = config.ASTEROID_MATCH_FLOOR_ARCSEC

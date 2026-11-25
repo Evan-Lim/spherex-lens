@@ -57,8 +57,23 @@ ASTEROID_MATCH_FLOOR_ARCSEC = 9.0   # ~1.5 native pixels
 ASTEROID_MATCH_MAX_ARCSEC = 60.0
 ECLIPTIC_LATITUDE_WARN_DEG = 30.0   # |beta| below this: asteroids are common
 SSOIS_AGREEMENT_ARCSEC = 15.0       # JPL vs SSOIS position must agree within
+# JPL predictions fainter than this are below SPHEREx's single-exposure depth, so a
+# positional "match" to one is a chance coincidence (seen: a V = 24 asteroid "matched"
+# a star residual in M55).  Predictions without a V magnitude are still allowed.
+ASTEROID_VMAG_LIMIT = _env("ASTEROID_VMAG_LIMIT", 20.5)
 
 # ---- archives / network ----------------------------------------------------
+# IRSA SIA2 search radius.  A point query (0.001 deg) still returns every exposure that
+# covers the target and answers in seconds; 0.1 deg circles timed out under load
+# (Nov 2026).  Exposures that only clip the field were rejected by select_exposures anyway.
+SIA2_RADIUS_DEG = _env("SIA2_RADIUS_DEG", 0.001)
+# Pick, per detector, exposures that see the target at the SAME wavelength in every
+# epoch (SPHEREx's LVF puts a different wavelength on each detector position).  With
+# arbitrary exposures a star's spectrum shows up as a fake brightness change: ordinary
+# stars "changed" by -11 % (blue) to -29 % (red) in Baade's Window, and the whole field
+# by up to -52 %; at matched wavelength every field's zero point is 1.00 +- 0.01.
+MATCH_WAVELENGTH = os.environ.get("SPHEREX_MATCH_WAVELENGTH", "1") != "0"
+MATCH_WAVELENGTH_MAX_DLNLAM = _env("MATCH_WAVELENGTH_MAX_DLNLAM", 0.012)
 HTTP_TIMEOUT_S = _env("HTTP_TIMEOUT_S", 60.0)
 HTTP_RETRIES = int(_env("HTTP_RETRIES", 3, int))
 HTTP_BACKOFF_S = 2.0
@@ -67,6 +82,21 @@ GAIA_RUWE_MAX = 1.4
 
 # ---- ML --------------------------------------------------------------------
 ML_MODEL_DIR = os.environ.get("SPHEREX_ML_MODEL_DIR", "ml/models")
+# Which real/bogus model scores detections.
+#   "latest" (default) -- the model named in ml/models/LATEST.json: rb-v18-2026.11.25, the co-add model from
+#                         the Nov 2026 data-centric study (spherexlens/ml/v18.py), trained on wavelength-matched
+#                         multi-detector epoch stacks, as the website builds them.
+#   "v18"              -- the same v18 file, named explicitly.
+#   "v1"               -- the original model rb-2026.11.13-1 (kept for comparison).
+# The model page (/api/model) and the metrics "classifier" block read the card that LATEST.json names, so
+# they always describe the default model.  Every model only ranks: the KNOWN/CANDIDATE verdict never changes.
+ML_MODEL = os.environ.get("SPHEREX_ML_MODEL", "latest").strip().lower()
+ML_V18_FILE = "real_bogus-rb-v18-2026.11.25.joblib"
+ML_V1_FILE = "real_bogus-rb-2026.11.13-1.joblib"
+# v18 tiers: score >= CANDIDATE -> shown as a candidate; REVIEW <= score < CANDIDATE -> "needs review"
+# (vote queue).  From leave-patches-out tests: 0.5 flags ~2% of steady real stars, 0.2 ~5%.
+ML_V18_CANDIDATE = _env("ML_V18_CANDIDATE", 0.5)
+ML_V18_REVIEW = _env("ML_V18_REVIEW", 0.2)
 ML_RANDOM_SEED = 20261113
 SPHEREX_COLLECTION = os.environ.get("SPHEREX_COLLECTION", "spherex_dr1")   # IRSA retired QR2
 

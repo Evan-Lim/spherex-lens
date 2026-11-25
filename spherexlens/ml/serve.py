@@ -45,8 +45,47 @@ def _latest():
         return None, None
 
 
+def _load_v18(force=False):
+    """The v18 bundle named explicitly (config.ML_MODEL == "v18"); None if missing or unreadable."""
+    return _load_file("v18", config.ML_V18_FILE, force)
+
+
+def _load_v1(force=False):
+    """The original rb-2026.11.13-1 bundle (config.ML_MODEL == "v1"); None if missing or unreadable."""
+    b = _load_file("v1", config.ML_V1_FILE, force)
+    if b is not None:
+        b.setdefault("version", "rb-2026.11.13-1")
+    return b
+
+
+def _load_file(tag, fname, force=False):
+    path = os.path.join(paths.model_dir(), fname)
+    try:
+        mtime = os.stat(path).st_mtime
+    except OSError:
+        with _LOCK:
+            _STATE.update(key=None, bundle=None, error=f"{tag} model file missing: {fname}")
+        return None
+    key = (tag, mtime)
+    with _LOCK:
+        if not force and _STATE["key"] == key:
+            return _STATE["bundle"]
+        try:
+            import joblib
+            bundle = joblib.load(path)
+            _STATE.update(key=key, bundle=bundle, error=None)
+        except Exception as e:
+            _STATE.update(key=key, bundle=None, error=f"{type(e).__name__}: {e}")
+        return _STATE["bundle"]
+
+
 def load_model(force=False):
-    """The current model bundle (or None).  Thread-safe, reloads when LATEST changes."""
+    """The current model bundle (or None).  Thread-safe, reloads when LATEST changes.
+    Default ("latest"): the model LATEST.json names (v18).  "v18" / "v1": that file explicitly."""
+    if config.ML_MODEL == "v18":
+        return _load_v18(force)
+    if config.ML_MODEL == "v1":
+        return _load_v1(force)
     latest, mtime = _latest()
     if latest is None:
         with _LOCK:
@@ -131,12 +170,31 @@ def score_detections(detections, ctx, bundle=None):
         vecs.append(to_vector(f))
     if bundle is None or not vecs:
         return detections
+    if bundle.get("kind") == "v18":
+        return _score_v18(detections, ctx, bundle)
     X = np.vstack(vecs)
     probs = _proba(bundle, X)
     for d, x, p in zip(detections, X, probs):
         p = float(p)
         d["ml"] = {"real_bogus": round(p, 4), "model_version": bundle.get("version"),
                    "reasons": explain(bundle, x, p), "uncertain": bool(is_uncertain(p))}
+    return detections
+
+
+def _score_v18(detections, ctx, bundle):
+    """v18: needs the co-adds, difference image and catalogues in ctx; adds a tier (candidate / review / low) and whether the detection
+    sits on a catalogued star.  Detections it cannot measure get no ml block."""
+    from spherexlens.ml import v18
+    F, on_star = v18.vectors(detections, ctx)
+    p, Xj = v18.predict(bundle, F)
+    for d, xj, pi, s in zip(detections, Xj, p, on_star):
+        if not np.isfinite(pi):
+            continue
+        pi = float(pi)
+        t = v18.tier(pi)
+        d["ml"] = {"real_bogus": round(pi, 4), "model_version": bundle.get("version"),
+                   "reasons": v18.explain(bundle, xj, pi, config.ML_N_REASONS),
+                   "uncertain": t == "review", "tier": t, "on_catalogued_star": bool(s)}
     return detections
 
 
@@ -153,5 +211,7 @@ def ml_enricher(payload, ctx):
         payload.setdefault("pipeline", {})["model_version"] = bundle.get("version")
         payload["ml_status"] = {"status": "ok", "model_version": bundle.get("version"),
                                 "n_scored": len(dets),
-                                "n_uncertain": sum(1 for d in dets if (d.get("ml") or {}).get("uncertain"))}
+                                "n_uncertain": sum(1 for d in dets if (d.get("ml") or {}).get("uncertain")),
+                                "n_candidate": sum(1 for d in dets if (d.get("ml") or {}).get("tier") == "candidate"),
+                                "n_review": sum(1 for d in dets if (d.get("ml") or {}).get("tier") == "review")}
     _remember((ctx or {}).get("target") or payload.get("target"), dets)

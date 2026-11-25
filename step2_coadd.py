@@ -38,12 +38,18 @@ BIT_PERSIST = 1 << 17      # persistent charge above threshold
 BIT_OUTLIER = 1 << 19      # flagged by Detect Outliers
 BIT_SOURCE = 1 << 21       # mapped to a known source (signal, not a defect)
 
-# Bits that make a pixel unusable for photometry.  BIT_FULLSAMPLE is
+# Bits that make a pixel unusable for the co-add.  BIT_FULLSAMPLE is
 # informational and BIT_SOURCE marks real flux, so neither is masked.
+#
+# BIT_OUTLIER is NOT masked: SPHEREx's "Detect Outliers" flags pixels that disagree with
+# other exposures of the same sky -- which is exactly what a moving asteroid does.  Masking
+# it erased real asteroids before detection (sandbox exam, 67 bright known asteroids: found
+# in 14 of 40 fields with the bit masked, 64 of 67 without it, no extra false alarms on
+# 76 steady stars).  Photometry of known sources still masks it (PHOT_BAD_BITS).
 BAD_BITS = (BIT_TRANSIENT | BIT_OVERFLOW | BIT_SUR_ERROR | BIT_PHANTOM |
             BIT_REFERENCE | BIT_NONFUNC | BIT_DICHROIC | BIT_MISSING |
-            BIT_HOT | BIT_COLD | BIT_PHANMISS | BIT_NONLINEAR | BIT_PERSIST |
-            BIT_OUTLIER)
+            BIT_HOT | BIT_COLD | BIT_PHANMISS | BIT_NONLINEAR | BIT_PERSIST)
+PHOT_BAD_BITS = BAD_BITS | BIT_OUTLIER
 
 LARGE_VAR = 1e12
 

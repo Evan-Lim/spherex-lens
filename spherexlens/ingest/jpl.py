@@ -218,6 +218,19 @@ class JPLSbIdent(Adapter):
         passname = "second"
         if data is None:
             data, passname = body.get("data_first_pass") or [], "first"
+        meta = {"observer": body.get("observer"), "mjd": mjd,
+                "n_first_pass": body.get("n_first_pass"),
+                "n_second_pass": body.get("n_second_pass"),
+                "version": (body.get("signature") or {}).get("version")}
+        if not fields and not data:
+            # A field with no known small bodies: JPL answers with
+            # "warning": "no matching records" and no columns at all.  That
+            # is a successful "nothing here", not an outage -- treating it
+            # as an error made such fields say "asteroid check unavailable"
+            # (live data, 2026-11-14).
+            if body.get("observer") or "no matching" in str(body.get("warning", "")).lower():
+                meta["warning"] = body.get("warning")
+                return Result(archive=self.name, rows=[], provenance=provenance or [], meta=meta)
         idx = _column_index(fields)
         rows = []
         for rec in data or []:
@@ -245,10 +258,6 @@ class JPLSbIdent(Adapter):
                 if er is not None and ed is not None:
                     row["twobody_err_arcsec"] = math.hypot(er, ed)
             rows.append(row)
-        meta = {"observer": body.get("observer"), "mjd": mjd,
-                "n_first_pass": body.get("n_first_pass"),
-                "n_second_pass": body.get("n_second_pass"),
-                "version": (body.get("signature") or {}).get("version")}
         return Result(archive=self.name, rows=rows,
                       provenance=provenance or [], meta=meta)
 

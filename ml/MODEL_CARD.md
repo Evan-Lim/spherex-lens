@@ -1,64 +1,43 @@
-# Model card: SPHEREx-Lens real/bogus classifier `rb-2026.11.13-1`
+# Model card: SPHEREx-Lens real/bogus model `rb-v18-2026.11.25` (default)
 
-Generated 2026-11-13T10:33:11Z by pipeline 2.0.0-dev (config d8d398effb40).
+Generated 2026-11-25 by pipeline 2.0.0-dev (config 56d16c0f08c5). Full history v1-v18: `docs/ml-report-v1-v18.html`.
 
 ## Intended use
-Ranks ZOGY difference-image detections by the calibrated probability that they are real astrophysical changes (movers, variables) rather than artefacts. It is a *ranking aid* for human review and public voting: it never changes the rule-based KNOWN/CANDIDATE verdict, and a low score is not grounds to discard a detection without looking. Not validated for crowded Galactic-plane fields or for extended / saturated sources.
+Ranks detections in the difference of two epoch co-adds by how likely they are real astrophysical changes (moving objects, variable stars) rather than artefacts. It is a *ranking aid*: it never changes the rule-based KNOWN/CANDIDATE verdict, and a low score is not grounds to discard a detection without looking.
+
+Each scored detection gets a **tier**: `candidate` (score >= 0.5), `review` (0.2-0.5, sent to the vote queue) or `low`.
 
 ## Model
-HistGradientBoostingClassifier on 22 features (spherexlens/ml/features.py, fixed order) + isotonic calibration fitted on out-of-fold scores. Missing features are NaN and handled natively.
+Three LightGBM "experts" (all examples / movers / brightness changes) and a small "judge" averaged over 5 seeds, which sees the experts' opinions plus 61 numbers per detection: 16 production features, 7 stamp numbers, 6 residual shapes, 7 brightness-vs-shift numbers, 10 field-context numbers, 9 colour numbers and 6 missing-value flags. The trees are exported to plain NumPy arrays, so the website needs no LightGBM. Serving code: `spherexlens/ml/v18.py` + `spherexlens/ml/imagefeat.py`; it reproduces the training features and scores exactly (tests/test_ml_v18.py).
 
 ## Data
-12150 labelled detections (6519 real, 5631 bogus) from 18 fields. Training fields: 14; held-out fields (never used for training or calibration): Betelgeuse, Sombrero_M104, TRAPPIST_1, WISE_0855.
+- **Real sky:** SPHEREx DR1 + QR3 (surveys 1-4), 42 sky patches, compared at matched wavelength in multi-detector epoch co-adds (as the website builds them). 281 real brightness changes of 77 catalogued stars (VSX / Gaia / ASAS-SN / OGLE; change >= 10% at >= 3 sigma), 342 real non-changing stars (steady Gaia stars and catalogued variables that did not change). Each star is weighted equally (1/sqrt(rows per star)).
+- **Simulated:** 84,354 rows: injected sources, null tests, star variability, star movers, asteroid-like movers and fake movers.
 
-Label sources (count): answer_key:real 7, injection:real 6512, mask:bogus 278, null_test:bogus 5353
+## Validation (every number from sky the model never trained on)
+Split: nested leave-patches-out (GroupKFold(6) by patch, inner GroupKFold(3)).
 
-## Label sources and their biases
-- **injection (real)** -- synthetic point sources added to real co-adds with the measured PSF and recovered by the strict test. Biased towards clean, isolated, PSF-perfect sources; real movers with odd colours or blends are under-represented.
-- **answer_key (real)** -- catalogued high-proper-motion stars, VSX variables and known asteroids that were detected. Biased towards bright, catalogued objects.
-- **null_test (bogus)** -- detections in half-vs-half subtractions of one epoch. Representative of noise and wavelength-sampling systematics, but not of artefacts that only appear between epochs (persistence, ghosts at new roll angles).
-- **mask (bogus)** -- detections on masked or edge pixels; defined using `masked_frac`, which is also a feature, so that feature's importance is inflated.
-- **vote** -- public votes (majority, ties dropped) when available.
-
-## Validation
-Split: GroupKFold(5) by field on 14 training fields + 4 held-out fields. Decision threshold P >= 0.5.
-
-| metric | held-out fields | GroupKFold out-of-fold (training fields) |
-|---|---|---|
-| precision | 0.957 (95% CI 0.736-1.000) | 0.991 (95% CI 0.985-0.995) |
-| recall | 0.930 (95% CI 0.797-0.998) | 0.971 (95% CI 0.932-0.997) |
-| f1 | 0.943 (95% CI 0.830-0.993) | 0.981 (95% CI 0.960-0.994) |
-| pr_auc | 0.987 (95% CI 0.920-1.000) | 0.997 (95% CI 0.993-1.000) |
-
-Held-out rows: 2287 (1126 real). Confusion [[TP, FN], [FP, TN]]: [[1047, 79], [47, 1114]].
-
-Top permutation importances (drop in average precision on held-out data): `dipole_sep_px` +0.325, `psf_chi2` +0.051, `exposure_quality` +0.045, `snr` +0.044, `fwhm_ratio` +0.016, `noise_ratio` +0.007, `masked_frac` +0.004, `ellipticity` +0.002
+| test | result |
+|---|---|
+| real changing stars, ranking (AUC) | 0.989 |
+| real changing stars caught at 0.5 | 259/281 = 92.2% |
+| real non-changing stars flagged at 0.5 | 8/342 = 2.3% |
+| precision / recall / PR-AUC at 0.5 | 0.970 / 0.922 / 0.990 (patch-bootstrap 95%: 0.90-0.99 / 0.70-0.97 / 0.93-1.00) |
+| real-sky asteroid exam (co-add), caught at 0.5 | 61/65, with 0/76 steady stars flagged |
+| simulated asteroids caught / simulated glitches passed | 92.2% / 3.3% |
+| same-brightness check (AUC within brightness bins) | 0.91-0.995 |
 
 ## Limitations
-- Small number of fields: the confidence intervals are wide and per-field behaviour (zodiacal level, crowding, ecliptic latitude) is barely sampled.
-- Labels are proxies (see biases). Real precision on genuinely new sources is unknown until candidates are followed up.
-- Features that the pipeline does not yet supply (cross-detector colour, spectral indices, exposure quality, n_pairs_seen) are NaN and carry no weight.
-- Retrain whenever the detection pipeline or the S-map normalisation changes; the model is tied to the config hash above.
+- Tested on archived SPHEREx data only: **not yet on live data and not by independent reviewers**.
+- Variable-star positives are narrow: 86% are in the Large Magellanic Cloud, mostly red giants; only 6 pulsating and 11 eclipsing examples; only 12 non-changing stars as faint as G 15.5-17.
+- Catalogued-but-quiet variables score slightly higher than ordinary steady stars (AUC 0.62, ideal 0.5): the model still partly recognises "variable-type star".
+- v18's separate single-exposure asteroid model (trained on 1,254 real asteroids) is **not** served: the website compares multi-detector co-adds, not single exposures.
+- Retrain when the detection pipeline or co-add method changes.
 
-Version `rb-2026.11.13-1`; artefacts `ml/models/real_bogus-rb-2026.11.13-1.joblib/.json`.
+Artefacts: `ml/models/real_bogus-rb-v18-2026.11.25.joblib` + `.json` (named by `ml/models/LATEST.json`).
 
+---
 
-## Held-out accuracy by detection kind (read this first)
-
-The headline held-out numbers above are **inflated by dipoles**: the injected
-movers are dipoles, while the null-test "bogus" examples almost never are, so
-"is it a dipole" alone separates them. Per kind, on the 4 held-out fields
-(Betelgeuse, Sombrero_M104, TRAPPIST_1, WISE_0855), at P(real) >= 0.5:
-
-| kind | n | real | bogus | precision | recall |
-|---|---|---|---|---|---|
-| dipole | 814 | 797 | 17 | 1.0 | 1.0 |
-| brightening/monopole | 797 | 229 | 568 | 0.895 | 0.817 |
-| fading | 676 | 100 | 576 | 0.716 | 0.63 |
-
-* Brightening and fading are the honest measure of real/bogus skill.
-* The perfect dipole score is not evidence of skill: only 17 bogus dipoles
-  exist in the held-out data. Fake dipoles (e.g. misregistered bright stars
-  across epochs) need their own labels -- public votes on movers are the
-  intended source.
-* The model only ranks candidates; it never changes KNOWN / CANDIDATE.
+## Previous model: `rb-2026.11.13-1` (v1)
+Still available with `SPHEREX_ML_MODEL=v1`; its own card is `ml/models/real_bogus-rb-2026.11.13-1.json`.
+HistGradientBoosting on 22 features with isotonic calibration, trained on 12,150 mostly synthetic labels (6,519 injected "real", 5,631 null-test and masked "bogus") from 18 fields. Held-out precision 0.957 and recall 0.930 were **inflated by dipoles**: injected movers were dipoles and almost no bogus examples were, so "is it a dipole" alone separated them (per kind: dipoles 1.0 / 1.0; brightening 0.895 / 0.817; fading 0.716 / 0.63). The "mask" bogus label was defined by a feature (`masked_frac`), and 6 of its 22 features were always empty.

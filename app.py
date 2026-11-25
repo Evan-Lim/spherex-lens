@@ -205,7 +205,7 @@ def _check_irsa_listing(store, entry, target):
     """
     ra, dec = target_coordinates(target)
     _emit_progress("irsa_query", "Asking IRSA which SPHEREx images exist now")
-    rows = query_sia2(ra, dec, radius_deg=0.1, use_cache=False)
+    rows = query_sia2(ra, dec, use_cache=False)
     fingerprint = source_fingerprint(rows, ra, dec)
     published_fingerprint = (entry or {}).get("source_fingerprint")
     irsa_check = {
@@ -982,7 +982,7 @@ def live_exposures(target, meta, size_deg=0.2, epoch_mode="firstlast",
     if rows is None:
         if progress:
             progress({"stage": "irsa_query", "message": "Querying IRSA SIA2"})
-        rows = query_sia2(ra, dec, radius_deg=0.1, use_cache=False)
+        rows = query_sia2(ra, dec, use_cache=False)
 
     def fetch(band_set):
         return live_cutouts(ra, dec,
@@ -3029,7 +3029,7 @@ def _register_field(ra, dec, name, size, slots, epochs, catalogs,
     else:
         _emit_progress("irsa_query", "Querying IRSA SIA2")
     listing_future = _CATALOG_POOL.submit(
-        query_sia2, float(ra), float(dec), radius_deg=0.1, use_cache=False)
+        query_sia2, float(ra), float(dec), use_cache=False)
     if known_fingerprint:
         try:
             rows = listing_future.result()

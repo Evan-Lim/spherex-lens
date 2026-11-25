@@ -357,7 +357,7 @@ def _run_refresh_locked(store, started_at=None):
         try:
             ra, dec = _target_coordinates(name)
             rows = ingest.query_sia2(
-                ra, dec, radius_deg=0.1, collection=COLLECTION,
+                ra, dec, collection=COLLECTION,
                 use_cache=False)
             fingerprint = _source_fingerprint(rows, ra, dec)
             prior = targets.get(name)

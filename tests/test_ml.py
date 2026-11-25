@@ -130,7 +130,9 @@ def test_serve_without_model_gives_features_only():
     assert payload["pipeline"]["model_version"] is None
 
 
-def test_serve_with_model_writes_ml_blocks(tmp_path):
+def test_serve_with_model_writes_ml_blocks(tmp_path, monkeypatch):
+    # This test trains and serves the LATEST.json-style model; v18 (the default) has its own tests.
+    monkeypatch.setattr(config, "ML_MODEL", "latest")
     rows = _synthetic_labels()
     X = np.array([[r[n] for n in FEATURE_NAMES] for r in rows])
     train.train(X, [r["label"] for r in rows], [r["field"] for r in rows],

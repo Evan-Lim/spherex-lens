@@ -524,7 +524,7 @@
                         <th scope="col">Verdict</th>
                         <th scope="col">Match</th>
                         <th scope="col" class="th-unit sortable" data-sort="mu">&mu; (&Prime;/yr)</th>
-                        <th scope="col" class="expert-only sortable" data-sort="ml" title="Machine-learning real/bogus score">ML</th>
+                        <th scope="col" class="expert-only sortable" data-sort="ml" title="Experimental machine-learning score (model v18): how likely a detection is a real change. It ranks detections; it does not decide.">ML</th>
                         <th scope="col" class="expert-only sortable" data-sort="evid" title="Evidence score: all checks combined, 0 to 100">Evid.</th>
                         <th scope="col"><span class="sr-only">Vetting card</span></th>
                       </tr>
@@ -982,7 +982,7 @@
           <div><dt>CANDIDATE</dt><dd>Unmatched detection above the detection threshold.</dd></div>
           <div><dt>Known asteroid</dt><dd>JPL (and usually SSOIS) confirms a catalogued asteroid at that spot and time.</dd></div>
           <div><dt>Possible new asteroid</dt><dd>Seen in one visit only, moving-object-like, and no known asteroid there. Needs follow-up.</dd></div>
-          <div><dt>ML score</dt><dd>Machine-learning estimate (0&ndash;100%) that a detection is real. It ranks detections; it does not decide.</dd></div>
+          <div><dt>ML score</dt><dd>Machine-learning estimate (0&ndash;100%) that a detection is real. It ranks detections; it does not decide. Model v18 is experimental: it was tested on archived SPHEREx data, not yet on live data or by independent reviewers.</dd></div>
           <div><dt>Evidence score</dt><dd>All checks combined into one 0&ndash;100 number, with each part shown.</dd></div>
           <div><dt>NEOSSat</dt><dd>Canada's small space telescope; checked for follow-up frames of candidates.</dd></div>
           <div><dt>RA / Dec</dt><dd>ICRS right ascension and declination in decimal degrees.</dd></div>
