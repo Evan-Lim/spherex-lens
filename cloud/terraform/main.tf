@@ -183,6 +183,9 @@ resource "google_cloud_run_v2_service" "api" {
           cpu    = "1"
           memory = "2Gi"
         }
+        # Bill CPU only during active requests (request-based billing), so
+        # periodic health checks don't keep a 24/7 billable instance alive.
+        cpu_idle = true
         # Extra CPU while a new instance starts (Python + astropy imports),
         # shortening the cold start a visitor waits through.
         startup_cpu_boost = true
@@ -307,6 +310,9 @@ resource "google_cloud_run_v2_service" "live_api" {
           cpu    = "1"
           memory = "2Gi"
         }
+        # Bill CPU only during active requests (request-based billing), so
+        # periodic health checks don't keep a 24/7 billable instance alive.
+        cpu_idle = true
         # Extra CPU while a new instance starts (Python + astropy imports),
         # shortening the cold start a visitor waits through.
         startup_cpu_boost = true
